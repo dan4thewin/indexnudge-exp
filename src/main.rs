@@ -73,7 +73,12 @@ fn freshen(dir: &PathBuf, db_path: &PathBuf) -> Result<()> {
     let disk_files = collect_rs_files(dir);
     let disk_set: std::collections::HashSet<String> = disk_files
         .iter()
-        .map(|f| f.strip_prefix(dir).unwrap_or(f).to_string_lossy().to_string())
+        .map(|f| {
+            f.strip_prefix(dir)
+                .unwrap_or(f)
+                .to_string_lossy()
+                .to_string()
+        })
         .collect();
 
     // Get indexed files and their mtimes from DB
@@ -102,7 +107,11 @@ fn freshen(dir: &PathBuf, db_path: &PathBuf) -> Result<()> {
 
     // Index new or stale files
     for file in &disk_files {
-        let rel = file.strip_prefix(dir).unwrap_or(file).to_string_lossy().to_string();
+        let rel = file
+            .strip_prefix(dir)
+            .unwrap_or(file)
+            .to_string_lossy()
+            .to_string();
         let disk_mtime = file_mtime(file);
 
         let needs_index = if let Some(&db_mtime) = db_mtimes.get(rel.as_str()) {
@@ -185,9 +194,18 @@ fn index_file(conn: &Connection, rel_str: &str, abs_path: &PathBuf) -> Result<()
 /// Delete all rows for a file from every table
 fn delete_file_rows(conn: &Connection, file: &str) -> Result<()> {
     conn.execute("DELETE FROM lines WHERE file = ?1", rusqlite::params![file])?;
-    conn.execute("DELETE FROM symbols WHERE file = ?1", rusqlite::params![file])?;
-    conn.execute("DELETE FROM calls WHERE caller_file = ?1", rusqlite::params![file])?;
-    conn.execute("DELETE FROM imports WHERE file = ?1", rusqlite::params![file])?;
+    conn.execute(
+        "DELETE FROM symbols WHERE file = ?1",
+        rusqlite::params![file],
+    )?;
+    conn.execute(
+        "DELETE FROM calls WHERE caller_file = ?1",
+        rusqlite::params![file],
+    )?;
+    conn.execute(
+        "DELETE FROM imports WHERE file = ?1",
+        rusqlite::params![file],
+    )?;
     conn.execute("DELETE FROM defs WHERE file = ?1", rusqlite::params![file])?;
     conn.execute("DELETE FROM files WHERE file = ?1", rusqlite::params![file])?;
     Ok(())
@@ -197,7 +215,11 @@ fn delete_file_rows(conn: &Connection, file: &str) -> Result<()> {
 fn file_mtime(path: &PathBuf) -> f64 {
     fs::metadata(path)
         .and_then(|m| m.modified())
-        .map(|t| t.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs_f64())
+        .map(|t| {
+            t.duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs_f64()
+        })
         .unwrap_or(0.0)
 }
 
@@ -294,8 +316,8 @@ fn index_lines(conn: &Connection, file: &str, source: &str, syntax: &syn::File) 
     };
     mapper.visit_file(syntax);
 
-    let mut stmt =
-        conn.prepare("INSERT INTO lines (file, line_num, content, symbol) VALUES (?1, ?2, ?3, ?4)")?;
+    let mut stmt = conn
+        .prepare("INSERT INTO lines (file, line_num, content, symbol) VALUES (?1, ?2, ?3, ?4)")?;
     for (i, line_content) in source.lines().enumerate() {
         let line_num = (i + 1) as i64;
         let sym = line_symbols.get(i + 1).and_then(|s| s.as_deref());
@@ -494,8 +516,15 @@ impl<'ast> Visit<'ast> for Extractor {
         let ty = type_name(&node.self_ty);
         self.impl_type.push(ty.clone());
 
-        let trait_name = node.trait_.as_ref().map(|(_, path, _)| path_to_string(path));
-        let kind = if trait_name.is_some() { "trait_impl" } else { "impl" };
+        let trait_name = node
+            .trait_
+            .as_ref()
+            .map(|(_, path, _)| path_to_string(path));
+        let kind = if trait_name.is_some() {
+            "trait_impl"
+        } else {
+            "impl"
+        };
 
         self.symbols.push(SymbolRecord {
             name: ty.clone(),
@@ -590,10 +619,12 @@ impl<'ast> Visit<'ast> for Extractor {
             kind: "trait_method".into(),
             file: self.file.clone(),
             start_line: span_start_line(node.sig.ident.span()),
-            end_line: node.default.as_ref().map_or(
-                span_end_line(node.sig.ident.span()),
-                |block| end_line_of_block(&self.source, block.brace_token.span.close()),
-            ),
+            end_line: node
+                .default
+                .as_ref()
+                .map_or(span_end_line(node.sig.ident.span()), |block| {
+                    end_line_of_block(&self.source, block.brace_token.span.close())
+                }),
             parent: self.scope.last().cloned(),
             signature: Some(self.sig_text(&node.sig)),
         });
@@ -713,7 +744,11 @@ impl<'ast> Visit<'ast> for Extractor {
 
     fn visit_local(&mut self, node: &'ast syn::Local) {
         if let Some(name) = pat_name(&node.pat) {
-            let kind = if is_pat_mut(&node.pat) { "let_mut" } else { "let" };
+            let kind = if is_pat_mut(&node.pat) {
+                "let_mut"
+            } else {
+                "let"
+            };
             self.defs.push(DefRecord {
                 symbol: self.current_scope(),
                 file: self.file.clone(),
@@ -833,7 +868,13 @@ fn flatten_use_tree(tree: &syn::UseTree, prefix: &[String]) -> Vec<(String, usiz
     }
 }
 
-fn extract_span(source: &str, start_line: usize, start_col: usize, end_line: usize, end_col: usize) -> String {
+fn extract_span(
+    source: &str,
+    start_line: usize,
+    start_col: usize,
+    end_line: usize,
+    end_col: usize,
+) -> String {
     let lines: Vec<&str> = source.lines().collect();
     if start_line == 0 || end_line == 0 || start_line > lines.len() {
         return String::new();
@@ -902,9 +943,8 @@ fn insert_calls(conn: &Connection, calls: &[CallRecord]) -> Result<()> {
 }
 
 fn insert_imports(conn: &Connection, imports: &[ImportRecord]) -> Result<()> {
-    let mut stmt = conn.prepare(
-        "INSERT INTO imports (file, module, line_num) VALUES (?1, ?2, ?3)",
-    )?;
+    let mut stmt =
+        conn.prepare("INSERT INTO imports (file, module, line_num) VALUES (?1, ?2, ?3)")?;
     for i in imports {
         stmt.execute(rusqlite::params![i.file, i.module, i.line_num as i64])?;
     }
@@ -965,9 +1005,8 @@ fn populate_directories(conn: &Connection) -> Result<()> {
         }
     }
 
-    let mut stmt = conn.prepare(
-        "INSERT INTO directories (path, file_count, total_lines) VALUES (?1, ?2, ?3)",
-    )?;
+    let mut stmt = conn
+        .prepare("INSERT INTO directories (path, file_count, total_lines) VALUES (?1, ?2, ?3)")?;
     for (path, (file_count, total_lines)) in &dirs {
         stmt.execute(rusqlite::params![path, file_count, total_lines])?;
     }
@@ -976,3 +1015,347 @@ fn populate_directories(conn: &Connection) -> Result<()> {
 
 use proc_macro2;
 use syn::spanned::Spanned;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rusqlite::Connection;
+
+    const SAMPLE: &str = r#"
+use std::fs;
+use std::collections::HashMap;
+
+struct Point {
+    x: f64,
+    y: f64,
+}
+
+impl Point {
+    fn new(x: f64, y: f64) -> Self {
+        Self { x, y }
+    }
+
+    fn distance(&self, other: &Point) -> f64 {
+        let dx = self.x - other.x;
+        let dy = self.y - other.y;
+        (dx * dx + dy * dy).sqrt()
+    }
+}
+
+fn add(a: i32, b: i32) -> i32 {
+    a + b
+}
+
+fn main() {
+    let p = Point::new(1.0, 2.0);
+    let q = Point::new(4.0, 6.0);
+    let d = p.distance(&q);
+    println!("distance: {}", d);
+    let sum = add(3, 4);
+    println!("sum: {}", sum);
+}
+"#;
+
+    fn setup_db() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        create_schema(&conn).unwrap();
+        conn
+    }
+
+    fn index_sample(conn: &Connection) {
+        let syntax = syn::parse_file(SAMPLE).unwrap();
+        index_lines(conn, "test.rs", SAMPLE, &syntax).unwrap();
+        let mut visitor = Extractor::new("test.rs".to_string(), SAMPLE);
+        visitor.visit_file(&syntax);
+        insert_symbols(conn, &visitor.symbols).unwrap();
+        insert_calls(conn, &visitor.calls).unwrap();
+        insert_imports(conn, &visitor.imports).unwrap();
+        insert_defs(conn, &visitor.defs).unwrap();
+        let line_count = SAMPLE.lines().count() as i64;
+        conn.execute(
+            "INSERT INTO files (file, lines, language, indexed_mtime) VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params!["test.rs", line_count, "rust", 0.0],
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn symbols_extracted() {
+        let conn = setup_db();
+        index_sample(&conn);
+
+        let syms: Vec<(String, String)> = conn
+            .prepare("SELECT name, kind FROM symbols ORDER BY start_line")
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect();
+
+        let names: Vec<&str> = syms.iter().map(|(n, _)| n.as_str()).collect();
+        assert!(names.contains(&"Point"), "missing struct Point");
+        assert!(names.contains(&"main"), "missing fn main");
+        assert!(names.contains(&"add"), "missing fn add");
+        assert!(names.contains(&"new"), "missing method new");
+        assert!(names.contains(&"distance"), "missing method distance");
+
+        let kind_pairs: Vec<(&str, &str)> =
+            syms.iter().map(|(n, k)| (n.as_str(), k.as_str())).collect();
+        assert!(kind_pairs.contains(&("Point", "struct")));
+        assert!(kind_pairs.contains(&("Point", "impl")));
+        assert!(kind_pairs.contains(&("main", "function")));
+        assert!(kind_pairs.contains(&("add", "function")));
+        assert!(kind_pairs.contains(&("new", "method")));
+        assert!(kind_pairs.contains(&("distance", "method")));
+    }
+
+    #[test]
+    fn qualified_names_for_methods() {
+        let conn = setup_db();
+        index_sample(&conn);
+
+        let qname: Option<String> = conn
+            .query_row(
+                "SELECT qualified_name FROM symbols WHERE name = 'new' AND kind = 'method'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(qname.as_deref(), Some("Point::new"));
+
+        let qname: Option<String> = conn
+            .query_row(
+                "SELECT qualified_name FROM symbols WHERE name = 'distance' AND kind = 'method'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(qname.as_deref(), Some("Point::distance"));
+    }
+
+    #[test]
+    fn imports_extracted() {
+        let conn = setup_db();
+        index_sample(&conn);
+
+        let imports: Vec<String> = conn
+            .prepare("SELECT module FROM imports WHERE file = 'test.rs' ORDER BY module")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect();
+        assert!(imports.contains(&"std::collections::HashMap".to_string()));
+        assert!(imports.contains(&"std::fs".to_string()));
+    }
+
+    #[test]
+    fn calls_extracted() {
+        let conn = setup_db();
+        index_sample(&conn);
+
+        let callees: Vec<String> = conn
+            .prepare("SELECT DISTINCT callee FROM calls ORDER BY callee")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect();
+        assert!(callees.contains(&"Point::new".to_string()));
+        assert!(callees.contains(&"add".to_string()));
+        assert!(
+            callees.contains(&"distance".to_string()),
+            "missing method call"
+        );
+        assert!(
+            callees.contains(&"println".to_string()),
+            "missing macro call"
+        );
+    }
+
+    #[test]
+    fn defs_extracted() {
+        let conn = setup_db();
+        index_sample(&conn);
+
+        let defs: Vec<(String, String)> = conn
+            .prepare("SELECT var, kind FROM defs WHERE file = 'test.rs' ORDER BY var")
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect();
+        let vars: Vec<&str> = defs.iter().map(|(v, _)| v.as_str()).collect();
+        assert!(vars.contains(&"p"), "missing let p");
+        assert!(vars.contains(&"q"), "missing let q");
+        assert!(vars.contains(&"d"), "missing let d");
+        assert!(vars.contains(&"sum"), "missing let sum");
+        assert!(vars.contains(&"dx"), "missing let dx");
+        assert!(vars.contains(&"dy"), "missing let dy");
+    }
+
+    #[test]
+    fn lines_have_symbol_attribution() {
+        let conn = setup_db();
+        index_sample(&conn);
+
+        // A line inside fn main should be attributed to "main"
+        let main_sym: Option<String> = conn
+            .query_row(
+                "SELECT symbol FROM lines WHERE file = 'test.rs' AND content LIKE '%Point::new(1.0%'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(main_sym.as_deref(), Some("main"));
+
+        // A line inside distance method should be attributed to it
+        let dist_sym: Option<String> = conn
+            .query_row(
+                "SELECT symbol FROM lines WHERE file = 'test.rs' AND content LIKE '%dx * dx%'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(dist_sym.as_deref(), Some("Point::distance"));
+
+        // The struct definition line should not be inside a function
+        let struct_sym: Option<String> = conn
+            .query_row(
+                "SELECT symbol FROM lines WHERE file = 'test.rs' AND content LIKE '%struct Point%'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(
+            struct_sym.is_none(),
+            "struct line should have no symbol scope"
+        );
+    }
+
+    #[test]
+    fn fts_search_works() {
+        let conn = setup_db();
+        index_sample(&conn);
+        finalize(&conn).unwrap();
+
+        let count: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM lines_fts WHERE content MATCH '\"distance\"'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(
+            count >= 2,
+            "expected at least 2 FTS hits for 'distance', got {count}"
+        );
+    }
+
+    #[test]
+    fn directories_populated() {
+        let conn = setup_db();
+        index_sample(&conn);
+        populate_directories(&conn).unwrap();
+
+        let (file_count, total_lines): (i64, i64) = conn
+            .query_row(
+                "SELECT file_count, total_lines FROM directories WHERE path = '.'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(file_count, 1);
+        assert_eq!(total_lines, SAMPLE.lines().count() as i64);
+    }
+
+    #[test]
+    fn freshen_detects_stale_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join(".indexnudge.db");
+        let src_dir = dir.path().join("src");
+        fs::create_dir_all(&src_dir).unwrap();
+        let rs_file = src_dir.join("lib.rs");
+        fs::write(&rs_file, "fn hello() {}\n").unwrap();
+
+        let dir_path = dir.path().to_path_buf();
+        full_index(&dir_path, &db_path).unwrap();
+
+        let conn = Connection::open(&db_path).unwrap();
+        let count: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM symbols WHERE name = 'hello'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1);
+        drop(conn);
+
+        // Modify file and freshen
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        fs::write(&rs_file, "fn goodbye() {}\nfn hello() {}\n").unwrap();
+        freshen(&dir_path, &db_path).unwrap();
+
+        let conn = Connection::open(&db_path).unwrap();
+        let count: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM symbols WHERE name = 'goodbye'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1, "freshen should have picked up new symbol");
+    }
+
+    #[test]
+    fn freshen_removes_deleted_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join(".indexnudge.db");
+        let rs_file = dir.path().join("gone.rs");
+        fs::write(&rs_file, "fn ephemeral() {}\n").unwrap();
+
+        let dir_path = dir.path().to_path_buf();
+        full_index(&dir_path, &db_path).unwrap();
+
+        let conn = Connection::open(&db_path).unwrap();
+        let count: i64 = conn
+            .query_row("SELECT count(*) FROM files", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 1);
+        drop(conn);
+
+        fs::remove_file(&rs_file).unwrap();
+        freshen(&dir_path, &db_path).unwrap();
+
+        let conn = Connection::open(&db_path).unwrap();
+        let count: i64 = conn
+            .query_row("SELECT count(*) FROM files", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 0, "freshen should have removed deleted file");
+        let sym_count: i64 = conn
+            .query_row("SELECT count(*) FROM symbols", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(sym_count, 0, "symbols from deleted file should be gone");
+    }
+
+    #[test]
+    fn collect_rs_files_skips_target() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::create_dir_all(dir.path().join("src")).unwrap();
+        fs::create_dir_all(dir.path().join("target/debug")).unwrap();
+        fs::write(dir.path().join("src/main.rs"), "fn main() {}\n").unwrap();
+        fs::write(dir.path().join("target/debug/build.rs"), "fn build() {}\n").unwrap();
+
+        let files = collect_rs_files(&dir.path().to_path_buf());
+        let names: Vec<String> = files
+            .iter()
+            .map(|f| f.file_name().unwrap().to_string_lossy().to_string())
+            .collect();
+        assert!(names.contains(&"main.rs".to_string()));
+        assert!(
+            !names.contains(&"build.rs".to_string()),
+            "should skip target/"
+        );
+    }
+}
