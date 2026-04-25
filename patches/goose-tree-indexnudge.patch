@@ -1,16 +1,17 @@
 diff --git a/crates/goose/src/agents/platform_extensions/developer/tree.rs b/crates/goose/src/agents/platform_extensions/developer/tree.rs
-index acb0f65a3..66efd0428 100644
+index acb0f65a3..988069a3e 100644
 --- a/crates/goose/src/agents/platform_extensions/developer/tree.rs
 +++ b/crates/goose/src/agents/platform_extensions/developer/tree.rs
-@@ -1,6 +1,7 @@
+@@ -1,6 +1,8 @@
  use std::collections::BTreeMap;
  use std::fs;
  use std::path::{Component, Path, PathBuf};
 +use std::process::Command;
++use std::sync::OnceLock;
  
  use ignore::WalkBuilder;
  use rmcp::model::{CallToolResult, Content};
-@@ -61,6 +62,12 @@ impl TreeTool {
+@@ -61,6 +63,12 @@ impl TreeTool {
              .with_priority(0.0)]);
          }
  
@@ -23,7 +24,7 @@ index acb0f65a3..66efd0428 100644
          let max_depth = if depth == 0 {
              None
          } else {
-@@ -78,6 +85,69 @@ impl TreeTool {
+@@ -78,6 +86,73 @@ impl TreeTool {
  
          CallToolResult::success(vec![Content::text(output).with_priority(0.0)])
      }
@@ -88,15 +89,46 @@ index acb0f65a3..66efd0428 100644
 +            db
 +        ));
 +
++        if let Some(warning) = shims_on_path() {
++            output.push_str(&format!("\n{}\n", warning));
++        }
++
 +        CallToolResult::success(vec![Content::text(output).with_priority(0.0)])
 +    }
  }
  
  impl Default for TreeTool {
-@@ -86,6 +156,30 @@ impl Default for TreeTool {
+@@ -86,6 +161,57 @@ impl Default for TreeTool {
      }
  }
  
++/// Check once per process whether indexnudge shims are on PATH.
++/// Looks for `sed` in PATH order and checks if the first hit is the shim
++/// (contains "indexnudge" in the first 512 bytes — real sed is an ELF binary).
++fn shims_on_path() -> &'static Option<String> {
++    static RESULT: OnceLock<Option<String>> = OnceLock::new();
++    RESULT.get_or_init(|| {
++        let path_var = std::env::var("PATH").unwrap_or_default();
++        for dir in path_var.split(':') {
++            let candidate = PathBuf::from(dir).join("sed");
++            if candidate.is_file() {
++                if let Ok(bytes) = fs::read(&candidate) {
++                    let check = &bytes[..bytes.len().min(512)];
++                    if check.windows(10).any(|w| w == b"indexnudge") {
++                        return None; // shim found first — all good
++                    }
++                }
++                // First sed on PATH is not the shim
++                return Some(format!(
++                    "⚠ .indexnudge.db found but shims not on PATH. \
++                     Add: export PATH=/path/to/indexnudge/bin:$PATH"
++                ));
++            }
++        }
++        Some("⚠ .indexnudge.db found but sed not found on PATH at all.".to_string())
++    })
++}
++
 +/// Walk up from `start` looking for .indexnudge.db
 +fn find_index_db(start: &Path) -> Option<PathBuf> {
 +    let mut dir = start.to_path_buf();
@@ -124,7 +156,7 @@ index acb0f65a3..66efd0428 100644
  #[derive(Default)]
  struct DirectoryNode {
      dirs: BTreeMap<String, DirectoryNode>,
-@@ -298,4 +392,20 @@ mod tests {
+@@ -298,4 +424,20 @@ mod tests {
          assert!(!text.contains("ignored"));
          assert!(!text.contains("debug.log"));
      }
