@@ -39,12 +39,22 @@ Tree-sitter parses source files and extracts:
 - **Variable mutation points** — where variables are defined, assigned, modified
 - **Imports/dependencies** — module relationships
 
-## Proposed schema
-
-This is a starting point, not final.  Expect it to change as we
-learn what queries the model actually writes and what's missing.
+## Schema
 
 ```sql
+-- Project structure: files and directories
+CREATE TABLE files (
+    file     TEXT PRIMARY KEY,
+    lines    INTEGER,
+    language TEXT
+);
+
+CREATE TABLE directories (
+    path        TEXT PRIMARY KEY,
+    file_count  INTEGER,
+    total_lines INTEGER
+);
+
 -- Every source line, full-text searchable
 CREATE TABLE lines (
     file    TEXT,
@@ -53,7 +63,7 @@ CREATE TABLE lines (
     symbol  TEXT,     -- enclosing function/method/class
     PRIMARY KEY (file, line)
 );
-CREATE VIRTUAL TABLE lines_fts USING fts5(content, file, symbol);
+CREATE VIRTUAL TABLE lines_fts USING fts5(file, line_num, content, symbol);
 
 -- Every symbol definition
 CREATE TABLE symbols (
@@ -73,6 +83,7 @@ CREATE TABLE calls (
     caller_file   TEXT,
     caller_symbol TEXT,
     callee        TEXT,
+    kind          TEXT,    -- function, method, macro
     line          INTEGER
 );
 
@@ -82,7 +93,7 @@ CREATE TABLE defs (
     file   TEXT,
     line   INTEGER,
     var    TEXT,
-    kind   TEXT     -- assign, define, parameter, return, mutate
+    kind   TEXT     -- let, let_mut, assign, parameter
 );
 
 -- Imports and dependencies
@@ -91,26 +102,17 @@ CREATE TABLE imports (
     module TEXT,
     line   INTEGER
 );
-
-CREATE INDEX idx_symbols_name ON symbols(name);
-CREATE INDEX idx_calls_callee ON calls(callee);
-CREATE INDEX idx_calls_caller ON calls(caller_symbol);
-CREATE INDEX idx_defs_var ON defs(var);
 ```
-
-Open questions:
-
-- Is `lines` with FTS5 the right granularity, or should full-text
-  search be at the symbol/function level instead?
-- Should the `defs` table track reads as well as writes?
-- Do we need a `types` table for typed languages?
-- Should cross-file relationships (e.g. trait implementations)
-  get their own table?
-- What about scope — should `defs` track scope depth?
 
 ## Example queries
 
 ```sql
+-- "what's the shape of this project?"
+SELECT * FROM directories ORDER BY path;
+
+-- "what are the biggest files?"
+SELECT file, lines FROM files ORDER BY lines DESC LIMIT 10;
+
 -- "how does exit status flow through case statements?"
 SELECT s.name, s.file, s.start_line, s.end_line
 FROM defs d

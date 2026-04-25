@@ -77,7 +77,17 @@ fn main() -> Result<()> {
         insert_calls(&conn, &visitor.calls)?;
         insert_imports(&conn, &visitor.imports)?;
         insert_defs(&conn, &visitor.defs)?;
+
+        // Insert into files table
+        let line_count = source.lines().count() as i64;
+        conn.execute(
+            "INSERT INTO files (file, lines, language) VALUES (?1, ?2, ?3)",
+            rusqlite::params![rel_str, line_count, "rust"],
+        )?;
     }
+
+    // Populate directories from files
+    populate_directories(&conn)?;
 
     // Populate FTS index
     conn.execute_batch("INSERT INTO lines_fts(file, line_num, content, symbol) SELECT file, line, content, symbol FROM lines;")?;
@@ -142,6 +152,18 @@ fn create_schema(conn: &Connection) -> Result<()> {
         CREATE INDEX idx_calls_caller ON calls(caller_symbol);
         CREATE INDEX idx_defs_var ON defs(var);
         CREATE INDEX idx_imports_module ON imports(module);
+
+        CREATE TABLE files (
+            file     TEXT PRIMARY KEY,
+            lines    INTEGER,
+            language TEXT
+        );
+
+        CREATE TABLE directories (
+            path        TEXT PRIMARY KEY,
+            file_count  INTEGER,
+            total_lines INTEGER
+        );
         ",
     )?;
     Ok(())
@@ -784,6 +806,53 @@ fn insert_defs(conn: &Connection, defs: &[DefRecord]) -> Result<()> {
             d.var,
             d.kind,
         ])?;
+    }
+    Ok(())
+}
+
+fn populate_directories(conn: &Connection) -> Result<()> {
+    use std::collections::HashMap;
+
+    let mut stmt = conn.prepare("SELECT file, lines FROM files")?;
+    let rows: Vec<(String, i64)> = stmt
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    let mut dirs: HashMap<String, (i64, i64)> = HashMap::new(); // (file_count, total_lines)
+    for (file, lines) in &rows {
+        // Collect all ancestor directories
+        let path = std::path::Path::new(file);
+        let mut ancestors: Vec<String> = Vec::new();
+        if let Some(parent) = path.parent() {
+            let mut p = parent;
+            loop {
+                let s = p.to_string_lossy().to_string();
+                if s.is_empty() {
+                    ancestors.push(".".to_string());
+                    break;
+                }
+                ancestors.push(s);
+                match p.parent() {
+                    Some(pp) => p = pp,
+                    None => break,
+                }
+            }
+        } else {
+            ancestors.push(".".to_string());
+        }
+        for dir in ancestors {
+            let entry = dirs.entry(dir).or_insert((0, 0));
+            entry.0 += 1;
+            entry.1 += lines;
+        }
+    }
+
+    let mut stmt = conn.prepare(
+        "INSERT INTO directories (path, file_count, total_lines) VALUES (?1, ?2, ?3)",
+    )?;
+    for (path, (file_count, total_lines)) in &dirs {
+        stmt.execute(rusqlite::params![path, file_count, total_lines])?;
     }
     Ok(())
 }
