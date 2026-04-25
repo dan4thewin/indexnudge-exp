@@ -1,0 +1,147 @@
+diff --git a/crates/goose/src/agents/platform_extensions/developer/tree.rs b/crates/goose/src/agents/platform_extensions/developer/tree.rs
+index acb0f65a3..66efd0428 100644
+--- a/crates/goose/src/agents/platform_extensions/developer/tree.rs
++++ b/crates/goose/src/agents/platform_extensions/developer/tree.rs
+@@ -1,6 +1,7 @@
+ use std::collections::BTreeMap;
+ use std::fs;
+ use std::path::{Component, Path, PathBuf};
++use std::process::Command;
+ 
+ use ignore::WalkBuilder;
+ use rmcp::model::{CallToolResult, Content};
+@@ -61,6 +62,12 @@ impl TreeTool {
+             .with_priority(0.0)]);
+         }
+ 
++        // Check for .indexnudge.db in root or ancestors
++        if let Some(db_path) = find_index_db(&root) {
++            return self.tree_from_index(&db_path, &root);
++        }
++
++        // Fallback: filesystem walk
+         let max_depth = if depth == 0 {
+             None
+         } else {
+@@ -78,6 +85,69 @@ impl TreeTool {
+ 
+         CallToolResult::success(vec![Content::text(output).with_priority(0.0)])
+     }
++
++    fn tree_from_index(&self, db_path: &Path, _root: &Path) -> CallToolResult {
++        let db = db_path.display().to_string();
++
++        // Query 1: directories
++        let dir_query = "SELECT path, file_count, total_lines FROM directories ORDER BY path;";
++        let dir_output = run_sqlite3(&db, dir_query);
++
++        // Query 2: files
++        let file_query =
++            "SELECT file, lines, language FROM files ORDER BY file;";
++        let file_output = run_sqlite3(&db, file_query);
++
++        // Query 3: table list for the nudge
++        let tables_query = "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE '%fts%' ORDER BY name;";
++        let tables_output = run_sqlite3(&db, tables_query);
++
++        let table_names: Vec<&str> = tables_output.lines().collect();
++
++        let mut output = String::new();
++
++        output.push_str(&format!("── sqlite3 {} ──\n", db));
++        output.push_str(&format!("query: {}\n\n", dir_query));
++        output.push_str("path             | files | lines\n");
++        output.push_str("-----------------+-------+------\n");
++        for line in dir_output.lines() {
++            let parts: Vec<&str> = line.split('|').collect();
++            if parts.len() == 3 {
++                output.push_str(&format!(
++                    "{:<16} | {:>5} | {:>5}\n",
++                    parts[0], parts[1], parts[2]
++                ));
++            }
++        }
++
++        output.push_str(&format!("\nquery: {}\n\n", file_query));
++        output.push_str("file                          | lines | language\n");
++        output.push_str("------------------------------+-------+---------\n");
++        for line in file_output.lines() {
++            let parts: Vec<&str> = line.split('|').collect();
++            if parts.len() == 3 {
++                output.push_str(&format!(
++                    "{:<29} | {:>5} | {}\n",
++                    parts[0], parts[1], parts[2]
++                ));
++            }
++        }
++
++        output.push_str(&format!(
++            "\n── {} has {} tables: {} ──\n",
++            db_path.file_name().unwrap().to_string_lossy(),
++            table_names.len(),
++            table_names.join(", ")
++        ));
++        output.push_str(&format!(
++            "Every line of source is in `lines`. Every function call is in `calls`.\n\
++             Every symbol definition is in `symbols`. Full-text search via `lines_fts`.\n\
++             For deeper exploration: sqlite3 {} .schema\n",
++            db
++        ));
++
++        CallToolResult::success(vec![Content::text(output).with_priority(0.0)])
++    }
+ }
+ 
+ impl Default for TreeTool {
+@@ -86,6 +156,30 @@ impl Default for TreeTool {
+     }
+ }
+ 
++/// Walk up from `start` looking for .indexnudge.db
++fn find_index_db(start: &Path) -> Option<PathBuf> {
++    let mut dir = start.to_path_buf();
++    loop {
++        let candidate = dir.join(".indexnudge.db");
++        if candidate.is_file() {
++            return Some(candidate);
++        }
++        if !dir.pop() {
++            return None;
++        }
++    }
++}
++
++/// Shell out to sqlite3 and return stdout
++fn run_sqlite3(db: &str, query: &str) -> String {
++    Command::new("sqlite3")
++        .arg(db)
++        .arg(query)
++        .output()
++        .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
++        .unwrap_or_default()
++}
++
+ #[derive(Default)]
+ struct DirectoryNode {
+     dirs: BTreeMap<String, DirectoryNode>,
+@@ -298,4 +392,20 @@ mod tests {
+         assert!(!text.contains("ignored"));
+         assert!(!text.contains("debug.log"));
+     }
++
++    #[test]
++    fn tree_falls_back_without_indexnudge() {
++        // No .indexnudge.db → should produce normal tree output
++        let dir = setup_tree();
++        let tool = TreeTool::new();
++
++        let result = tool.tree(TreeParams {
++            path: dir.path().display().to_string(),
++            depth: 2,
++        });
++
++        let text = extract_text(&result);
++        assert!(!text.contains("sqlite3"));
++        assert!(text.contains("src/"));
++    }
+ }
