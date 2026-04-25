@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# codeindex shim for sqlite3 — freshen the DB before querying.
+set -euo pipefail
+SHIM_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SHIM_DIR/_codeindex_common.bash"
+
+# Check if any argument is a .codeindex.db
+for arg; do
+    if [[ "$arg" == *.codeindex.db ]] && [[ -f "$arg" ]]; then
+        CODEINDEX_DB="$arg"
+        CODEINDEX_DIR=$(dirname "$(cd "$(dirname "$arg")" && pwd)/$(basename "$arg")")
+        freshen_db
+        break
+    fi
+done
+
+exec sqlite3 "$@"

@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# codeindex shim for grep — search via FTS5 when possible, fall back to real grep.
+set -euo pipefail
+SHIM_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SHIM_DIR/_codeindex_common.bash"
+
+REAL_GREP=grep
+
+# Quick bail: stdin pipe with no file args (filter mode)
+if [[ ! -t 0 ]] && [[ $# -le 1 ]]; then
+    exec "$REAL_GREP" "$@"
+fi
+
+# Parse args: collect pattern, files, and flags
+pattern="" files=() flags=() recursive=false
+skip_next=false
+for arg; do
+    if $skip_next; then skip_next=false; flags+=("$arg"); continue; fi
+    case "$arg" in
+        -e|-f|--regexp|--file) skip_next=true; flags+=("$arg") ;;
+        -r|-R|--recursive) recursive=true; flags+=("$arg") ;;
+        -*)  flags+=("$arg") ;;
+        *)
+            if [[ -z "$pattern" ]]; then
+                pattern="$arg"
+            else
+                files+=("$arg")
+            fi
+            ;;
+    esac
+done
+
+# We need a pattern and at least one file (or -r)
+if [[ -z "$pattern" ]]; then
+    exec "$REAL_GREP" "$@"
+fi
+
+# For recursive grep or file args, try codeindex
+target=""
+if $recursive; then
+    target="${files[0]:-.}"
+elif [[ ${#files[@]} -gt 0 ]]; then
+    target="${files[0]}"
+fi
+
+if [[ -n "$target" ]]; then
+    abs=$(resolve_path "$target")
+    if find_codeindex_db "$abs"; then
+        freshen_db
+        # Escape single quotes in pattern for SQL
+        safe_pattern="${pattern//\'/\'\'}"
+        # Try FTS5 MATCH first (works for simple terms)
+        # FTS5 doesn't support regex, so for simple alphanumeric patterns use MATCH,
+        # otherwise fall back to LIKE
+        if [[ "$pattern" =~ ^[a-zA-Z0-9_]+$ ]]; then
+            result=$(sqlite3 -separator '|' "$CODEINDEX_DB" \
+                "SELECT file, line_num, content, symbol FROM lines_fts WHERE content MATCH '\"$safe_pattern\"' ORDER BY file, line_num;" 2>/dev/null)
+            query="SELECT file, line_num, content, symbol FROM lines_fts WHERE content MATCH '\"$safe_pattern\"';"
+        else
+            result=$(sqlite3 -separator '|' "$CODEINDEX_DB" \
+                "SELECT file, line_num, content, symbol FROM lines WHERE content LIKE '%$safe_pattern%' ORDER BY file, line_num;" 2>/dev/null)
+            query="SELECT file, line_num, content, symbol FROM lines WHERE content LIKE '%$safe_pattern%';"
+        fi
+
+        if [[ -n "$result" ]]; then
+            count=$(echo "$result" | wc -l)
+            nfiles=$(echo "$result" | cut -d'|' -f1 | sort -u | wc -l)
+            echo "── sqlite3 $CODEINDEX_DB ──"
+            echo "query: $query"
+            echo ""
+            echo "$result" | while IFS='|' read -r f num content sym; do
+                sym_tag=""
+                [[ -n "$sym" ]] && sym_tag="  # in: $sym"
+                printf '%s:%s │ %s%s\n' "$f" "$num" "$content" "$sym_tag"
+            done
+            echo ""
+            echo "── $count matches across $nfiles file(s) ──"
+            exit 0
+        else
+            echo "── sqlite3 $CODEINDEX_DB ──"
+            echo "query: $query"
+            echo ""
+            echo "(no matches)"
+            exit 1
+        fi
+    fi
+fi
+
+exec "$REAL_GREP" "$@"

@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# codeindex shim for sed — intercept line-range reads, serve from DB.
+set -euo pipefail
+SHIM_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SHIM_DIR/_codeindex_common.bash"
+
+REAL_SED=sed
+
+# Detect: sed -n 'N,Mp' file
+# Allow -E and other flags before -n
+if [[ "$*" =~ -n ]]; then
+    # Find the range pattern and the file argument
+    range="" file="" rest=()
+    skip_next=false
+    saw_n=false
+    for arg; do
+        if $skip_next; then skip_next=false; continue; fi
+        case "$arg" in
+            -n) saw_n=true ;;
+            -[efi]) skip_next=true; rest+=("$arg"); rest+=("${@:2:1}") ;;  # has argument
+            -*)  ;; # other flags
+            *)
+                if [[ -z "$range" ]] && [[ "$arg" =~ ^([0-9]+),([0-9]+)p$ ]]; then
+                    range="$arg"
+                elif [[ -f "$arg" ]]; then
+                    file="$arg"
+                fi
+                ;;
+        esac
+    done
+
+    if $saw_n && [[ -n "$range" ]] && [[ -n "$file" ]]; then
+        start="${range%%,*}"
+        end="${range##*,}"; end="${end%p}"
+
+        abs=$(resolve_path "$file")
+        if find_codeindex_db "$abs"; then
+            freshen_db
+            rel=$(rel_path "$abs")
+            # Query the DB
+            result=$(sqlite3 "$CODEINDEX_DB" \
+                "SELECT line_num, content FROM lines WHERE file='$rel' AND line_num BETWEEN $start AND $end ORDER BY line_num;")
+            if [[ -n "$result" ]]; then
+                # Get enclosing symbol
+                symbol=$(sqlite3 "$CODEINDEX_DB" \
+                    "SELECT DISTINCT symbol FROM lines WHERE file='$rel' AND line_num BETWEEN $start AND $end AND symbol IS NOT NULL LIMIT 3;")
+                sym_info=""
+                if [[ -n "$symbol" ]]; then
+                    # Get enclosing symbol details (symbols whose range overlaps the requested lines)
+                    sym_info=$(sqlite3 "$CODEINDEX_DB" -separator ' | ' \
+                        "SELECT name, kind, 'lines ' || start_line || '-' || end_line FROM symbols WHERE file='$rel' AND start_line <= $end AND end_line >= $start ORDER BY start_line;")
+                fi
+
+                echo "── sqlite3 $CODEINDEX_DB ──"
+                echo "query: SELECT line_num, content FROM lines WHERE file='$rel' AND line_num BETWEEN $start AND $end;"
+                echo "** STOP USING sed. Query the DB directly: sqlite3 $CODEINDEX_DB \"SELECT content FROM lines WHERE file='$rel' AND line_num BETWEEN START AND END ORDER BY line_num;\" **"
+                echo ""
+                echo "$result" | while IFS='|' read -r num content; do
+                    printf '%4s │ %s\n' "$num" "$content"
+                done
+                if [[ -n "$sym_info" ]]; then
+                    echo ""
+                    echo "── enclosing: $sym_info ──"
+                    # Show the query to read the full function(s)
+                    while IFS='|' read -r sname skind srange; do
+                        sstart="${srange##*lines }"
+                        sstart="${sstart%%-*}"
+                        send="${srange##*-}"
+                        echo "── full $skind: sqlite3 $CODEINDEX_DB \"SELECT content FROM lines WHERE file='$rel' AND line_num BETWEEN $sstart AND $send ORDER BY line_num;\" ──"
+                    done <<< "$sym_info"
+                fi
+                exit 0
+            fi
+        fi
+    fi
+fi
+
+exec "$REAL_SED" "$@"

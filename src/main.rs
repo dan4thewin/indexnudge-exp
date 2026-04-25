@@ -19,6 +19,10 @@ struct Cli {
     /// Output database path (default: <dir>/.codeindex.db)
     #[arg(short, long)]
     output: Option<PathBuf>,
+
+    /// Incremental refresh: only re-index files newer than the DB
+    #[arg(long)]
+    freshen: bool,
 }
 
 fn main() -> Result<()> {
@@ -26,73 +30,181 @@ fn main() -> Result<()> {
     let dir = cli.dir.canonicalize().context("cannot resolve directory")?;
     let db_path = cli.output.unwrap_or_else(|| dir.join(".codeindex.db"));
 
+    if cli.freshen {
+        freshen(&dir, &db_path)
+    } else {
+        full_index(&dir, &db_path)
+    }
+}
+
+fn full_index(dir: &PathBuf, db_path: &PathBuf) -> Result<()> {
     // Remove old DB for full re-index
     if db_path.exists() {
-        fs::remove_file(&db_path)?;
+        fs::remove_file(db_path)?;
     }
 
-    let conn = Connection::open(&db_path)?;
+    let conn = Connection::open(db_path)?;
     create_schema(&conn)?;
 
-    // Collect .rs files
-    let files: Vec<PathBuf> = WalkDir::new(&dir)
+    let files = collect_rs_files(dir);
+    eprintln!("Indexing {} files...", files.len());
+
+    for file in &files {
+        let rel = file.strip_prefix(dir).unwrap_or(file);
+        let rel_str = rel.to_string_lossy();
+        index_file(&conn, &rel_str, file)?;
+    }
+
+    finalize(&conn)?;
+    eprintln!("Done. Database: {}", db_path.display());
+    Ok(())
+}
+
+fn freshen(dir: &PathBuf, db_path: &PathBuf) -> Result<()> {
+    if !db_path.exists() {
+        eprintln!("No existing database, doing full index.");
+        return full_index(dir, db_path);
+    }
+
+    let conn = Connection::open(db_path)?;
+    conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=OFF;")?;
+
+    // Collect current files on disk
+    let disk_files = collect_rs_files(dir);
+    let disk_set: std::collections::HashSet<String> = disk_files
+        .iter()
+        .map(|f| f.strip_prefix(dir).unwrap_or(f).to_string_lossy().to_string())
+        .collect();
+
+    // Get indexed files and their mtimes from DB
+    let mut stmt = conn.prepare("SELECT file, indexed_mtime FROM files")?;
+    let db_files: Vec<(String, f64)> = stmt
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+        .filter_map(|r| r.ok())
+        .collect();
+    let db_set: std::collections::HashSet<String> =
+        db_files.iter().map(|(f, _)| f.clone()).collect();
+
+    let mut reindexed = 0u64;
+    let mut removed = 0u64;
+
+    // Delete files that no longer exist on disk
+    for (db_file, _) in &db_files {
+        if !disk_set.contains(db_file.as_str()) {
+            delete_file_rows(&conn, db_file)?;
+            removed += 1;
+        }
+    }
+
+    // Build a map of db file → indexed_mtime for quick lookup
+    let db_mtimes: std::collections::HashMap<&str, f64> =
+        db_files.iter().map(|(f, m)| (f.as_str(), *m)).collect();
+
+    // Index new or stale files
+    for file in &disk_files {
+        let rel = file.strip_prefix(dir).unwrap_or(file).to_string_lossy().to_string();
+        let disk_mtime = file_mtime(file);
+
+        let needs_index = if let Some(&db_mtime) = db_mtimes.get(rel.as_str()) {
+            disk_mtime > db_mtime
+        } else {
+            true // new file
+        };
+
+        if needs_index {
+            if db_set.contains(&rel) {
+                delete_file_rows(&conn, &rel)?;
+            }
+            index_file(&conn, &rel, file)?;
+            reindexed += 1;
+        }
+    }
+
+    if reindexed > 0 || removed > 0 {
+        // Rebuild directories and FTS
+        conn.execute("DELETE FROM directories", [])?;
+        conn.execute("DELETE FROM lines_fts", [])?;
+        populate_directories(&conn)?;
+        conn.execute_batch("INSERT INTO lines_fts(file, line_num, content, symbol) SELECT file, line_num, content, symbol FROM lines;")?;
+        eprintln!("Freshened: {} reindexed, {} removed.", reindexed, removed);
+    } else {
+        eprintln!("All files up to date.");
+    }
+
+    Ok(())
+}
+
+/// Collect all .rs files under dir, skipping target/
+fn collect_rs_files(dir: &PathBuf) -> Vec<PathBuf> {
+    WalkDir::new(dir)
         .into_iter()
         .filter_map(|e| e.ok())
         .filter(|e| e.path().extension().is_some_and(|ext| ext == "rs"))
         .filter(|e| !e.path().components().any(|c| c.as_os_str() == "target"))
         .map(|e| e.into_path())
-        .collect();
+        .collect()
+}
 
-    eprintln!("Indexing {} files...", files.len());
+/// Index a single file: parse, extract, insert into all tables
+fn index_file(conn: &Connection, rel_str: &str, abs_path: &PathBuf) -> Result<()> {
+    let source = match fs::read_to_string(abs_path) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("skip {}: {}", rel_str, e);
+            return Ok(());
+        }
+    };
 
-    for file in &files {
-        let rel = file.strip_prefix(&dir).unwrap_or(file);
-        let rel_str = rel.to_string_lossy();
+    let syntax = match syn::parse_file(&source) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("parse error in {}: {}", rel_str, e);
+            return Ok(());
+        }
+    };
 
-        let source = match fs::read_to_string(file) {
-            Ok(s) => s,
-            Err(e) => {
-                eprintln!("skip {}: {}", rel_str, e);
-                continue;
-            }
-        };
+    index_lines(conn, rel_str, &source, &syntax)?;
 
-        // Parse with syn
-        let syntax = match syn::parse_file(&source) {
-            Ok(s) => s,
-            Err(e) => {
-                eprintln!("parse error in {}: {}", rel_str, e);
-                continue;
-            }
-        };
+    let mut visitor = Extractor::new(rel_str.to_string(), &source);
+    visitor.visit_file(&syntax);
 
-        // Index lines
-        index_lines(&conn, &rel_str, &source, &syntax)?;
+    insert_symbols(conn, &visitor.symbols)?;
+    insert_calls(conn, &visitor.calls)?;
+    insert_imports(conn, &visitor.imports)?;
+    insert_defs(conn, &visitor.defs)?;
 
-        // Extract symbols, calls, imports, defs
-        let mut visitor = Extractor::new(rel_str.to_string(), &source);
-        visitor.visit_file(&syntax);
+    let line_count = source.lines().count() as i64;
+    let mtime = file_mtime(abs_path);
+    conn.execute(
+        "INSERT INTO files (file, lines, language, indexed_mtime) VALUES (?1, ?2, ?3, ?4)",
+        rusqlite::params![rel_str, line_count, "rust", mtime],
+    )?;
+    Ok(())
+}
 
-        insert_symbols(&conn, &visitor.symbols)?;
-        insert_calls(&conn, &visitor.calls)?;
-        insert_imports(&conn, &visitor.imports)?;
-        insert_defs(&conn, &visitor.defs)?;
+/// Delete all rows for a file from every table
+fn delete_file_rows(conn: &Connection, file: &str) -> Result<()> {
+    conn.execute("DELETE FROM lines WHERE file = ?1", rusqlite::params![file])?;
+    conn.execute("DELETE FROM symbols WHERE file = ?1", rusqlite::params![file])?;
+    conn.execute("DELETE FROM calls WHERE caller_file = ?1", rusqlite::params![file])?;
+    conn.execute("DELETE FROM imports WHERE file = ?1", rusqlite::params![file])?;
+    conn.execute("DELETE FROM defs WHERE file = ?1", rusqlite::params![file])?;
+    conn.execute("DELETE FROM files WHERE file = ?1", rusqlite::params![file])?;
+    Ok(())
+}
 
-        // Insert into files table
-        let line_count = source.lines().count() as i64;
-        conn.execute(
-            "INSERT INTO files (file, lines, language) VALUES (?1, ?2, ?3)",
-            rusqlite::params![rel_str, line_count, "rust"],
-        )?;
-    }
+/// Get file mtime as seconds since epoch (f64)
+fn file_mtime(path: &PathBuf) -> f64 {
+    fs::metadata(path)
+        .and_then(|m| m.modified())
+        .map(|t| t.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs_f64())
+        .unwrap_or(0.0)
+}
 
-    // Populate directories from files
-    populate_directories(&conn)?;
-
-    // Populate FTS index
-    conn.execute_batch("INSERT INTO lines_fts(file, line_num, content, symbol) SELECT file, line, content, symbol FROM lines;")?;
-
-    eprintln!("Done. Database: {}", db_path.display());
+/// Rebuild directories table and populate FTS (used after full index)
+fn finalize(conn: &Connection) -> Result<()> {
+    populate_directories(conn)?;
+    conn.execute_batch("INSERT INTO lines_fts(file, line_num, content, symbol) SELECT file, line_num, content, symbol FROM lines;")?;
     Ok(())
 }
 
@@ -103,11 +215,11 @@ fn create_schema(conn: &Connection) -> Result<()> {
         PRAGMA synchronous=OFF;
 
         CREATE TABLE lines (
-            file    TEXT,
-            line    INTEGER,
-            content TEXT,
-            symbol  TEXT,
-            PRIMARY KEY (file, line)
+            file     TEXT,
+            line_num INTEGER,
+            content  TEXT,
+            symbol   TEXT,
+            PRIMARY KEY (file, line_num)
         );
         CREATE VIRTUAL TABLE lines_fts USING fts5(file, line_num, content, symbol);
 
@@ -128,13 +240,13 @@ fn create_schema(conn: &Connection) -> Result<()> {
             caller_symbol TEXT,
             callee        TEXT,
             kind          TEXT,
-            line          INTEGER
+            line_num      INTEGER
         );
 
         CREATE TABLE defs (
             symbol TEXT,
             file   TEXT,
-            line   INTEGER,
+            line_num INTEGER,
             var    TEXT,
             kind   TEXT
         );
@@ -142,7 +254,7 @@ fn create_schema(conn: &Connection) -> Result<()> {
         CREATE TABLE imports (
             file   TEXT,
             module TEXT,
-            line   INTEGER
+            line_num INTEGER
         );
 
         CREATE INDEX idx_symbols_name ON symbols(name);
@@ -154,9 +266,10 @@ fn create_schema(conn: &Connection) -> Result<()> {
         CREATE INDEX idx_imports_module ON imports(module);
 
         CREATE TABLE files (
-            file     TEXT PRIMARY KEY,
-            lines    INTEGER,
-            language TEXT
+            file           TEXT PRIMARY KEY,
+            lines          INTEGER,
+            language       TEXT,
+            indexed_mtime  REAL
         );
 
         CREATE TABLE directories (
@@ -182,7 +295,7 @@ fn index_lines(conn: &Connection, file: &str, source: &str, syntax: &syn::File) 
     mapper.visit_file(syntax);
 
     let mut stmt =
-        conn.prepare("INSERT INTO lines (file, line, content, symbol) VALUES (?1, ?2, ?3, ?4)")?;
+        conn.prepare("INSERT INTO lines (file, line_num, content, symbol) VALUES (?1, ?2, ?3, ?4)")?;
     for (i, line_content) in source.lines().enumerate() {
         let line_num = (i + 1) as i64;
         let sym = line_symbols.get(i + 1).and_then(|s| s.as_deref());
@@ -264,13 +377,13 @@ struct CallRecord {
     caller_symbol: Option<String>,
     callee: String,
     kind: String, // "function", "method", "macro"
-    line: usize,
+    line_num: usize,
 }
 
 struct DefRecord {
     symbol: Option<String>,
     file: String,
-    line: usize,
+    line_num: usize,
     var: String,
     kind: String, // "let", "assign", "parameter", "mut_ref"
 }
@@ -278,7 +391,7 @@ struct DefRecord {
 struct ImportRecord {
     file: String,
     module: String,
-    line: usize,
+    line_num: usize,
 }
 
 struct Extractor {
@@ -333,7 +446,7 @@ impl Extractor {
                         self.defs.push(DefRecord {
                             symbol: self.current_scope(),
                             file: self.file.clone(),
-                            line: pat_type.pat.span().start().line,
+                            line_num: pat_type.pat.span().start().line,
                             var: name,
                             kind: "parameter".to_string(),
                         });
@@ -554,7 +667,7 @@ impl<'ast> Visit<'ast> for Extractor {
                 caller_symbol: self.current_scope(),
                 callee,
                 kind: "function".into(),
-                line: span_start_line(node.func.span()),
+                line_num: span_start_line(node.func.span()),
             });
         }
         syn::visit::visit_expr_call(self, node);
@@ -566,7 +679,7 @@ impl<'ast> Visit<'ast> for Extractor {
             caller_symbol: self.current_scope(),
             callee: node.method.to_string(),
             kind: "method".into(),
-            line: span_start_line(node.method.span()),
+            line_num: span_start_line(node.method.span()),
         });
         syn::visit::visit_expr_method_call(self, node);
     }
@@ -578,7 +691,7 @@ impl<'ast> Visit<'ast> for Extractor {
             caller_symbol: self.current_scope(),
             callee: name,
             kind: "macro".into(),
-            line: span_start_line(node.path.span()),
+            line_num: span_start_line(node.path.span()),
         });
         // Don't recurse into macro tokens — syn can't parse them generically
     }
@@ -587,11 +700,11 @@ impl<'ast> Visit<'ast> for Extractor {
 
     fn visit_item_use(&mut self, node: &'ast syn::ItemUse) {
         let modules = flatten_use_tree(&node.tree, &[]);
-        for (module, line) in modules {
+        for (module, line_num) in modules {
             self.imports.push(ImportRecord {
                 file: self.file.clone(),
                 module,
-                line,
+                line_num,
             });
         }
     }
@@ -604,7 +717,7 @@ impl<'ast> Visit<'ast> for Extractor {
             self.defs.push(DefRecord {
                 symbol: self.current_scope(),
                 file: self.file.clone(),
-                line: span_start_line(node.pat.span()),
+                line_num: span_start_line(node.pat.span()),
                 var: name,
                 kind: kind.to_string(),
             });
@@ -617,7 +730,7 @@ impl<'ast> Visit<'ast> for Extractor {
             self.defs.push(DefRecord {
                 symbol: self.current_scope(),
                 file: self.file.clone(),
-                line: span_start_line(node.left.span()),
+                line_num: span_start_line(node.left.span()),
                 var: name,
                 kind: "assign".to_string(),
             });
@@ -727,7 +840,11 @@ fn extract_span(source: &str, start_line: usize, start_col: usize, end_line: usi
     }
     if start_line == end_line {
         let line = lines[start_line - 1];
-        return line[start_col..end_col.min(line.len())].to_string();
+        let end = end_col.min(line.len());
+        if start_col >= end {
+            return line.to_string();
+        }
+        return line[start_col..end].to_string();
     }
     let mut result = String::new();
     for l in start_line..=end_line.min(lines.len()) {
@@ -769,7 +886,7 @@ fn insert_symbols(conn: &Connection, symbols: &[SymbolRecord]) -> Result<()> {
 
 fn insert_calls(conn: &Connection, calls: &[CallRecord]) -> Result<()> {
     let mut stmt = conn.prepare(
-        "INSERT INTO calls (caller_file, caller_symbol, callee, kind, line)
+        "INSERT INTO calls (caller_file, caller_symbol, callee, kind, line_num)
          VALUES (?1, ?2, ?3, ?4, ?5)",
     )?;
     for c in calls {
@@ -778,7 +895,7 @@ fn insert_calls(conn: &Connection, calls: &[CallRecord]) -> Result<()> {
             c.caller_symbol,
             c.callee,
             c.kind,
-            c.line as i64,
+            c.line_num as i64,
         ])?;
     }
     Ok(())
@@ -786,23 +903,23 @@ fn insert_calls(conn: &Connection, calls: &[CallRecord]) -> Result<()> {
 
 fn insert_imports(conn: &Connection, imports: &[ImportRecord]) -> Result<()> {
     let mut stmt = conn.prepare(
-        "INSERT INTO imports (file, module, line) VALUES (?1, ?2, ?3)",
+        "INSERT INTO imports (file, module, line_num) VALUES (?1, ?2, ?3)",
     )?;
     for i in imports {
-        stmt.execute(rusqlite::params![i.file, i.module, i.line as i64])?;
+        stmt.execute(rusqlite::params![i.file, i.module, i.line_num as i64])?;
     }
     Ok(())
 }
 
 fn insert_defs(conn: &Connection, defs: &[DefRecord]) -> Result<()> {
     let mut stmt = conn.prepare(
-        "INSERT INTO defs (symbol, file, line, var, kind) VALUES (?1, ?2, ?3, ?4, ?5)",
+        "INSERT INTO defs (symbol, file, line_num, var, kind) VALUES (?1, ?2, ?3, ?4, ?5)",
     )?;
     for d in defs {
         stmt.execute(rusqlite::params![
             d.symbol,
             d.file,
-            d.line as i64,
+            d.line_num as i64,
             d.var,
             d.kind,
         ])?;

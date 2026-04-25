@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# codeindex shim for head — intercept head -n N file, serve from DB.
+set -euo pipefail
+SHIM_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SHIM_DIR/_codeindex_common.bash"
+
+REAL_HEAD=head
+
+# If stdin is a pipe, pass through immediately — we can't intercept pipes.
+if [[ ! -t 0 ]] && [[ $# -eq 0 || ( $# -le 2 && "$*" != */* ) ]]; then
+    exec "$REAL_HEAD" "$@"
+fi
+
+# Parse: head [-n N] [file...]  or  head -N [file...]
+n=10  # default
+file=""
+args=("$@")
+i=0
+while (( i < ${#args[@]} )); do
+    arg="${args[$i]}"
+    case "$arg" in
+        -n)
+            i=$(( i + 1 ))
+            n="${args[$i]}"
+            ;;
+        -[0-9]*)
+            n="${arg#-}"
+            ;;
+        -*)
+            # Unknown flag — bail to real head
+            exec "$REAL_HEAD" "$@"
+            ;;
+        *)
+            file="$arg"
+            ;;
+    esac
+    i=$(( i + 1 ))
+done
+
+if [[ -n "$file" ]] && [[ -f "$file" ]]; then
+    abs=$(resolve_path "$file")
+    if find_codeindex_db "$abs"; then
+        freshen_db
+        rel=$(rel_path "$abs")
+        result=$(sqlite3 "$CODEINDEX_DB" \
+            "SELECT line_num, content FROM lines WHERE file='$rel' AND line_num <= $n ORDER BY line_num;")
+        if [[ -n "$result" ]]; then
+            total=$(sqlite3 "$CODEINDEX_DB" "SELECT lines FROM files WHERE file='$rel';")
+            echo "── sqlite3 $CODEINDEX_DB ──"
+            echo "query: SELECT line_num, content FROM lines WHERE file='$rel' AND line_num <= $n;"
+            echo ""
+            echo "$result" | while IFS='|' read -r num content; do
+                printf '%4s │ %s\n' "$num" "$content"
+            done
+            echo ""
+            echo "── showing $n of $total lines ──"
+            exit 0
+        fi
+    fi
+fi
+
+exec "$REAL_HEAD" "$@"

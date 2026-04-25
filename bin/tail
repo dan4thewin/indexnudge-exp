@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# codeindex shim for tail — intercept tail -n N file, serve from DB.
+set -euo pipefail
+SHIM_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SHIM_DIR/_codeindex_common.bash"
+
+REAL_TAIL=tail
+
+# Pipe: pass through
+if [[ ! -t 0 ]] && [[ $# -eq 0 || ( $# -le 2 && "$*" != */* ) ]]; then
+    exec "$REAL_TAIL" "$@"
+fi
+
+# Parse: tail [-n N] [file]  or  tail -N [file]
+n=10 file="" follow=false
+args=("$@")
+i=0
+while (( i < ${#args[@]} )); do
+    arg="${args[$i]}"
+    case "$arg" in
+        -n)
+            i=$(( i + 1 ))
+            n="${args[$i]}"
+            ;;
+        -[0-9]*)
+            n="${arg#-}"
+            ;;
+        -f|--follow)
+            follow=true
+            ;;
+        -*)
+            exec "$REAL_TAIL" "$@"
+            ;;
+        *)
+            file="$arg"
+            ;;
+    esac
+    i=$(( i + 1 ))
+done
+
+# -f: always pass through
+if $follow; then
+    exec "$REAL_TAIL" "$@"
+fi
+
+if [[ -n "$file" ]] && [[ -f "$file" ]]; then
+    abs=$(resolve_path "$file")
+    if find_codeindex_db "$abs"; then
+        freshen_db
+        rel=$(rel_path "$abs")
+        total=$(sqlite3 "$CODEINDEX_DB" "SELECT lines FROM files WHERE file='$rel';" 2>/dev/null)
+        if [[ -n "$total" ]] && [[ "$total" -gt 0 ]]; then
+            start=$(( total - n + 1 ))
+            (( start < 1 )) && start=1
+            result=$(sqlite3 "$CODEINDEX_DB" \
+                "SELECT line_num, content FROM lines WHERE file='$rel' AND line_num >= $start ORDER BY line_num;")
+            if [[ -n "$result" ]]; then
+                echo "── sqlite3 $CODEINDEX_DB ──"
+                echo "query: SELECT line_num, content FROM lines WHERE file='$rel' AND line_num >= $start;"
+                echo ""
+                echo "$result" | while IFS='|' read -r num content; do
+                    printf '%4s │ %s\n' "$num" "$content"
+                done
+                echo ""
+                echo "── last $n of $total lines ──"
+                exit 0
+            fi
+        fi
+    fi
+fi
+
+exec "$REAL_TAIL" "$@"

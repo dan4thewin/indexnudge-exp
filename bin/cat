@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# codeindex shim for cat — serve indexed source from DB, pass through non-code.
+set -euo pipefail
+SHIM_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SHIM_DIR/_codeindex_common.bash"
+
+REAL_CAT=cat
+
+# Pipe/stdin: pass through
+if [[ ! -t 0 ]] && [[ $# -eq 0 ]]; then
+    exec "$REAL_CAT" "$@"
+fi
+
+# Flags only (no file args) or dash: pass through
+if [[ $# -eq 0 ]] || [[ "$1" == "-" ]]; then
+    exec "$REAL_CAT" "$@"
+fi
+
+# Collect files and flags
+files=() flags=()
+for arg; do
+    case "$arg" in
+        -*) flags+=("$arg") ;;
+        *)  files+=("$arg") ;;
+    esac
+done
+
+# Single file, try codeindex
+if [[ ${#files[@]} -eq 1 ]] && [[ -f "${files[0]}" ]]; then
+    abs=$(resolve_path "${files[0]}")
+    if find_codeindex_db "$abs"; then
+        freshen_db
+        rel=$(rel_path "$abs")
+        # Check if file is in the index
+        in_index=$(sqlite3 "$CODEINDEX_DB" "SELECT count(*) FROM files WHERE file='$rel';")
+        if [[ "$in_index" -gt 0 ]]; then
+            total=$(sqlite3 "$CODEINDEX_DB" "SELECT lines FROM files WHERE file='$rel';")
+            syms=$(sqlite3 "$CODEINDEX_DB" -separator ' | ' \
+                "SELECT kind, name, 'lines ' || start_line || '-' || end_line FROM symbols WHERE file='$rel' ORDER BY start_line;")
+            echo "── sqlite3 $CODEINDEX_DB ──"
+            echo "query: SELECT content FROM lines WHERE file='$rel' ORDER BY line_num;"
+            echo ""
+            sqlite3 "$CODEINDEX_DB" "SELECT content FROM lines WHERE file='$rel' ORDER BY line_num;"
+            echo ""
+            echo "── $rel: $total lines ──"
+            if [[ -n "$syms" ]]; then
+                echo "symbols:"
+                echo "$syms" | while read -r s; do echo "  $s"; done
+            fi
+            echo "── For focused exploration: SELECT * FROM symbols WHERE file='$rel'; ──"
+            exit 0
+        fi
+    fi
+fi
+
+exec "$REAL_CAT" "${flags[@]}" "${files[@]}"
