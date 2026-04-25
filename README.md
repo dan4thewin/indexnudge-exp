@@ -57,14 +57,15 @@ CREATE VIRTUAL TABLE lines_fts USING fts5(content, file, symbol);
 
 -- Every symbol definition
 CREATE TABLE symbols (
-    id         INTEGER PRIMARY KEY,
-    name       TEXT,
-    kind       TEXT,    -- function, class, struct, method, variable, const
-    file       TEXT,
-    start_line INTEGER,
-    end_line   INTEGER,
-    parent     TEXT,    -- enclosing class/impl/module
-    signature  TEXT     -- full signature text
+    id             INTEGER PRIMARY KEY,
+    name           TEXT,
+    qualified_name TEXT,    -- e.g. "Foo::bar" for methods
+    kind           TEXT,    -- function, method, struct, enum, trait, impl, const, static, type, macro
+    file           TEXT,
+    start_line     INTEGER,
+    end_line       INTEGER,
+    parent         TEXT,    -- enclosing impl/trait/mod
+    signature      TEXT     -- full signature text
 );
 
 -- Caller → callee edges
@@ -136,13 +137,48 @@ WHERE caller_symbol = 'lower_if';
 
 ## Design
 
-- **Language:** Go.  All new tooling in this ecosystem is Go.
-- **Parser:** Tree-sitter via Go bindings.
+This is a **proof of concept**.  The goal is to determine whether a
+SQL-queryable code index significantly improves agentic coding.  If
+it does, expect a rewrite for multi-language support.
+
+- **Language:** Rust (POC only — best index quality for Rust targets)
+- **Parser:** `syn` for AST extraction.  Native Rust parser, no FFI,
+  no grammar files.  Gets exact Rust semantics including macro
+  invocations (though not macro expansion).
 - **Output:** `.codeindex.db` at repo root (gitignored).
-- **Incremental updates:** Track file mtimes, re-index only changed
-  files.  Eventually a filesystem watcher for automatic updates.
-- **Multi-language:** Tree-sitter grammars for Rust, Go, Python, C,
-  JavaScript/TypeScript.  Start with Rust (our primary codebase).
+- **Target language:** Rust only (POC scope).
+- **Incremental updates:** Out of scope for POC.  Full re-index.
+- **Agent integration:** Agent runs `sqlite3` directly against the
+  database.  No custom tool API — `.schema` is the interface.
+
+## Design decisions
+
+**Symbol naming:** Store both short name (`bar`) and qualified name
+(`Foo::bar`) for methods/associated functions.  Short name in `name`,
+qualified in a `qualified_name` column.  Agents search either way.
+
+**Call extraction:** Store what `syn` can resolve statically.
+`x.process()` → callee `process` (no type qualifier — `syn` can't
+resolve it).  Macro invocations stored as calls with `kind: "macro"`.
+Don't fake type resolution.
+
+**Source lines:** Store every line in SQLite with FTS5.  Duplicates
+the source (~10-20MB for 100k LOC) but the whole point is the agent
+shouldn't need to shell out to read code.
+
+**Variable tracking (`defs` table):** Best-effort.  Extract `let`
+bindings, assignments, parameter definitions, and `&mut` where
+visible.  Experiments showed agents chasing variable assignments
+(e.g., exit status flow) — this table supports that pattern.
+
+## Evaluation plan
+
+Index a real Rust codebase.  Run the same set of agentic tasks
+(orientation, bug finding, refactoring) with and without the index.
+Measure tool calls, wall time, and outcome quality.
+
+Target codebase: goose itself (Rust, ~100k LOC, complex enough to
+be realistic).
 
 ## Background
 
@@ -160,4 +196,4 @@ Full writeup: `GooseToolSelectionExperiments` in TibbitWiki.
 
 ## Status
 
-Just started.  README and ideas only.
+POC.  Rust implementation, Rust-only indexing, using `syn`.
