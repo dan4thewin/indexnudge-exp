@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# codeindex shim for cat — serve indexed source from DB, pass through non-code.
+# indexnudge shim for cat — serve indexed source from DB, pass through non-code.
 set -euo pipefail
 SHIM_DIR="$(cd "$(dirname "$0")" && pwd)"
-source "$SHIM_DIR/_codeindex_common.bash"
+source "$SHIM_DIR/_indexnudge_common.bash"
 
 REAL_CAT=cat
 
@@ -25,10 +25,10 @@ for arg; do
     esac
 done
 
-# Single file, try codeindex
+# Single file, try indexnudge
 if [[ ${#files[@]} -eq 1 ]] && [[ -f "${files[0]}" ]]; then
     abs=$(resolve_path "${files[0]}")
-    if find_codeindex_db "$abs"; then
+    if find_indexnudge_db "$abs"; then
         freshen_db
         rel=$(rel_path "$abs")
         # Check if file is in the index

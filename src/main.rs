@@ -1,4 +1,4 @@
-// codeindex — POC: index a Rust codebase into SQLite for agentic querying
+// indexnudge — POC: index a Rust codebase into SQLite for agentic querying
 // AI-generated code
 
 use anyhow::{Context, Result};
@@ -10,13 +10,13 @@ use syn::visit::Visit;
 use walkdir::WalkDir;
 
 #[derive(Parser)]
-#[command(name = "codeindex", about = "Index a Rust codebase into SQLite")]
+#[command(name = "indexnudge", about = "Index a Rust codebase into SQLite")]
 struct Cli {
     /// Directory to index
     #[arg(default_value = ".")]
     dir: PathBuf,
 
-    /// Output database path (default: <dir>/.codeindex.db)
+    /// Output database path (default: <dir>/.indexnudge.db)
     #[arg(short, long)]
     output: Option<PathBuf>,
 
@@ -28,7 +28,7 @@ struct Cli {
 fn main() -> Result<()> {
     let cli = Cli::parse();
     let dir = cli.dir.canonicalize().context("cannot resolve directory")?;
-    let db_path = cli.output.unwrap_or_else(|| dir.join(".codeindex.db"));
+    let db_path = cli.output.unwrap_or_else(|| dir.join(".indexnudge.db"));
 
     if cli.freshen {
         freshen(&dir, &db_path)

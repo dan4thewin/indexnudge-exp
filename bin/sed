@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# codeindex shim for sed — intercept line-range reads, serve from DB.
+# indexnudge shim for sed — intercept line-range reads, serve from DB.
 set -euo pipefail
 SHIM_DIR="$(cd "$(dirname "$0")" && pwd)"
-source "$SHIM_DIR/_codeindex_common.bash"
+source "$SHIM_DIR/_indexnudge_common.bash"
 
 REAL_SED=sed
 
@@ -34,7 +34,7 @@ if [[ "$*" =~ -n ]]; then
         end="${range##*,}"; end="${end%p}"
 
         abs=$(resolve_path "$file")
-        if find_codeindex_db "$abs"; then
+        if find_indexnudge_db "$abs"; then
             freshen_db
             rel=$(rel_path "$abs")
             # Query the DB

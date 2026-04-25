@@ -1,4 +1,4 @@
-# codeindex
+# indexnudge
 
 A persistent code index for AI agents, stored as SQLite.
 
@@ -147,7 +147,7 @@ it does, expect a rewrite for multi-language support.
 - **Parser:** `syn` for AST extraction.  Native Rust parser, no FFI,
   no grammar files.  Gets exact Rust semantics including macro
   invocations (though not macro expansion).
-- **Output:** `.codeindex.db` at repo root (gitignored).
+- **Output:** `.indexnudge.db` at repo root (gitignored).
 - **Target language:** Rust only (POC scope).
 - **Incremental updates:** Out of scope for POC.  Full re-index.
 - **Agent integration:** Agent runs `sqlite3` directly against the

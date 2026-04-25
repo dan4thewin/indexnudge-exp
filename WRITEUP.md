@@ -40,11 +40,11 @@ lines.
 **Lesson: adding a better tool alongside the existing tools doesn't
 change behavior.  The agent defaults to what it knows.**
 
-## Phase 2: codeindex — a standalone indexer
+## Phase 2: indexnudge — a standalone indexer
 
 Rather than embedding analysis in goose, we built
-[codeindex](https://github.com/dan4thewin/codeindex) — a standalone Rust
-CLI (~860 lines) that walks a Rust codebase and produces a `.codeindex.db`
+[indexnudge](https://github.com/dan4thewin/indexnudge) — a standalone Rust
+CLI (~860 lines) that walks a Rust codebase and produces a `.indexnudge.db`
 SQLite database with these tables:
 
 | Table | Contents |
@@ -68,7 +68,7 @@ The developer extension's system prompt was modified to direct the agent
 toward the database:
 
 ```
-Query `.codeindex.db` in the project root with `sqlite3` to understand
+Query `.indexnudge.db` in the project root with `sqlite3` to understand
 the codebase.  Start with `directories` and `files` for orientation,
 then `symbols`, `calls`, `imports`, `defs` for structure, and
 `lines_fts` for full-text search.  The database contains every line
@@ -94,18 +94,18 @@ the prompt was 10,000 tokens in the past.
 
 The key insight: every agent session starts with `tree`.  It's the
 orientation tool — the first thing called.  If `tree` itself could
-detect `.codeindex.db` and serve structured data instead of a filesystem
+detect `.indexnudge.db` and serve structured data instead of a filesystem
 listing, the agent would see the database *before* it formed any plans.
 
 The `tree` tool in goose was modified (in DG's fork) to:
 
-1. Walk up from the target directory looking for `.codeindex.db` (same
+1. Walk up from the target directory looking for `.indexnudge.db` (same
    convention as `.git` discovery)
 2. When found, query `directories` and `files` tables and format the
    output as structured tables
 3. Append a nudge: "Every line of source is in `lines`. Every function
    call is in `calls`. For deeper exploration: `sqlite3 <db> .schema`"
-4. Fall back to normal filesystem walking when no `.codeindex.db` exists
+4. Fall back to normal filesystem walking when no `.indexnudge.db` exists
 
 This was invisible to the agent — it called `tree` as always, but got
 enriched output with breadcrumbs toward the database.  The agent
@@ -138,7 +138,7 @@ agent try alternate tools.
 
 The new shims (in `bin/`) follow the `tree` philosophy: **enrich, don't
 block**.  Each shim intercepts the read pattern, serves the data from
-`.codeindex.db` with additional context, and shows the SQL query that
+`.indexnudge.db` with additional context, and shows the SQL query that
 produced the result.
 
 ### sqlite3
@@ -149,8 +149,8 @@ it goes direct — this shim guarantees freshness:
 
 ```bash
 for arg; do
-    if [[ "$arg" == *.codeindex.db ]]; then
-        codeindex --freshen "$dir"
+    if [[ "$arg" == *.indexnudge.db ]]; then
+        indexnudge --freshen "$dir"
     fi
 done
 exec sqlite3 "$@"
@@ -167,10 +167,10 @@ lines from the database with:
 - Ready-to-run sqlite3 commands to read each enclosing function in full
 
 ```
-── sqlite3 .codeindex.db ──
+── sqlite3 .indexnudge.db ──
 query: SELECT line_num, content FROM lines WHERE file='src/main.rs'
        AND line_num BETWEEN 490 AND 500;
-** STOP USING sed. Query the DB directly: sqlite3 .codeindex.db
+** STOP USING sed. Query the DB directly: sqlite3 .indexnudge.db
    "SELECT content FROM lines WHERE ..." **
 
  490 │     pipeline_context: &mut PipelineExecutionContext,
@@ -178,7 +178,7 @@ query: SELECT line_num, content FROM lines WHERE file='src/main.rs'
    ...
 
 ── enclosing: execute_in_pipeline | method | lines 488-543 ──
-── full method: sqlite3 .codeindex.db "SELECT content FROM lines
+── full method: sqlite3 .indexnudge.db "SELECT content FROM lines
    WHERE file='...' AND line_num BETWEEN 488 AND 543 ORDER BY
    line_num;" ──
 ```
@@ -207,14 +207,14 @@ nudge toward focused exploration via the symbols table.
 
 ### Common infrastructure
 
-All shims source `_codeindex_common.bash`, which:
+All shims source `_indexnudge_common.bash`, which:
 
 - Removes the shim directory from `$PATH` so `exec sed "$@"` finds the
   real tool (works regardless of where the real tool lives — `/usr/bin`,
   Homebrew, Linuxbrew)
-- Provides `find_codeindex_db()` — walks up from a path to find
-  `.codeindex.db`
-- Provides `freshen_db()` — calls `codeindex --freshen` if available
+- Provides `find_indexnudge_db()` — walks up from a path to find
+  `.indexnudge.db`
+- Provides `freshen_db()` — calls `indexnudge --freshen` if available
 
 ## Phase 7: freshness
 
@@ -225,9 +225,9 @@ old code.
 
 The solution has two parts:
 
-### Incremental reindexing (`codeindex --freshen`)
+### Incremental reindexing (`indexnudge --freshen`)
 
-`codeindex --freshen <dir>` opens the existing database (doesn't
+`indexnudge --freshen <dir>` opens the existing database (doesn't
 rebuild), walks the directory, and compares each file's filesystem mtime
 to the `indexed_mtime` stored in the `files` table.  Only stale, new, or
 deleted files are processed.  A single-file `syn` parse + sqlite insert
@@ -235,8 +235,8 @@ is milliseconds.
 
 ### Lazy evaluation at the read boundary
 
-The sqlite3 shim calls `codeindex --freshen` before every query against
-`.codeindex.db`.  Since every read path terminates at sqlite3 — whether
+The sqlite3 shim calls `indexnudge --freshen` before every query against
+`.indexnudge.db`.  Since every read path terminates at sqlite3 — whether
 directly or through the other shims — freshness is guaranteed at the
 point of consumption.
 
@@ -253,7 +253,7 @@ usage.
 
 ### Run 1: no shims on PATH
 
-The agent used `tree` (got codeindex-enhanced output), went to sqlite3
+The agent used `tree` (got indexnudge-enhanced output), went to sqlite3
 for structural queries, but used `sed -n` for all code reading.  The
 system prompt instruction to use sqlite3 was effective for structure but
 not for reading code.
@@ -273,7 +273,7 @@ learn from the enriched output.
 Added a single line to the sed shim output:
 
 ```
-** STOP USING sed. Query the DB directly: sqlite3 .codeindex.db
+** STOP USING sed. Query the DB directly: sqlite3 .indexnudge.db
    "SELECT content FROM lines WHERE file='...' AND line_num BETWEEN
    START AND END ORDER BY line_num;" **
 ```
@@ -320,7 +320,7 @@ prompt instruction > adding new tools**.
 Agent session starts
         │
         ▼
-    ┌─────┐     detects .codeindex.db
+    ┌─────┐     detects .indexnudge.db
     │tree │ ──────────────────────────► structured tables + nudge
     └─────┘                             "use sqlite3 for deeper exploration"
         │
@@ -338,7 +338,7 @@ Agent session starts
         │
         ▼
     ┌─────────┐  freshens DB first
-    │sqlite3  │ ─────────────────────► codeindex --freshen
+    │sqlite3  │ ─────────────────────► indexnudge --freshen
     │ shim    │                         (mtime-based, per-file)
     └─────────┘
         │
@@ -349,13 +349,13 @@ Agent session starts
 ## What's in the box
 
 ```
-codeindex/
+indexnudge/
 ├── src/main.rs          # Rust indexer (~860 lines)
 ├── Cargo.toml
 ├── mkfile               # build, install, test, clean
 ├── bin/
-│   ├── _codeindex_common.bash  # shared helpers
-│   ├── codeindex        # symlink → target/release/codeindex
+│   ├── _indexnudge_common.bash  # shared helpers
+│   ├── indexnudge        # symlink → target/release/indexnudge
 │   ├── sqlite3          # freshen-before-query shim
 │   ├── sed              # line-range read → DB query + scolding
 │   ├── head             # head -n N file → DB query
@@ -365,7 +365,7 @@ codeindex/
 └── README.md
 ```
 
-To use: `export PATH=/path/to/codeindex/bin:$PATH`
+To use: `export PATH=/path/to/indexnudge/bin:$PATH`
 
 ## Open questions
 
@@ -378,9 +378,9 @@ To use: `export PATH=/path/to/codeindex/bin:$PATH`
   practice, once the agent stops using sed it stops using all of them —
   the scolding in sed is sufficient.
 
-- **What about non-Rust codebases?**  codeindex currently only indexes
+- **What about non-Rust codebases?**  indexnudge currently only indexes
   `.rs` files.  The shim architecture is language-agnostic — it just
-  needs a populated `.codeindex.db`.  The indexer needs language support
+  needs a populated `.indexnudge.db`.  The indexer needs language support
   added (tree-sitter would be the obvious path, which circles back to
   what `analyze` did — but now as an offline index builder, not a
   runtime tool).
@@ -393,37 +393,37 @@ To use: `export PATH=/path/to/codeindex/bin:$PATH`
 
 ## Ideas from the neighborhood
 
-A survey of six other projects named `codeindex` on GitHub revealed a
+A survey of six other projects named `indexnudge` on GitHub revealed a
 crowded space but distinct approaches.  Nobody else has our shim
 architecture or in-band behavior modification — those are genuinely
 novel.  But several projects have ideas worth adopting:
 
-- **MCP server registration** (lexandro/codeindex-mcp): their
+- **MCP server registration** (lexandro/indexnudge-mcp): their
   `register project .` command auto-writes `.mcp.json` for agent
   discovery.  We currently require manually prepending `bin/` to PATH.
-  A `codeindex init` command that wires up the shims and writes agent
+  A `indexnudge init` command that wires up the shims and writes agent
   config would lower the setup barrier.
 
-- **Call chain traversal** (LydiaCai1203/codeindex): configurable
+- **Call chain traversal** (LydiaCai1203/indexnudge): configurable
   forward/reverse call graph depth.  Our `calls` table has the raw data
-  but we don't expose traversal queries.  A `codeindex calls --depth=3
+  but we don't expose traversal queries.  A `indexnudge calls --depth=3
   function_name` command — or a view/query template — would make the
   call graph immediately useful to agents.
 
-- **Agent config injection** (dreamlx/codeindex): auto-modifying agent
+- **Agent config injection** (dreamlx/indexnudge): auto-modifying agent
   configuration files (like `CLAUDE.md`) to include project context.
   Similar spirit to our shims but at the config layer.  We could
   generate a `.goosehints` fragment or append to the system prompt
   template automatically.
 
-- **File watching** (LydiaCai1203/codeindex): chokidar-based real-time
+- **File watching** (LydiaCai1203/indexnudge): chokidar-based real-time
   re-indexing.  Our lazy `--freshen` at the read boundary is simpler
   and daemonless, but a watch mode could be useful for long development
   sessions where the agent makes many edits between reads.
 
 - **Multi-language support**: every competitor supports multiple
   languages.  Our indexer is Rust-only.  The shim architecture is
-  language-agnostic (it just needs a populated `.codeindex.db`), so
+  language-agnostic (it just needs a populated `.indexnudge.db`), so
   the gap is purely in the indexer.  Tree-sitter is the obvious path
   — which circles back to what the removed `analyze` tool did, but
   now as an offline index builder rather than a runtime tool.

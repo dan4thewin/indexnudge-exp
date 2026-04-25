@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# codeindex shim for grep — search via FTS5 when possible, fall back to real grep.
+# indexnudge shim for grep — search via FTS5 when possible, fall back to real grep.
 set -euo pipefail
 SHIM_DIR="$(cd "$(dirname "$0")" && pwd)"
-source "$SHIM_DIR/_codeindex_common.bash"
+source "$SHIM_DIR/_indexnudge_common.bash"
 
 REAL_GREP=grep
 
@@ -35,7 +35,7 @@ if [[ -z "$pattern" ]]; then
     exec "$REAL_GREP" "$@"
 fi
 
-# For recursive grep or file args, try codeindex
+# For recursive grep or file args, try indexnudge
 target=""
 if $recursive; then
     target="${files[0]:-.}"
@@ -45,7 +45,7 @@ fi
 
 if [[ -n "$target" ]]; then
     abs=$(resolve_path "$target")
-    if find_codeindex_db "$abs"; then
+    if find_indexnudge_db "$abs"; then
         freshen_db
         # Escape single quotes in pattern for SQL
         safe_pattern="${pattern//\'/\'\'}"

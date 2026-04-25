@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# codeindex shim for tail — intercept tail -n N file, serve from DB.
+# indexnudge shim for tail — intercept tail -n N file, serve from DB.
 set -euo pipefail
 SHIM_DIR="$(cd "$(dirname "$0")" && pwd)"
-source "$SHIM_DIR/_codeindex_common.bash"
+source "$SHIM_DIR/_indexnudge_common.bash"
 
 REAL_TAIL=tail
 
@@ -45,7 +45,7 @@ fi
 
 if [[ -n "$file" ]] && [[ -f "$file" ]]; then
     abs=$(resolve_path "$file")
-    if find_codeindex_db "$abs"; then
+    if find_indexnudge_db "$abs"; then
         freshen_db
         rel=$(rel_path "$abs")
         total=$(sqlite3 "$CODEINDEX_DB" "SELECT lines FROM files WHERE file='$rel';" 2>/dev/null)
