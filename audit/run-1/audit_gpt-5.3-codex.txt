@@ -1,0 +1,26 @@
+I found **11 correctness/robustness issues**. The most serious are silent write failures in Go, data loss during freshen on parse errors, and inconsistent file selection between full and incremental indexing.
+
+| # | Problem | Why it matters | Scenario that exposes it | Severity |
+|---|---|---|---|---|
+| 1 | **Go silently ignores DB write errors** (`Prepare`/`Exec` results are dropped in `indexLines`, `extract*`, and `indexFile`) | Indexing can “succeed” while data is partially or fully missing | DB locked, disk full, schema drift, or transient SQLite error | **high** |
+| 2 | **Go `extractImports` stores `imp.Pos()` as `line_num`** | Import line numbers are wrong (token offset, not source line), breaking location-based queries | Any file with imports; `line_num` won’t match editor line numbers | **medium** |
+| 3 | **Freshen can delete valid old data before failed re-index** (Rust and Go) | Transient parse/read failures cause permanent loss of previously indexed rows for that file | Run `freshen` while a file has temporary syntax errors | **high** |
+| 4 | **Go full index and freshen index different file sets** (`fullIndex` uses `go/packages`; `freshen` uses filesystem + parser fallback) | Same repo produces different DB contents depending on mode | Build-tagged files, files excluded from package load, or package load errors | **high** |
+| 5 | **Staleness detection is `disk_mtime > db_mtime` only** (Rust and Go) | Real content changes can be missed | Rapid edits on coarse mtime FS, restored/backdated files, clock skew | **medium** |
+| 6 | **Cross-language line counting differs** (Rust `lines()`, Go `Split("\n")`) | Different `files.lines`, `directories.total_lines`, and `lines` rows for same text | Empty files and files ending with trailing newline | **medium** |
+| 7 | **Cross-language symbol/call naming is inconsistent** | Same logical code yields incompatible call graph/symbol queries | Rust uses `Type::method` / bare method call name; Go uses `Type.method` and receiver-based call names like `p.Distance` | **medium** |
+| 8 | **Cross-language file discovery rules differ heavily** | Databases diverge even before parsing starts | Rust indexes all `.rs` except `target`; Go excludes `_test.go`, `vendor`, `.git`, `node_modules` | **medium** |
+| 9 | **Filesystem walk errors are silently swallowed** (Rust `filter_map(|e| e.ok())`, Go walk callback returns nil on error) | Missing files are silently omitted; DB looks complete when it isn’t | Permission-denied directories, transient IO errors | **medium** |
+| 10 | **Schema/data integrity protections are weak** (no FKs/uniques beyond primary keys, no transactional refresh boundary) | Partial failures can leave orphan/duplicate/inconsistent rows across tables | Mid-refresh failure or concurrent/overlapping runs | **medium** |
+| 11 | **Tests execute paths but don’t validate key correctness** | Regressions can slip through while tests stay green | Import tests don’t assert `line_num` (missing bug #2); call tests assert presence but not caller/kind/count; freshen tests don’t verify stale-row cleanup + metadata/FTS/directory consistency | **medium** |
+
+**A. Most damaging additional issue (not listed above):**  
+There is **no explicit crash-safe transactional model for the full refresh lifecycle** (per-run atomicity). An interrupted run can leave a DB that looks valid enough to query but is semantically incomplete, which is dangerous in production because downstream tools trust it.
+
+**B. Single largest missed opportunity:**  
+A **shared canonical semantic model across languages** (normalized symbol IDs, normalized qualified-name format, resolved call targets) would dramatically increase value: one query layer could work reliably across Rust and Go instead of requiring language-specific heuristics.
+
+
+Changes   +0 -0
+Requests  1 Premium (2m 0s)
+Tokens    ↑ 40.3k • ↓ 7.8k • 0 (cached) • 7.0k (reasoning)

@@ -1,0 +1,382 @@
+I’ll first locate the exact Go/Rust functions and existing tests tied to each finding, then draft a concrete remediation plan with precise code/test edits (including inputs and assertions) and a fix-now/strengthen/defer priority for each item.
+
+✗ Search (glob)
+  │ "**/*.{go,rs}" in ~/src/indexnudge
+  └ Permission denied and could not request permission from user
+
+✗ Search (glob)
+  │ "**/*test*.*" in ~/src/indexnudge
+  └ Permission denied and could not request permission from user
+
+✗ Search (grep)
+  │ "func\s+extractImports\b|extractImports\(" (~/src/indexnudge)
+  └ Permission denied and could not request permission from user
+
+✗ Search (grep)
+  │ "doFreshen\b|freshen\b" (~/src/indexnudge)
+  └ Permission denied and could not request permission from user
+
+✗ Search (grep)
+  │ "collectGoFiles\b|loadPackages\b|fullIndex\b" (~/src/indexnudge)
+  └ Permission denied and could not request permission from user
+
+✗ Search (grep)
+  │ "extract_span\b|collect_rs_files\b" (~/src/indexnudge)
+  └ Permission denied and could not request permission from user
+
+✗ Search (grep)
+  │ "PRAGMA\s+synchronous|synchronous\s*=\s*OFF|BEGIN\b|COMMIT\b|ROLLBACK\b"
+  │ (~/src/indexnudge)
+  └ Permission denied and could not request permission from user
+
+The earlier search calls were blocked due to directory access restrictions; I’ll re-scope exploration from the current working directory and then navigate to the repo root via allowed paths to locate the exact functions/tests.
+
+✗ List directory ~/src/indexnudge
+  └ Permission denied and could not request permission from user
+
+● List directory .
+  └ 16 files found
+
+✗ List directory ~/src/indexnudge/audit
+  └ Permission denied and could not request permission from user
+
+I can’t access the repository source directories directly (content policy blocks /home/dangood/src/indexnudge), but the audit folder contains prior remediation drafts; I’ll use those plus the triage details to produce a concrete, per-finding remediation plan with specific function/test edits.
+
+✗ Read AUDIT_TRIAGE.md
+  │ ~/src/indexnudge/audit/AUDIT_TRIAGE.md
+  └ Permission denied and could not request permission from user
+
+✗ Read remediation_plan_a_gpt-5.2.txt
+  │ ~/src/indexnudge/audit/remediation_plan_a_gpt-5.2.txt
+  └ Permission denied and could not request permission from user
+
+✗ Read remediation_plan_b_claude-opus-4.7.txt
+  │ ~/src/indexnudge/audit/remediation_plan_b_claude-opus-4.7.txt
+  └ Permission denied and could not request permission from user
+
+✗ Read audit_gpt-5.2.txt
+  │ ~/src/indexnudge/audit/audit_gpt-5.2.txt
+  └ Permission denied and could not request permission from user
+
+✗ Read audit_claude-opus-4.7.txt
+  │ ~/src/indexnudge/audit/audit_claude-opus-4.7.txt
+  └ Permission denied and could not request permission from user
+
+I can’t see the source/tests in this environment (repo content is access-restricted), so I’ll anchor the plan to the function names/table contracts already in the findings and make tests fully-specified (inputs + assertions). Adjust filenames/fixtures to your repo’s conventions.
+
+---
+
+## B1. Go `extractImports` stored `token.Pos` not line number (FIXED)
+- **Needs:** none (already fixed) / keep test
+- **Act or dismiss:** **Dismiss** (already fixed in d69764e); **act** only to keep regression coverage
+- **Priority:** strengthen
+- **Test:** keep the added regression asserting `imports.line < 10` on a tiny Go file (e.g., `package p\nimport "fmt"\nfunc f(){}\n`).
+
+---
+
+## B2. Freshen deletes rows before re-index; parse failure = data loss
+- **Needs:** **both** (code + tests)
+- **Act or dismiss:** **Act** (high severity data loss)
+- **Priority:** **fix-now**
+- **Code change (Go):** in `doFreshen` (or the per-file freshen path):
+  1. **Parse/extract first** into in-memory structs (`symbols, lines, calls, imports, defs, fts terms…`).
+  2. If extraction fails for that file: **do not delete** existing rows; return/record an error for that file.
+  3. If extraction succeeds: run a single transaction:
+     - `BEGIN`
+     - `DELETE FROM <each table> WHERE file_id = ?` (or path)
+     - `INSERT` new rows
+     - `COMMIT`
+     - On any error: `ROLLBACK` (old rows remain).
+- **Code change (Rust):** in `freshen` (or equivalent):
+  - Same two-phase approach: extract first; only then transactional delete+insert; on parse failure **return an error** (or accumulate) and **do not delete**.
+- **Test change:**
+  - **Go:** add `TestFreshen_DoesNotDeleteOnParseError`:
+    - Setup: index file `a.go` containing `package p\nfunc Foo(){}\n`.
+    - Assert baseline: `SELECT COUNT(*) FROM symbols WHERE name='Foo' AND file='a.go' == 1`.
+    - Modify `a.go` to invalid Go: `package p\nfunc (\n`.
+    - Run freshen.
+    - Assert: **freshen returns error** (or reports file error), AND DB still has `Foo` symbol row and prior `lines` rows for `a.go`.
+  - **Rust:** add `freshen_does_not_delete_on_parse_error`:
+    - Same pattern with `a.rs` initially `fn foo() {}\n`, then invalid `fn {`.
+
+---
+
+## B3. Go ignores DB write errors (stmt.Prepare / stmt.Exec unchecked)
+- **Needs:** **both**
+- **Act or dismiss:** **Act** (high severity silent partial index + possible panic)
+- **Priority:** **fix-now**
+- **Code change (Go):** for every extractor that does DB writes:
+  - Replace `stmt, _ := db.Prepare(...)` with `stmt, err := db.PrepareContext(ctx, ...)` and `if err != nil { return err }`.
+  - Ensure `defer stmt.Close()`.
+  - Replace `stmt.Exec(...)` with `if _, err := stmt.Exec(...); err != nil { return err }`.
+  - If you batch: prefer `tx, err := db.BeginTx(...); ...; tx.Commit()` and propagate errors.
+- **Test change (Go):** add `TestIndex_FailsOnDBWriteError`:
+  - Create DB, create schema, then set **write-forbidden mode** (one concrete option):
+    - `PRAGMA query_only = ON;` (SQLite) before indexing.
+  - Run an indexing pass that attempts at least one insert (e.g., lines insert).
+  - Assert: function returns a non-nil error and does not panic.
+
+---
+
+## B4. Go line count off-by-one (`strings.Split` + trailing newline)
+- **Needs:** **both**
+- **Act or dismiss:** **Act** (high severity affects almost every real file)
+- **Priority:** **fix-now**
+- **Code change (Go):** in the Go code path that builds `lines` and `files.lines`:
+  - Stop using `strings.Split(src, "\n")`.
+  - Use `bufio.Scanner` with `bufio.ScanLines` (doesn’t emit an extra final empty line).
+  - Also normalize CRLF: strip trailing `\r` from each scanned line before storing.
+  - Define semantics for empty file: **0 lines** (match Rust `source.lines().count()`).
+- **Test change (Go):**
+  - Add `TestIndexLines_TrailingNewline_NoExtraEmptyRow`:
+    - Input file content: `"package p\n"` (one line ending with newline).
+    - Assert:
+      - `files.lines == 1`
+      - `SELECT COUNT(*) FROM lines WHERE file='x.go' == 1`
+      - `lines[1].text == "package p"`.
+  - Add `TestIndexLines_EmptyFile_HasZeroLines`:
+    - Input: `""`
+    - Assert: `files.lines == 0` and `COUNT(lines WHERE file='x.go') == 0`.
+  - Add `TestIndexLines_CRLF_StripsCarriageReturn`:
+    - Input: `"package p\r\nfunc f(){}\r\n"`
+    - Assert stored line texts contain no `\r`.
+
+---
+
+## B5. Full index deletes old DB before proving new one can be built
+- **Needs:** **both**
+- **Act or dismiss:** **Act** (medium severity but high user impact)
+- **Priority:** **defer** (per your ordering), but it pairs well with H2
+- **Code change (Go + Rust):**
+  - In `fullIndex`:
+    - Build into `dbPath.tmp` (or a temp file in same directory).
+    - Only after successful build + validation: atomically rename over `dbPath`.
+    - Never `Remove(dbPath)` up front.
+- **Test change:**
+  - Add `TestFullIndex_AtomicSwap_KeepsOldOnFailure`:
+    - Create a valid existing DB at `dbPath` with a sentinel row (e.g., a `meta` table value).
+    - Force a build failure (e.g., include a fixture that triggers `loadPackages` error once H2 is fixed).
+    - Run full index.
+    - Assert: old DB still exists and sentinel row is still readable.
+
+---
+
+## B6. Rust `extract_span` byte/char index mismatch on multi-byte UTF-8
+- **Needs:** **both**
+- **Act or dismiss:** **Act** (high severity panic)
+- **Priority:** **fix-now**
+- **Code change (Rust):** in `extract_span`:
+  - Convert the reported `(start_col, end_col)` into **byte offsets safely**:
+    - Implement `fn char_col_to_byte(line: &str, col_chars: usize) -> usize` using `line.char_indices()`; clamp to `[0, line.len()]`.
+  - Slice using those byte offsets; never index directly with `line[start_col..end_col]` unless they are known byte offsets.
+- **Test change (Rust):**
+  - Add unit test `char_col_to_byte_handles_utf8`:
+    - Line: `"caf\u{00E9}"` (`"café"`)
+    - Assert:
+      - `char_col_to_byte(line, 3) == 3` (start of `é`)
+      - `char_col_to_byte(line, 4) == 5` (end of `é`)
+      - `&line[3..5] == "é"`.
+  - Add integration test `index_utf8_source_does_not_panic` with a Rust file containing non-ASCII identifiers and ensure indexing completes.
+
+---
+
+## B7. Rust `collect_rs_files` excludes any path component named `target`
+- **Needs:** **both**
+- **Act or dismiss:** **Act** (low severity but easy correctness fix)
+- **Priority:** **defer**
+- **Code change (Rust):** in `collect_rs_files`:
+  - Only exclude Cargo build output, not arbitrary “target” segments:
+    - Exclude paths under `<workspace_root>/target/**` specifically (root-anchored), not any component match.
+- **Test change (Rust):** add `collect_rs_files_excludes_only_root_target`:
+  - Tree:
+    - `src/target/mod.rs` (should be **included**)
+    - `target/debug/deps/x.rs` (should be **excluded**)
+  - Assert returned list contains the former and not the latter.
+
+---
+
+# Cross-language inconsistencies
+
+## C1. Qualified name separator: Rust `::` vs Go `.`
+- **Needs:** code **or** docs (pick one)
+- **Act or dismiss:** **Act** (medium; if by design, document + normalize)
+- **Priority:** **defer**
+- **Code change (recommended):**
+  - Add a normalized column or computed query expansion:
+    - e.g., store `symbols.qname_norm` where both `::` and `.` are mapped to a single separator.
+  - Query layer: when user searches `Point::distance`, also search `Point.distance` (and vice versa).
+- **Test change:** add `TestQNameNormalization_MatchesBothSeparators`:
+  - Insert one Rust symbol `Point::distance` and one Go symbol `Point.Distance`.
+  - Assert the query helper returns both when given either spelling.
+
+## C2. Call callee naming inconsistency (Rust bare `distance`, Go `p.Distance`)
+- **Needs:** **both**
+- **Act or dismiss:** **Act**
+- **Priority:** **strengthen**
+- **Code change:**
+  - Extend calls schema to store two fields:
+    - `callee_raw` (what you see syntactically: `distance`, `p.Distance`)
+    - `callee_qname` (canonical, intended to join to `symbols.qname` when resolvable)
+  - **Go:** compute `callee_qname` via `go/types` object resolution (canonical receiver type + method name + package path) to match whatever `symbols.qname` uses.
+  - **Rust:** when syntax provides a path (`Type::method`), store that as `callee_qname`; for `expr.method()`, keep `callee_raw` and leave `callee_qname` null unless you add real resolution later.
+- **Test change:** add `TestCallsJoinSymbols_OnCalleeQName`:
+  - Fixture program defines method + free function, calls both.
+  - Assert SQL join `calls.callee_qname = symbols.qname` yields expected rows (e.g., 2).
+
+## C3. Go full index vs freshen index different file sets
+- **Needs:** **both**
+- **Act or dismiss:** **Act** (high severity)
+- **Priority:** **strengthen**
+- **Code change (Go):**
+  - Unify file enumeration by extracting a shared `listGoFilesViaPackages()` used by **both** `fullIndex` and `doFreshen`.
+  - Ensure identical `packages.Config` (build tags, GOOS/GOARCH, module mode).
+  - Keep fallback parser only for files that packages can’t load *but* make the inclusion rule explicit and consistent.
+- **Test change:** add `TestGoFullVsFreshen_FileSetMatches_WithBuildTags`:
+  - Create two files:
+    - `a_linux.go` with `//go:build linux` defining `func A(){}`
+    - `a_windows.go` with `//go:build windows` defining `func B(){}`
+  - Run full index + freshen under `GOOS=linux`.
+  - Assert only `A` exists in DB after both, and `B` never appears.
+
+## C4. Go excludes `_test.go`; Rust indexes all `.rs`
+- **Needs:** docs + (optional) code
+- **Act or dismiss:** **Act** as a documented decision; optional flag
+- **Priority:** **defer**
+- **Code change (optional):** add `--include-tests` (or config) to include `_test.go`.
+- **Test change:** `TestGoIncludeTestsFlag_IndexesTestFiles`:
+  - Without flag: `_test.go` symbols absent.
+  - With flag: `_test.go` symbols present.
+
+---
+
+# Test gaps
+
+## T1. Freshen tests don’t verify all tables cleaned
+- **Needs:** **test change**
+- **Act or dismiss:** **Act**
+- **Priority:** **strengthen**
+- **Exact test upgrade:**
+  - Add helper assertions like `assertNoRowsForFile(db, "a.go")` that checks *each* of:
+    - `lines`, `imports`, `defs`, `calls`, `symbols`, `fts` (and `directories` if per-file keyed)
+  - Concrete test `TestFreshen_RemovesStaleRowsAcrossAllTables`:
+    - Index v1: file has `import "fmt"` + `func Foo(){}` + call `fmt.Println()`.
+    - Freshen to v2: remove import, rename Foo→Bar, remove call.
+    - Assert:
+      - `symbols` has Bar not Foo
+      - `imports` has no fmt for that file
+      - `calls` has no `Println` for that file
+      - `fts` no longer matches “Foo” for that file.
+
+## T2. No tests for parse errors, empty files, binary files, CRLF, NUL
+- **Needs:** **both** (tests + defining behavior in code where missing)
+- **Act or dismiss:** **Act**
+- **Priority:** **strengthen**
+- **Tests (concrete):**
+  - `TestIndex_EmptyFile_NoRowsNoCrash` (see B4 empty semantics).
+  - `TestIndex_BinaryOrNULFile_SkipsWithReason`:
+    - Write file bytes: `0x00 0x01 0x02`.
+    - Assert: indexer records file as skipped (e.g., `files.skipped_reason='binary_or_nul'`) and creates **no** `lines/symbols/calls` rows.
+  - `TestFreshen_ParseError_DoesNotDeleteOldRows` (see B2).
+  - `TestIndex_CRLF_NormalizesLines` (see B4 CRLF).
+
+## T3. Go channel tests check presence not counts/accuracy
+- **Needs:** **test change**
+- **Act or dismiss:** **Act** (low effort)
+- **Priority:** **defer**
+- **Test change (example):** `TestGoChannels_ExactCountsAndLocations`:
+  - Input:
+    - `ch := make(chan int)`
+    - `ch <- 1`
+    - `<-ch`
+  - Assert exact row counts and line numbers in whichever table represents channel ops (or `calls/defs`), e.g., exactly 1 channel def + 2 channel ops.
+
+## T4. Tests don’t validate call→symbol joinability
+- **Needs:** **both** (tests + C2 schema/behavior)
+- **Act or dismiss:** **Act**
+- **Priority:** **strengthen**
+- **Test:** `TestCallToSymbolJoinability_MinimumResolvedEdges`:
+  - Fixture with 3 calls where 2 are statically resolvable.
+  - Assert join count == 2 (exact), and unresolved call has `callee_qname IS NULL` (explicitly).
+
+---
+
+# Security / robustness
+
+## S1. Symlink following can index outside project
+- **Needs:** **both**
+- **Act or dismiss:** **Act**
+- **Priority:** **strengthen**
+- **Code change (Go + Rust):**
+  - When walking: use `lstat`/`symlink_metadata`; **skip symlinks** by default (files and directories).
+  - Optionally allow `--follow-symlinks` with a hard “must remain under root” check after `EvalSymlinks`.
+- **Test:** `TestSymlinkEscape_IsNotIndexed`:
+  - Create outside file `../secret.go`; symlink `project/leak.go -> ../secret.go`.
+  - Assert no DB rows for `secret.go` content and file list does not include the symlink target.
+
+## S2. No file-size limits
+- **Needs:** **both**
+- **Act or dismiss:** **Act** (low severity, easy defense)
+- **Priority:** **defer**
+- **Code change:** before reading file, check `stat.size`; if > limit (e.g., 5–20MB), skip with reason.
+- **Test:** `TestLargeFile_Skipped` creates file `limit+1` bytes and asserts skip reason + no rows.
+
+## S3. No transaction boundaries — crash leaves partial DB
+- **Needs:** **both**
+- **Act or dismiss:** **Act** (also enables B2/B3 correctness)
+- **Priority:** **defer** overall, but **do the per-file freshen transaction as part of B2 fix-now**
+- **Code change (later phase):**
+  - Full index: wrap all writes in one transaction; commit at end.
+  - Consider WAL mode for speed/safety if appropriate.
+- **Test:** `TestTransaction_RollbackLeavesConsistentState`:
+  - Inject a failure mid-write (e.g., toggle `PRAGMA query_only=ON` after a delete but before inserts) and assert old rows remain.
+
+## S4. `PRAGMA synchronous=OFF`
+- **Needs:** code (+ small test)
+- **Act or dismiss:** **Act** (make safe default; allow opt-out)
+- **Priority:** **defer**
+- **Code change:** default to `synchronous=NORMAL` (or FULL if you prefer), add `--unsafe-fast` to set OFF.
+- **Test:** `TestSQLitePragmas_DefaultNotOff` reads pragma and asserts it’s not OFF.
+
+---
+
+# Hardening
+
+## H1. No schema version check on freshen
+- **Needs:** **both**
+- **Act or dismiss:** **Act**
+- **Priority:** **defer**
+- **Code change:** store schema version in `PRAGMA user_version` or `meta(schema_version)`; freshen checks it and errors with “run full reindex”.
+- **Test:** `TestFreshen_RefusesSchemaMismatch`:
+  - Create DB with old version; run freshen; assert explicit error.
+
+## H2. Go `loadPackages` ignores `pkg.Errors`
+- **Needs:** **both**
+- **Act or dismiss:** **Act**
+- **Priority:** **defer** (but it synergizes with C3/B5)
+- **Code change:** in `loadPackages`, if any `pkg.Errors` non-empty, return error (or at least fail the index build deterministically).
+- **Test:** `TestLoadPackages_FailsOnPackageErrors`:
+  - Fixture with a type/syntax error; assert error returned and no panic.
+  - Pair with B5 atomic swap test to ensure old DB is preserved.
+
+## H3. Rust struct/const/static `end_line` is identifier-only span
+- **Needs:** **both**
+- **Act or dismiss:** **Act** (low severity UX improvement)
+- **Priority:** **defer**
+- **Code change:** compute end span from the full item tokens (e.g., item’s last token span), not identifier span.
+- **Test:** `symbol_span_struct_multiline_ends_at_closing_brace`:
+  - Multi-line struct; assert `end_line` equals the line containing `}`.
+
+---
+
+## One cross-cutting “do first” sequencing note (to minimize rework)
+1) **B4 + B3 + B2 + B6** first (they change core correctness + crash safety).  
+2) Then **T1/T2** (lock in behavior).  
+3) Then **C3/C2/T4** (consistency + joinability).  
+4) Then deferred hardening (**B5/S3/H1/H2/S1**).
+
+If you want, I can condense this into an execution checklist with owner/ETA per item.
+
+
+Changes   +0 -0
+Requests  1 Premium (3m 55s)
+Tokens    ↑ 85.9k • ↓ 13.6k • 66.3k (cached) • 8.4k (reasoning)

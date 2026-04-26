@@ -1,0 +1,185 @@
+✗ Survey repo layout (shell)
+  │ cd /home/dangood/src/indexnudge && ls && find . -maxdepth 3 -type f \( -name
+  │ "*.go" -o -name "*.rs" \) | head -30
+  └ Permission denied and could not request permission from user
+
+✗ Search (glob)
+  │ "**/*.{go,rs}" in ~/src/indexnudge
+  └ Permission denied and could not request permission from user
+
+● Search (glob)
+  │ "**/*.{go,rs}"
+  └ No matches found
+
+● Check cwd (shell)
+  │ pwd && ls -la
+  └ 21 lines...
+
+✗ List repo root (shell)
+  │ ls /home/dangood/src/indexnudge/ 2>&1 | head -20
+  └ Permission denied and could not request permission from user
+
+● Read remediation_plan_b_claude-opus-4.7.txt
+  └ 20 lines read
+
+# Remediation Plan — Run 1
+
+I don't have direct access to source files outside the audit folder, so file/function references below cite the names used in the audit report. Plans are concrete enough that an implementer can apply them without re-deriving intent.
+
+---
+
+## fix-now
+
+### B4 — Go line count off-by-one
+- **Type:** code + test
+- **Code:** In each Go extractor's line-population helper (the function that does `lines := strings.Split(src, "\n")`), replace with `bufio.Scanner` over `strings.NewReader(src)` using `ScanLines`, OR keep `Split` but trim a single trailing empty element only when the source ends with `\n`. Update both the per-line `lines` insert loop and the `files.lines` count (use `len(lines)` from the scanner, not from Split).
+- **Test:** `TestExtractLinesTrailingNewline` — write a fixture `"package p\nfunc F() {}\n"` (3 logical lines) and assert `SELECT count(*) FROM lines WHERE file_id=?` == 3 and `SELECT lines FROM files WHERE id=?` == 3. Add a parallel case without trailing newline to confirm both produce the same count. Add a Rust counterpart `test_lines_trailing_newline` that already passes, locking in cross-language equality (`SELECT lines FROM files` must be identical for byte-identical `.go`/`.rs` fixtures with equivalent line structure).
+- **Priority:** fix-now. **Action:** act.
+
+### B3 — Go ignores DB write errors
+- **Type:** code + test
+- **Code:** Every Go extractor uses `stmt, _ := db.Prepare(...)` followed by `stmt.Exec(...)`. Change to:
+  1. `stmt, err := db.Prepare(...)`; on err, return the error up to the indexer (don't continue with a nil stmt — current code panics).
+  2. Capture `_, err := stmt.Exec(...)`; on err, wrap with file path + table name and return.
+  3. Indexer top level: collect per-file errors into a slice; log them; bump exit code if any. Don't abort the whole index on one file.
+- **Test:** `TestExtractorPropagatesPrepareError` — open DB, `db.Exec("DROP TABLE symbols")`, run extractor on a valid file, assert returned error mentions `"symbols"` and that no panic occurs. `TestExtractorPropagatesExecError` — open DB read-only (`?mode=ro`), call extractor, assert error returned. Currently these would panic / silently succeed.
+- **Priority:** fix-now. **Action:** act.
+
+### B2 — Freshen deletes rows before re-index; parse failure ⇒ data loss
+- **Type:** code + test (both Rust and Go)
+- **Code:** Reorder freshen to **parse-then-swap**:
+  1. Parse file into in-memory staging structs (symbols, calls, imports, lines, defs).
+  2. Begin transaction.
+  3. `DELETE FROM <each table> WHERE file_id=?`.
+  4. Insert staged rows.
+  5. Commit. On any parse error in step 1, **skip** the file: log `"freshen: keeping stale data for X: parse error: ..."` and continue. Do **not** delete.
+  - Rust: replace the current `delete_file_rows` → `index_file` sequence with `match parse_file(path) { Ok(parsed) => { tx.delete(); tx.insert(parsed); tx.commit() } Err(e) => warn!(...) }`. Critically, change current `Ok(())` swallow to bubble the warning into a counter on the freshen result.
+  - Go: same restructure in `doFreshen`.
+- **Test:** `TestFreshenPreservesDataOnParseError` (both langs):
+  1. Index fixture with valid `foo.go` containing `func A()`.
+  2. Assert `SELECT name FROM symbols WHERE file=?` == `["A"]`.
+  3. Overwrite `foo.go` with `"package p\nfunc {{{"` (syntactically broken) and bump mtime.
+  4. Run freshen.
+  5. Assert symbol `A` still present, `files` row unchanged (or marked `parse_failed=1` if you add such a column), and freshen reports 1 skipped file.
+- **Priority:** fix-now. **Action:** act.
+
+### B6 — Rust `extract_span` byte/char index mismatch
+- **Type:** code + test
+- **Code:** In `extract_span` (the helper that slices `line[start_col..end_col]` using proc_macro2 `Span` columns): proc_macro2 columns are UTF-8 char counts, but `str` slicing is byte-indexed. Fix by walking the line: `let start_byte = line.char_indices().nth(start_col).map(|(b,_)| b).unwrap_or(line.len());` and similarly for `end_byte`, then slice `&line[start_byte..end_byte]`. Add bounds clamp so out-of-range columns return the trailing slice instead of panicking.
+- **Test:** `test_extract_span_multibyte` — fixture `.rs` containing `fn café() { println!("é"); }`. Currently panics. Assert symbol name == `"café"` and that the span text in the `defs` table equals `"café"` byte-for-byte. Add `test_extract_span_emoji` with `let 🎉 = 1;` style identifier (or a string literal) to cover 4-byte UTF-8.
+- **Priority:** fix-now. **Action:** act.
+
+---
+
+## strengthen
+
+### T1 — Freshen tests verify all tables cleaned
+- **Type:** test only
+- **Plan:** Replace the existing `TestFreshenRemovesStaleSymbols` (and Rust equivalent) with `TestFreshenCleansAllTables`. Steps: index fixture containing a function with a call, an import, and definitions across multiple lines. Snapshot row counts for each of `symbols, calls, imports, lines, defs, fts_symbols (or whatever FTS table), directories` filtered by file_id. Delete the file. Run freshen. Assert each per-file count == 0. Then re-add a different file, freshen, assert counts > 0 and the old file_id has zero rows everywhere. This pins down B2's regression and any future schema additions (require contributors to extend the test when adding tables).
+- **Priority:** strengthen. **Action:** act.
+
+### C3 — Go full vs freshen file-set mismatch
+- **Type:** code + test
+- **Code:** Pick one source-of-truth file walker. Recommend: extract `enumerateGoFiles(root) []string` that uses `go/packages` with `NeedFiles | NeedSyntax` and the same build-tag config in both modes. Have `doFreshen` call it instead of `collectGoFiles`. If `go/packages` fails (no go.mod), fall back to `collectGoFiles` in **both** full and freshen so the sets are identical.
+- **Test:** `TestFullAndFreshenIndexSameFiles` — fixture with `//go:build linux` file, normal file, and `_test.go` file. Run `fullIndex`, snapshot `SELECT path FROM files ORDER BY path`. Delete DB. Run freshen-from-empty (touches all files). Assert path sets equal. Run also with a fixture that has no `go.mod` to cover fallback path.
+- **Priority:** strengthen. **Action:** act.
+
+### C2 — Call callee naming → joinable to symbols
+- **Type:** code + test
+- **Code:** Add a `callee_qualified` column to `calls` populated by both extractors with a normalized form: `"<receiver_type_or_module>.<method>"` for Go and `"<path::to>::<fn>"` for Rust, leaving `callee` (raw text) intact. In Go's call extractor, when the callee is a `SelectorExpr` `p.Method`, look up `p`'s type from `types.Info.TypeOf(p.X)` and emit `pkg.Type.Method` (or `Type.Method` for local). For Rust, when the call is `obj.method(...)` and `obj` is in scope as `let obj: T = ...`, emit `T::method`; otherwise leave qualified blank.
+  - Keep the join key language-agnostic: write a view `CREATE VIEW resolved_calls AS SELECT c.*, s.id AS callee_symbol_id FROM calls c LEFT JOIN symbols s ON s.qualified_name = c.callee_qualified`.
+- **Test:** `TestCallJoinsToSymbol` (both langs): fixture defines `Point.Distance` / `Point::distance` and a call site. Assert `SELECT count(*) FROM resolved_calls WHERE callee_symbol_id IS NOT NULL` ≥ 1, and the resolved id matches `(SELECT id FROM symbols WHERE name='Distance' OR name='distance')`. This replaces tests that asserted bare-name equality (which encode the bug).
+- **Priority:** strengthen. **Action:** act. Note: full method resolution in Rust without rustc type info is best-effort — accept that and document which call shapes resolve.
+
+### T2 — Edge-case tests
+- **Type:** test only
+- **Plan:** Add a fixtures table-driven test `TestExtractorEdgeCases` with cases:
+  - `empty_file.go` / `.rs` — 0 bytes. Assert: file row exists, `lines=0`, no symbols, no error.
+  - `crlf.go` — `"package p\r\nfunc A() {}\r\n"`. Assert `lines=3`, symbol `A` line=2 (not 1, not 4).
+  - `nul_byte.go` — content with embedded `\x00`. Assert: error returned (or file skipped with log) — never panic.
+  - `binary.go` — random bytes. Assert: skipped, no DB rows, no panic.
+  - `parse_error.go` — `"package p\nfunc {{{"`. Assert: file row exists with `parse_failed=1` (or absent if you choose skip-on-error), no symbols inserted, no panic, exit code unchanged.
+  - `bom.rs` — UTF-8 BOM at start. Assert: first symbol's line == 1.
+- **Priority:** strengthen. **Action:** act.
+
+---
+
+## defer
+
+### B5 — Atomic full reindex
+- **Type:** code only
+- **Plan:** Write to `<dbPath>.tmp`, then `os.Rename`/`fs::rename` over `<dbPath>` only after `Commit`/`Close` succeeds. On any error, `os.Remove` the tmp and leave the prior DB untouched. Test: `TestFullIndexFailureKeepsOldDB` — pre-populate `idx.db`, then run full index pointed at a fixture root containing one unparseable file that triggers the error path; assert `idx.db` mtime/sha unchanged.
+- **Priority:** defer. **Action:** act when convenient — small change, big safety win, but not actively breaking users.
+
+### S3 — Transaction boundaries
+- **Type:** code only
+- **Plan:** Wrap each per-file extractor in `BEGIN/COMMIT` (already implied by B2 fix). For full index, batch ~500 files per transaction. Test: `TestPartialIndexRollback` — inject panic mid-extractor via a hook; assert no rows from the panicking file in any table.
+- **Priority:** defer (subsumed in part by B2). **Action:** act after B2.
+
+### C1 — Cross-language qualified-name separator
+- **Type:** docs + optional code
+- **Plan:** Document in README that `qualified_name` uses native separator (`::` for Rust, `.` for Go) and `kind` uses native vocabulary. Add a `language` column to `symbols` (if not present) so cross-language queries can `WHERE language='rust' OR ...`. Add a SQL view `symbols_normalized` exposing `replace(qualified_name, '::', '.')` for tooling that wants a unified key.
+- **Priority:** defer. **Action:** act on the docs+view only; do not change the stored separators.
+
+### C4 — `_test.go` exclusion vs Rust including all `.rs`
+- **Type:** docs only
+- **Plan:** Add a "Coverage" section to README listing what each extractor includes/excludes and why. **Action:** dismiss as a bug; act as documentation. Rationale: the asymmetry is intentional (Go convention treats `_test.go` as a separate compile unit; Rust has no equivalent file convention) and changing either would surprise existing users.
+
+### B7 — Rust `target` exclusion is too broad
+- **Type:** code + test
+- **Plan:** Match only `<root>/target/...` (i.e., the cargo build dir at workspace root), not any `target` component anywhere in the path. Use `path.starts_with(root.join("target"))`. Test: fixture with `src/target/mod.rs` — assert it's indexed; fixture with `target/debug/x.rs` — assert it's excluded.
+- **Priority:** defer. **Action:** act (small change). Low real-world impact but cheap.
+
+### S1 — Symlink following
+- **Type:** code + test
+- **Plan:** In both walkers, use `fs::symlink_metadata` / `os.Lstat` and skip symlinks (or follow only if target is within root, resolved via `filepath.EvalSymlinks` + `strings.HasPrefix(resolved, root)`). Test: create symlink under fixture pointing to `/etc/passwd`; assert it's not in `files` table.
+- **Priority:** defer. **Action:** act.
+
+### S2 — File-size limits
+- **Type:** code + test
+- **Plan:** Add `--max-file-bytes` flag (default 5 MiB). In walker, skip larger files with a log line and a `files.skipped_reason` column. Test: 6 MiB fixture file is skipped; 4 MiB is indexed.
+- **Priority:** defer. **Action:** act if generated files in user repos become a problem; otherwise leave.
+
+### S4 — `PRAGMA synchronous=OFF`
+- **Type:** code only
+- **Plan:** Change to `NORMAL` (good crash safety, near-OFF speed in WAL mode). No new test needed; existing tests must still pass. **Action:** act — one-line change with measurable safety improvement.
+
+### H1 — Schema version check on freshen
+- **Type:** code + test
+- **Plan:** On open in freshen mode, `SELECT value FROM meta WHERE key='schema_version'`; if missing or != current, log `"schema mismatch, doing full reindex"` and fall through to `fullIndex`. Test: pre-populate DB with `schema_version='0'`, run freshen, assert all tables are repopulated with current schema.
+- **Priority:** defer. **Action:** act — cheap and prevents silent breakage on upgrade.
+
+### H2 — Go `loadPackages` ignores `pkg.Errors`
+- **Type:** code + test
+- **Plan:** After `packages.Load`, iterate `pkg.Errors` and (a) log each, (b) for type errors, still attempt syntactic extraction from `pkg.Syntax` rather than returning a nil-deref. Specifically: guard every `pkg.TypesInfo` access with a nil check. Test: `TestLoadPackagesWithTypeError` — fixture with intentional type error; assert no panic, syntactic symbols still extracted, errors logged.
+- **Priority:** strengthen (sonnet-4.6 flagged this as a real panic risk). **Action:** act — promote from defer.
+
+### H3 — Rust struct/const/static `end_line` is identifier span
+- **Type:** code only
+- **Plan:** When extracting these symbol kinds, use the full item's `Span` (e.g., `item.span()` on `ItemStruct`) for `end_line`, not the `ident.span()`. Test: fixture with multi-line struct; assert `end_line - start_line >= 2`.
+- **Priority:** defer. **Action:** act.
+
+---
+
+## Dismissals
+
+- **C4** — Dismiss as a bug, act only as documentation. Rationale above.
+- **C1** — Dismiss the "make them identical" interpretation; act on docs + view only. Stored separators are intentional and tools downstream depend on the native form.
+
+---
+
+## Suggested commit order
+
+1. B4, B3, B6 — small, isolated, each in its own commit.
+2. B2 + T1 together (test would otherwise fail on the buggy code).
+3. C3 + test.
+4. C2 + view + test (largest change; do last in the fix-now/strengthen tier).
+5. T2 edge-case suite.
+6. Then defer items in priority order: H2, S4, B5, B7, H1, H3, S1, S3, S2, C1/C4 docs.
+
+Each numbered item should land as a separate PR/commit so a regression bisect points at one finding.
+
+
+Changes   +0 -0
+Requests  7.5 Premium (1m 56s)
+Tokens    ↑ 250.9k • ↓ 6.6k • 213.8k (cached)

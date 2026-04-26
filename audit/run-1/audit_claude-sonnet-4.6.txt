@@ -1,0 +1,250 @@
+● Check what files exist in the audit run directory (shell)
+  │ find /home/dangood/src/indexnudge/audit/run-1 -type f | head -20 && ls
+  │ /home/dangood/src/indexnudge/audit/run-1/
+  └ 16 lines...
+
+● Check if audit file has existing content (shell)
+  │ cat /home/dangood/src/indexnudge/audit/run-1/audit_claude-sonnet-4.6.txt |
+  │ head -5
+  └ 5 lines...
+
+● Read audit_claude-sonnet-4.6.txt
+  └ L1:30 (9 lines read)
+
+● Read audit_claude-sonnet-4.txt
+  └ L1:50 (49 lines read)
+
+Here is the full audit:
+
+---
+
+# Audit Findings: Rust & Go Code Indexers
+
+## 1. PRODUCTION BUGS
+
+---
+
+**[HIGH] Go: `strings.Split` produces wrong line count and inserts phantom line**
+
+`indexFile` does `lines := strings.Split(string(src), "\n")`, then uses `len(lines)` as the file's line count and iterates over it to insert into the `lines` table. For any file ending with `\n` (every well-formed Go source file), `strings.Split` produces a trailing empty string as the last element, so `len(lines)` is one greater than the actual line count. The `files` table stores the wrong count, and the `lines` table contains an extra empty-content row at line N+1.
+
+**Why it matters:** Every Go source file gets a wrong line count in the DB. An agent querying "show me the last line of file X" gets an empty-content ghost line. Line-count aggregations (e.g., `directories.total_lines`) are systematically off by one per file.
+
+**Scenario:** Index any non-empty `.go` file. `SELECT lines FROM files WHERE file = 'main.go'` returns one more than `wc -l main.go` for that file. `SELECT content FROM lines WHERE file = 'main.go' ORDER BY line_num DESC LIMIT 1` returns an empty string.
+
+Rust uses `source.lines().count()` which correctly excludes the trailing newline. This is also a cross-language inconsistency (finding #13).
+
+---
+
+**[HIGH] Go: nil pointer panic in `loadPackages` when a package has type errors**
+
+```go
+for k, v := range pkg.TypesInfo.Types {
+```
+
+`pkg.TypesInfo` is nil whenever the package fails to type-check (missing dependency, cyclic import, unresolved symbol, build-tag-excluded file). The range expression dereferences the nil pointer and panics, taking down the entire indexer process.
+
+**Why it matters:** Real codebases regularly have packages that don't type-check cleanly — generated code, OS-conditional packages, vendored code with missing transitive deps, code mid-refactor. A single broken package in `./...` makes the entire indexer crash with a nil pointer panic, producing no output at all.
+
+**Scenario:** Create a Go file that imports a package that isn't available. Run `fullIndex`. The indexer panics before writing anything to the DB.
+
+---
+
+**[HIGH] Go: nil pointer panic if `db.Prepare` fails**
+
+The pattern used throughout the extraction functions is:
+```go
+stmt, _ := db.Prepare("INSERT INTO ...")
+defer stmt.Close()
+```
+If `db.Prepare` returns an error (DB locked, schema mismatch, connection closed), `stmt` is nil. The `defer stmt.Close()` then panics with a nil pointer dereference. This pattern appears in `extractSymbols`, `extractCalls`, `extractImports`, `extractDefs`, `extractChannels`, `indexLines`, and `populateDirectories`.
+
+**Why it matters:** Any transient DB issue (WAL file locked by a concurrent reader, disk full) during a freshen causes a panic and incomplete data. The panic is unrecovered so the entire tool exits.
+
+**Scenario:** Run a long-running agent query (holding a read lock) at the same moment `doFreshen` starts preparing statements. Depending on SQLite's lock state, `db.Prepare` may fail, and the indexer panics rather than returning an error.
+
+---
+
+**[MEDIUM] Go: all `stmt.Exec` errors silently discarded everywhere**
+
+Every call to `stmt.Exec(...)` throughout the Go extraction pipeline discards the return value. A constraint violation, a closed statement, or a disk-full error produces no log entry and no returned error — the row is simply not inserted.
+
+**Why it matters:** Data is silently dropped with no indication to the caller or user. An agent using the DB gets an incomplete index and has no way to know. The `indexFile` function also discards errors from `indexLines`, `extractSymbols`, etc. by returning nothing from those functions, so even the outer error propagation path can't surface these failures.
+
+**Scenario:** Index a large codebase while the disk fills up. The indexer reports "Done" successfully, but thousands of symbols, calls, and imports are missing.
+
+---
+
+**[MEDIUM] Both: no transaction around `freshen` operations — crash causes permanent data loss**
+
+In Rust `freshen()` and Go `doFreshen()`, the sequence is:
+1. `delete_file_rows(file)` — removes all data for a stale file
+2. `index_file(file)` — re-inserts all data
+
+These are not wrapped in a transaction. A process kill, OOM, or power failure between steps 1 and 2 leaves the file permanently deleted from the index with no record that it was ever there. The next `freshen` call will see the file as "new" (no DB record) and re-index it, but in the gap the DB is silently incomplete. For `full_index` mode this is self-healing; for `freshen` mode the window of corruption is real.
+
+Additionally in Go, `db.Exec("DELETE FROM directories")` and `db.Exec("DELETE FROM lines_fts")` errors are silently ignored before `finalize` is called — if these fail, the subsequent INSERT produces duplicate rows.
+
+**Scenario:** Machine reboots mid-freshen on a file. On restart, that file's symbols, calls, and defs are gone. An agent querying the DB between the crash and next freshen sees no symbols for that file.
+
+---
+
+## 2. TESTS THAT COVER BUT DON'T VALIDATE
+
+---
+
+**[MEDIUM] Both: `freshen_detects_stale_file` doesn't verify that pre-existing symbols survive**
+
+Both Rust (`freshen_detects_stale_file`) and Go (`TestFreshenDetectsStaleFile`) modify a file (adding a new function) and verify that the new symbol appears after freshen. Neither test verifies that the symbols from the original file content are still present.
+
+**Why it matters:** If `delete_file_rows` silently failed or if the re-index path had a bug that only inserted *new* symbols and skipped *old* ones, both tests would still pass. The invariant "freshen preserves existing symbols" is asserted nowhere.
+
+**Scenario:** A bug is introduced that deletes file rows correctly but writes only the diff to `symbols`. The test passes because `goodbye` is present; `hello` being gone goes undetected.
+
+---
+
+**[LOW] Both: `fts_search_works` / `TestFTSSearchWorks` use `count >= 2` with no upper bound**
+
+Both tests assert only that FTS returns at least 2 results for "distance"/"Distance". They would pass even if `finalize` were called multiple times (inserting duplicate FTS rows), producing `count = 4` or `count = 100`.
+
+**Why it matters:** A double-finalize bug or a freshen bug that doesn't clear `lines_fts` before rebuilding produces wrong FTS content and these tests provide no signal.
+
+---
+
+**[LOW] Go `TestCallsExtracted`: asserts against `p.Distance` — cementing a design defect**
+
+The test explicitly asserts `contains(callees, "p.Distance")`, where `p` is the local variable name. This is an assertion that the implementation stores the wrong identifier (instance name rather than type name). The test would fail if the implementation were fixed to store the more useful `Point.Distance`. See finding #14 for the underlying issue.
+
+---
+
+**[LOW] Rust `freshen_removes_deleted_file` doesn't verify the `calls`, `imports`, `defs` tables are cleaned up**
+
+The test verifies that `files` and `symbols` are empty after removing a file and freshening. It does not check `calls`, `imports`, or `defs`. The `delete_file_rows` function deletes from all tables, but if it had a bug on one of them, this test would not catch it.
+
+---
+
+## 3. MISSING EDGE CASES
+
+---
+
+**[HIGH] Go: empty file produces wrong output**
+
+`strings.Split("", "\n")` returns `[""]` — a slice with one empty-string element. An empty file gets `files.lines = 1`, a single empty-content row in `lines`, and `directories.total_lines` is incremented by 1. Correct answer for all three is 0. Rust's `source.lines().count()` correctly returns 0 for an empty file.
+
+---
+
+**[MEDIUM] Neither test suite covers a file that fails to parse**
+
+There is no test verifying that a file with a syntax error (Rust) or a file that `parser.ParseFile` rejects (Go) is skipped cleanly, leaves no partial data in the DB, and emits a diagnostic message. In both implementations, parse failures silently skip the file with no record in `files` — an agent has no way to discover that some files are missing from the index.
+
+---
+
+**[MEDIUM] Go `doFreshen` fallback path silently omits channel-range data**
+
+When a file isn't found in loaded packages, `doFreshen` falls back to:
+```go
+if err := indexFile(db, localFset, rel, absPath, parsed, nil); err != nil { ... }
+```
+Passing `info = nil` to `extractChannels` silently skips the `case *ast.RangeStmt:` detection (which requires type info to distinguish channel ranges from slice/map ranges). Files indexed through the fallback path are silently missing `range` channel operations. No test covers this path.
+
+---
+
+**[LOW] No test for CRLF line endings**
+
+Go `strings.Split(src, "\n")` on a Windows-encoded file leaves `\r` at the end of every line's content in the `lines` table. Rust's `str::lines()` strips `\r`. Same file, different stored content. No test exercises CRLF input.
+
+---
+
+**[LOW] No test for concurrent access**
+
+Neither implementation uses advisory locking or retry on `SQLITE_BUSY`. Two processes freshening the same DB simultaneously will corrupt it. No test documents this limitation or verifies failure behavior.
+
+---
+
+## 4. CROSS-LANGUAGE INCONSISTENCIES
+
+---
+
+**[HIGH] Method separator in `qualified_name`: `::` vs `.`**
+
+Rust stores `Point::new` and `Point::distance`. Go stores `Point.Distance`. The schema is supposed to be shared, but the same method has a different string in `qualified_name` depending on which tool built the DB. An agent querying `WHERE qualified_name = 'Point::new'` finds nothing in a Go-built DB.
+
+---
+
+**[HIGH] Method call format in `calls.callee`: bare name vs instance-qualified name**
+
+Rust `visit_expr_method_call` stores the bare method name: `callee = "distance"`. Go `extractCalls` stores the instance-qualified name: `callee = "p.Distance"` (where `p` is the local variable). These are incompatible representations of the same call. Moreover, Go's format is uniquely problematic: using the instance variable name means you cannot find all calls to a method on a type without knowing every variable name that ever holds that type.
+
+---
+
+**[MEDIUM] Mtime precision: nanoseconds vs milliseconds**
+
+Rust: `t.duration_since(UNIX_EPOCH).as_secs_f64()` — nanosecond precision in the fractional seconds.  
+Go: `float64(info.ModTime().UnixMilli()) / 1000.0` — millisecond precision.
+
+For the same file on the same filesystem, the stored mtime values differ between the two tools. If a Rust-built DB is later freshened by Go (or vice versa), all files appear stale on first run because the stored mtime doesn't match.
+
+---
+
+**[MEDIUM] Test files: Rust indexes all, Go excludes `_test.go`**
+
+`collectGoFiles` skips files matching `_test.go`. Rust's `collect_rs_files` indexes all `.rs` files, including `#[cfg(test)]` modules. Test code is indexed by Rust and absent from Go. The `files`, `symbols`, and `calls` tables have systematically different coverage.
+
+---
+
+**[MEDIUM] `channels` table: Go-only schema addition**
+
+Go creates a `channels` table; Rust does not. Databases produced by the two tools have different schemas, breaking any tooling that expects a consistent schema from both.
+
+---
+
+**[LOW] Package-level `const`/`var` in `symbols` (Rust) vs `defs` only (Go)**
+
+Rust's `Extractor` emits `visit_item_const`, `visit_item_static`, `visit_item_type` as symbol records. Go's `extractSymbols` only handles `FuncDecl` and `TypeSpec` (struct/interface). Package-level Go constants and variables appear only in `defs`, not `symbols`. An agent doing `SELECT * FROM symbols WHERE kind = 'const'` gets Rust constants but no Go constants.
+
+---
+
+## 5. SECURITY / ROBUSTNESS
+
+---
+
+**[MEDIUM] Go follows symlinks to files; Rust does not**
+
+`filepath.Walk` in Go follows symbolic links to regular files but not directories. A `.go` symlink pointing outside the indexed directory is followed and indexed. Rust's `WalkDir` does not follow symlinks by default. This creates a path-traversal-like exposure: a symlink farm in the target directory can cause the Go indexer to read and index arbitrary files on the filesystem.
+
+---
+
+**[LOW] No file size limit**
+
+Both implementations read entire files into memory before processing. A generated file with millions of lines (e.g., a serialized proto blob renamed `.go` or `.rs`, or a minified file) will OOM the indexer. No size check or streaming read exists.
+
+---
+
+## 6. DATA CORRECTNESS
+
+---
+
+**[MEDIUM] No foreign key enforcement; orphaned rows possible**
+
+`symbols.file`, `calls.caller_file`, `imports.file`, etc. have no foreign key constraint referencing `files.file`. If any step of `delete_file_rows` fails (Go silently, Rust loudly), the partial rows remain with no referential integrity check. Orphaned symbol/call records accumulate invisibly across freshen cycles.
+
+---
+
+**[LOW] `symbols`, `calls`, `imports`, `defs` have no UNIQUE constraints**
+
+Only the `lines` table has a PRIMARY KEY that prevents duplicates. If `index_file` is called twice for the same file (e.g., a bug in freshen logic, or a crash after insert but before commit of the `files` row), all symbol/call/import/def data is silently doubled. No test exercises this; the DB schema provides no protection.
+
+---
+
+## Question A
+
+**The single most damaging thing not already listed:** Neither implementation wraps any write operation in an explicit transaction. In Go, every `stmt.Exec` is auto-committed individually. For a large codebase (thousands of files, millions of rows), this means thousands of separate implicit transactions — but more critically, it means there is no atomicity guarantee at the *file* or *session* level. A full index of a large codebase is not an atomic operation: at any point during it, the DB is visible to readers in a partially-indexed state with some files present and others absent, with no flag or version counter to indicate incompleteness. A production reviewer would immediately require that `fullIndex` either run entirely inside a single transaction or stage results to a temp DB and rename atomically. The current code makes the DB unavoidably inconsistent for any concurrent reader during indexing.
+
+## Question B
+
+**The single largest missed opportunity:** The `calls` table records what function or method was *syntactically* invoked, but not the *resolved type* of the receiver or the target. In Go, virtually all interesting call relationships go through interfaces — you call `io.Writer.Write`, not `os.File.Write`. In Rust, you call a trait method without knowing which impl is dispatched. Without type-resolved call targets, the call graph is a collection of unresolvable edges: you can see that *something named* `Write` was called from `main`, but you cannot determine which concrete implementation, nor traverse the call graph transitively. Storing even a best-effort resolved type (from `types.Info` which Go already loads, or from `syn`'s type system) would transform the `calls` table from a name-matching index into an actual call graph — the foundational data structure for "find all callers of this function", "what does this code path touch", and reachability analysis.
+
+
+Changes   +0 -0
+Requests  1 Premium (6m 45s)
+Tokens    ↑ 347.5k • ↓ 22.4k • 259.6k (cached)

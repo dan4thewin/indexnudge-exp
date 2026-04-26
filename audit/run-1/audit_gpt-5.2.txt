@@ -1,0 +1,142 @@
+## Findings (bugs / robustness / test false-positives)
+
+### 1) Go `imports.line_num` is wrong (stores token.Pos, not a line)
+- **Problem:** `extractImports` does `stmt.Exec(rel, path, imp.Pos())`. `imp.Pos()` is a `token.Pos` (opaque offset in a FileSet), not a source line number.
+- **Why it matters:** Any query like “show me imports on line N” is garbage; ordering by `line_num` is meaningless.
+- **Exposes:** Any file with imports; `line_num` will be large/non-monotonic and unrelated to the file’s actual lines.
+- **Severity:** **high**
+
+### 2) Go freshen can leave **stale/orphaned FTS rows** (data correctness bug)
+- **Problem:** `deleteFileRows` deletes from `lines`, `symbols`, etc. but **never deletes from `lines_fts`**. The code relies on the “wipe and rebuild FTS” path (`DELETE FROM lines_fts` + `finalize`) to clean it up.
+- **Why it matters:** If FTS isn’t rebuilt, `lines_fts` can return matches for content that no longer exists in `lines` (false search results).
+- **Exposes:** In `doFreshen`, if a file is deleted from tables but the run does **not** enter the `reindexed > 0 || removed > 0` block (see next finding), `lines_fts` remains polluted.
+- **Severity:** **high**
+
+### 3) Go freshen: parse/index failure after deletion causes **data loss** and can also skip rebuilding derived tables
+- **Problem:** For a stale file, `doFreshen` does `deleteFileRows(db, rel)` *before* attempting to re-index. If parsing/indexing fails, it `continue`s, leaving the file fully removed.
+  - Also: such failures don’t increment `reindexed` and aren’t counted as `removed`, so you may **not** rebuild `directories`/`lines_fts`, compounding inconsistency (ties into finding #2).
+- **Why it matters:** A transient syntax error or unreadable file can wipe previously indexed data, and possibly leave `lines_fts` inconsistent.
+- **Exposes:** Edit a file into a temporarily-unparseable state, run `-freshen`, then fix file later; the DB has already lost historical rows.
+- **Severity:** **high**
+
+### 4) Rust freshen also deletes then “skips” on parse/read error → silent data loss
+- **Problem:** Rust `freshen` deletes rows for an existing file (`delete_file_rows`) then calls `index_file`. But `index_file` returns `Ok(())` on read/parse error (it “skips”).
+- **Why it matters:** Same as Go: transient parse errors erase prior data, now with a “successful” run exit code.
+- **Exposes:** Any file that was previously indexed, then becomes temporarily invalid Rust (or unreadable/invalid UTF-8), then `--freshen`.
+- **Severity:** **high**
+
+### 5) Go full index and freshen index **different sets of files**
+- **Problem:** `fullIndex` indexes only `pkgFiles` from `packages.Load("./...")`. `doFreshen` uses `collectGoFiles` (all `.go` excluding `_test.go`) and even has a fallback parse for files not in `pkgFiles`.
+- **Why it matters:** A “full rebuild” can produce a *smaller/different* DB than an incremental refresh on the same tree (especially build-tagged files, files excluded by `packages.Load`, or parse/typecheck issues).
+- **Exposes:** Files with build tags, non-buildable packages, or standalone `.go` files: `fullIndex` may omit them; `freshen` may include them.
+- **Severity:** **medium**
+
+### 6) Go ignores many DB errors; can silently produce partial/incorrect DB (or panic)
+- **Problem:** Many places do `stmt, _ := db.Prepare(...)` and `stmt.Exec(...)` ignoring errors. If `Prepare` fails, `stmt` can be `nil` and `defer stmt.Close()` can panic. If `Exec` fails (constraints, disk full, locked DB), indexing continues silently.
+- **Why it matters:** You can get a DB that “looks done” but is missing tables/rows; troubleshooting is hard; crashes are possible.
+- **Exposes:** Disk full, read-only filesystem, locked DB, schema drift, or any unexpected SQLite error.
+- **Severity:** **high**
+
+### 7) Cross-language + intra-language line counts differ (real correctness impact)
+- **Problem:** Rust uses `source.lines()` (drops trailing final empty line; also doesn’t include the `\n`). Go uses `strings.Split(string(src), "\n")` (includes a final empty element when file ends with `\n`).
+- **Why it matters:** `files.lines`, `directories.total_lines`, and `lines` row counts differ for the same textual file; agents relying on line-based offsets will disagree across implementations.
+- **Exposes:** Any file with a trailing newline (common).
+- **Severity:** **medium**
+
+### 8) Rust path storage uses `to_string_lossy()` → possible key collisions / wrong file identity
+- **Problem:** Rust converts relative paths via `to_string_lossy()`. On Unix, filenames need not be valid UTF-8; lossy conversion can map distinct byte sequences to the same `String` (replacement characters).
+- **Why it matters:** Two distinct files can collapse to the same `files.file` key, causing overwrites/deletes of the “wrong” file and corrupted indexing.
+- **Exposes:** Repos containing non‑UTF8 paths (rare, but valid).
+- **Severity:** **medium**
+
+### 9) Go method call “callee” naming is unstable/less useful than Rust (cross-language inconsistency)
+- **Problem:** Go `extractCalls` records selector callees as `receiverVar.Method` (e.g., `p.Distance`). Rust records method calls as just `"distance"` (and associated functions as `Type::func`).
+- **Why it matters:** Call graphs won’t line up across languages; even within Go, renaming a local variable changes call identity though semantics don’t change.
+- **Exposes:** Any method call.
+- **Severity:** **low** (correctness of “call facts” depends on intended semantics)
+
+### 10) Go `funcSignature` drops pointer-ness of receivers (data correctness)
+- **Problem:** `recvTypeName` strips `*` and `funcSignature` prints `(Point)` even for `(*Point)`.
+- **Why it matters:** Signatures are materially wrong; searching for pointer-receiver APIs becomes unreliable.
+- **Exposes:** Any pointer receiver method.
+- **Severity:** **low**
+
+### 11) Both implementations risk inconsistent DB state (no transaction; derived tables rebuilt wholesale)
+- **Problem:** Indexing is not wrapped in a transaction; WAL + `synchronous=OFF` + many statements means a crash can leave partially-updated tables (and derived tables may not match).
+- **Why it matters:** Production use can yield corrupt/partial indexes and misleading query results.
+- **Exposes:** Process crash/kill, power loss, or out-of-disk during indexing.
+- **Severity:** **medium** (could be **high** depending on usage expectations)
+
+---
+
+## Tests that “cover but don’t validate” (false-positive risk)
+
+### 12) Go `TestLinesHaveSymbolAttribution` is nondeterministic / weakly asserted
+- **Problem:** Queries don’t `ORDER BY line_num`; the test checks `syms[0]`. If multiple rows match the LIKE, first row is arbitrary.
+- **Why it matters:** Test can pass even if some matching lines are mis-attributed; it can also flake.
+- **Exposes:** Multiple matching lines containing the same substring, or SQLite returning rows in different order.
+- **Severity:** **medium**
+
+### 13) Rust `lines_have_symbol_attribution` relies on `query_row` with `LIKE`
+- **Problem:** If multiple rows match, it effectively asserts on an arbitrary match (first row), not *the intended line*.
+- **Why it matters:** Mis-attribution elsewhere can slip through.
+- **Exposes:** Repeated text fragments or duplicate patterns in file.
+- **Severity:** **low/medium**
+
+### 14) Channel tests mostly validate “some row exists”, not correctness of fields
+- **Problem:** Go channel tests often assert only that an `operation` exists, not that `file/symbol/line_num/var` are correct (and `make` explicitly records `var = nil`).
+- **Why it matters:** Major regressions in attribution could still pass.
+- **Exposes:** Bugs in `exprName`, wrong symbol naming, wrong line numbers, duplicates.
+- **Severity:** **medium**
+
+### 15) Freshen tests depend on wall-clock sleeps (mtime resolution flake)
+- **Problem:** Both Rust and Go sleep ~50ms and assume filesystem mtime precision is sufficient.
+- **Why it matters:** On filesystems with coarse timestamp resolution, tests can intermittently fail or miss the stale-file path.
+- **Exposes:** Some CI/VM filesystems, network FS, unusual mounts.
+- **Severity:** **low/medium**
+
+---
+
+## Missing edge cases (likely to break or silently misindex)
+
+### 16) Non-UTF8 / binary files
+- **Rust:** `read_to_string` skips non-UTF8 sources entirely (data missing).
+- **Go:** parser expects UTF-8; also may skip; but behavior differs in full vs freshen fallback.
+- **Why it matters:** Repos with generated/binary-like sources (or odd encodings) will be partially indexed.
+- **Exposes:** Embedded resources, vendor blobs, or invalid-UTF8 filenames (Rust path collision).
+- **Severity:** **medium**
+
+### 17) Concurrent runs / DB locking
+- **Problem:** No explicit locking discipline; lots of unchecked DB errors in Go.
+- **Why it matters:** Two indexers can interleave and produce partial data or failures that are ignored.
+- **Exposes:** Running `freshen` from multiple processes/CI jobs.
+- **Severity:** **medium**
+
+### 18) Very large files / repos (resource exhaustion)
+- **Problem:** Both read whole files into memory; Rust parses full AST; Go loads whole module type info.
+- **Why it matters:** Can OOM, thrash, or become unusably slow on monorepos.
+- **Exposes:** Large vendored codebases, generated code, big JSON-as-.go/.rs strings.
+- **Severity:** **medium**
+
+---
+
+## Cross-language inconsistencies that will produce different DBs
+
+1) **Schema mismatch:** Go has `channels` table; Rust does not.  
+2) **Qualified name separators:** Rust `Type::method`, Go `Type.Method`.  
+3) **Call naming semantics:** Rust method call callee is just `"distance"`; Go uses `"p.Distance"`/`"fmt.Println"`.  
+4) **Line counting differences** (finding #7).  
+5) **File inclusion rules differ** (Rust indexes all `.rs` except `target/`; Go full vs freshen differ; Go excludes `_test.go`).
+
+---
+
+## A) Most damaging single thing (not already above)
+The **widespread ignoring of database errors in Go combined with continuing execution** is the most damaging in production: it can yield silently incomplete/incorrect indexes that appear “successful”, destroying trust in every downstream query.
+
+## B) Largest missed opportunity
+Introduce **stable, cross-language symbol IDs and relationships** (e.g., `symbols.id` referenced by `calls/defs/lines`, plus consistent qualified-name rules). That would enable reliable call graphs and “jump to definition” style queries instead of string-matching heuristics that diverge across languages.
+
+
+Changes   +0 -0
+Requests  1 Premium (2m 29s)
+Tokens    ↑ 39.1k • ↓ 9.8k • 0 (cached) • 7.3k (reasoning)

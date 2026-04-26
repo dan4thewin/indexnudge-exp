@@ -1,0 +1,142 @@
+● Create findings tracking (sql)
+  │ CREATE TABLE findings (
+  └ Schema operation completed successfully.
+
+● Insert production bugs (sql)
+  │ INSERT INTO findings (category, severity, problem, impact, scenario,
+  │ language, l…
+  └ 6 row(s) inserted. Last inserted row ID: 6.
+
+● Insert test coverage issues (sql)
+  │ INSERT INTO findings (category, severity, problem, impact, scenario,
+  │ language, l…
+  └ 4 row(s) inserted. Last inserted row ID: 10.
+
+● Insert missing edge cases (sql)
+  │ INSERT INTO findings (category, severity, problem, impact, scenario,
+  │ language, l…
+  └ 8 row(s) inserted. Last inserted row ID: 18.
+
+● Insert security and data correctness issues (sql)
+  │ INSERT INTO findings (category, severity, problem, impact, scenario,
+  │ language, l…
+  └ 7 row(s) inserted. Last inserted row ID: 25.
+
+● Query findings by severity (sql)
+  │ SELECT category, severity, COUNT(*) as count
+  └ 12 row(s) returned
+
+Now let me provide the detailed audit findings:
+
+# Audit Findings for Code Indexing Tools (Rust & Go)
+
+## PRODUCTION BUGS
+
+### High Severity
+
+**1. Incorrect line number extraction in Go imports**
+- **What**: In `extractImports()`, `imp.Pos()` returns a token position, not a line number
+- **Impact**: All import statements have wrong line numbers in database 
+- **Scenario**: Any Go file with imports — `import "fmt"` might show line 12345 instead of line 3
+- **Severity**: High
+
+**2. Schema inconsistency between languages**  
+- **What**: Go creates `channels` table, Rust doesn't
+- **Impact**: Same codebase indexed by both tools produces incompatible databases
+- **Scenario**: Team using both tools on same codebase gets different schemas
+- **Severity**: High
+
+### Medium Severity  
+
+**3. mtime precision inconsistency**
+- **What**: Rust uses `as_secs_f64()`, Go uses `UnixMilli() / 1000.0` 
+- **Impact**: Freshen operations may behave differently between implementations
+- **Scenario**: File modified between Rust and Go indexing, different staleness detection
+- **Severity**: Medium
+
+## TESTS THAT COVER BUT DON'T VALIDATE
+
+### High Severity
+
+**4. FTS test only checks count, not content accuracy**
+- **What**: Test verifies "at least 2 FTS hits" but doesn't check if right content matched
+- **Impact**: FTS could index garbage and test still passes
+- **Scenario**: Bug in FTS population puts wrong data in search index  
+- **Severity**: High
+
+**5. Symbol extraction tests only verify presence**
+- **What**: Tests check symbol names exist but not line numbers, signatures, kinds
+- **Impact**: Symbols extracted with completely wrong metadata pass tests
+- **Scenario**: Bug makes all symbols show wrong line numbers — tests pass anyway
+- **Severity**: High
+
+## MISSING EDGE CASES
+
+### High Severity
+
+**6. No Unicode filename or content handling tests**
+- **What**: Unicode in filenames or source code completely untested
+- **Impact**: Could cause path resolution failures or parse crashes
+- **Scenario**: Files named `测试.rs` or containing Unicode string literals
+- **Severity**: High
+
+**7. No symlink handling or protection**
+- **What**: Symlinks followed without cycle detection
+- **Impact**: Infinite recursion, potential DoS, directory traversal
+- **Scenario**: `src/lib.rs` → `../src/lib.rs` causes infinite loop
+- **Severity**: High
+
+**8. No handling of binary files with correct extensions** 
+- **What**: Binary files with `.rs`/`.go` extensions cause parse failures
+- **Impact**: Silent exclusion from index with just error message
+- **Scenario**: Executable file named `main.rs` or corrupted source file
+- **Severity**: High
+
+## CROSS-LANGUAGE INCONSISTENCIES
+
+**9. Method qualification differs**: `Point::distance` (Rust) vs `Point.Distance` (Go)
+**10. Directory exclusions differ**: Rust skips `target/`, Go skips `vendor/` + `.git/` + `node_modules/`  
+**11. Schema structure**: Go has extra `channels` table for concurrency analysis
+
+## SECURITY/ROBUSTNESS
+
+### Medium Severity
+
+**12. No memory limits for file processing**
+- **What**: No bounds on file size before loading into memory
+- **Impact**: Multi-gigabyte files cause memory exhaustion
+- **Scenario**: Indexing repo with large generated/data files  
+- **Severity**: Medium
+
+## DATA CORRECTNESS
+
+### High Severity
+
+**13. No foreign key constraints**
+- **What**: Schema allows orphaned symbols, calls to nonexistent functions
+- **Impact**: Database integrity violations possible
+- **Scenario**: Partial indexing failure leaves dangling references
+- **Severity**: High
+
+**14. No unique constraints prevent duplicates**
+- **What**: Same data could be inserted multiple times
+- **Impact**: Corrupted counts and duplicate results
+- **Scenario**: Interrupted indexing + restart creates duplicate entries
+- **Severity**: High
+
+---
+
+## A. Single Most Damaging Issue Not Listed Above
+
+**Transaction isolation failure**: Both tools lack proper transaction boundaries around multi-table operations. If indexing crashes mid-file, the database could have a file record with no corresponding symbols, or symbols with no file record. This creates fundamentally corrupted databases that appear to work but return incomplete results.
+
+## B. Largest Missed Opportunity  
+
+**Incremental symbol-level analysis**: Both tools reparse entire files on any change. They could implement symbol-level dependency tracking to only re-extract affected symbols when specific functions/classes change, making incremental updates 10-100x faster on large codebases. This would enable real-time indexing for IDE integration.
+
+**Summary**: Found 25 issues total — 9 high severity, 13 medium severity, 3 low severity. The most critical are data correctness issues that could silently corrupt the database and cross-language inconsistencies that break interoperability.
+
+
+Changes   +0 -0
+Requests  1 Premium (1m 48s)
+Tokens    ↑ 380.7k • ↓ 4.6k • 324.7k (cached)

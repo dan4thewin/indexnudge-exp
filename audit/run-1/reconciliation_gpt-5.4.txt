@@ -1,0 +1,48 @@
+**Reconciled plan:** mostly **synthesize both plans**, with three key resolutions: **keep native stored names** for cross-language compatibility (**C1/C4**), **preserve stale data but surface file-level failures** instead of silently continuing (**B2/B3**), and **pull atomic full reindex forward** because it is low-effort, high-safety (**B5**).
+
+| Finding | Decision | Reconciled remediation and rationale | Priority |
+|---|---|---|---|
+| **B1** Go `extractImports` line bug already fixed | **Prefer A** | Treat as closed; keep the regression asserting imported line numbers are true source lines, not `token.Pos`. | Defer / keep test |
+| **B2** Freshen deletes before re-index | **Synthesize** | **Parse/stage first, then transactional delete+insert.** On parse failure, **do not delete old rows**; record/log the file as skipped/failed and continue other files. This keeps data, avoids batch aborts, and makes failure visible. | **Fix-now** |
+| **B3** Go ignores DB write errors | **Synthesize** | Every `Prepare`/`Exec` error must return immediately from the extractor; no ignored errors, no panic path. The top-level indexer should **aggregate per-file failures, log them, and exit non-zero** if any occurred. This combines A’s strict propagation with B’s operational behavior. | **Fix-now** |
+| **B4** Go line-count off-by-one | **Prefer A, keep B’s parity test** | Replace `strings.Split(..., "\n")` with a scanner-based line reader; strip `\r`, define **empty file = 0 lines**, and ensure trailing newline does **not** create an extra row. Scanner is safer than trimming a trailing empty element. | **Fix-now** |
+| **B5** Full index deletes old DB too early | **Synthesize; promote earlier** | Build into `db.tmp`, validate/close successfully, then atomic rename over the old DB. Never remove the old DB up front. Both plans agree on the mechanism; this should be pulled ahead because it is a small change with major safety value. | **Strengthen (early)** |
+| **B6** Rust UTF-8 span slicing panic | **Synthesize** | Add a `char_col_to_byte` helper (clamped) and slice only on byte offsets derived from `char_indices()`. Keep multibyte and emoji/string tests. | **Fix-now** |
+| **B7** Rust `target` exclusion too broad | **Synthesize** | Exclude only `<workspace-root>/target/**`, not arbitrary path components named `target`. | Defer |
+| **C1** Qualified-name separator differs (`::` vs `.`) | **Prefer B + A’s normalization idea** | **Do not rewrite stored names.** Keep native separators in storage for compatibility, but add a normalized **view/query helper** (or search expansion) so `Point::distance` and `Point.distance` can both match. Document the behavior. | Defer |
+| **C2** Call callee naming inconsistent / not joinable | **Synthesize** | Keep raw callee text and add a canonical/joinable field (`callee_qname` / `callee_qualified`). Go should use type info when available; Rust should resolve only when syntax supports it, else leave null. Add a `resolved_calls` join view if useful. | Strengthen |
+| **C3** Go full vs freshen index different file sets | **Synthesize** | Create one shared Go file enumerator used by both modes with identical `go/packages` config, build tags, and fallback rules. If fallback is needed (e.g. no `go.mod`), it must be used consistently in both modes. | Strengthen |
+| **C4** Go excludes `_test.go`, Rust indexes all `.rs` | **Prefer B, preserve A’s optional flag** | Treat current behavior as **intentional**, not a bug. Document it now; only add `--include-tests` later if needed. Avoid changing defaults. | Defer / docs |
+| **T1** Freshen tests don’t verify all tables | **Synthesize** | Expand tests to assert per-file cleanup/update across **all relevant tables** (`lines`, `imports`, `defs`, `calls`, `symbols`, FTS, etc.) for both **mutation** and **deletion** cases. | Strengthen |
+| **T2** Missing edge-case tests | **Synthesize** | Add a table-driven suite covering **empty files, CRLF, NUL/binary, parse errors, and BOM (Rust)**. Expected behavior should be explicit: no panic, correct line counts, skipped reason for binary/NUL, preserved old rows on freshen parse failure. | Strengthen |
+| **T3** Go channel tests only check presence | **Prefer A** | Upgrade to exact count/location assertions for channel declarations and send/receive ops. | Defer |
+| **T4** Tests don’t validate call→symbol joinability | **Synthesize with C2** | Add exact join-count assertions and require unresolved calls to have `callee_qname IS NULL`, not silently mismatched raw names. | Strengthen |
+| **S1** Symlink following can escape project root | **Synthesize** | Skip symlinks by default via `Lstat`/`symlink_metadata`. If a follow option is ever added, require resolved targets to stay under root. | Strengthen |
+| **S2** No file-size limits | **Synthesize** | Add configurable max file size (default **5 MiB** is a good safe baseline) and record a skipped reason when exceeded. | Defer |
+| **S3** No transaction boundaries | **Synthesize** | Implement **per-file freshen transactions now** as part of B2. For full index, add explicit transactions later (batching is fine) so partial writes never escape. | Defer after B2/B5 |
+| **S4** `PRAGMA synchronous=OFF` | **Synthesize** | Change default to `NORMAL`; add an explicit opt-out like `--unsafe-fast` for `OFF`. Keep a small pragma assertion test. | Defer |
+| **H1** No schema-version check on freshen | **Prefer A** | On schema mismatch, **fail freshen with an explicit “run full reindex” error** rather than silently changing modes. This is less surprising and easier to reason about; auto-reindex can be an opt-in later. | Defer |
+| **H2** Go `loadPackages` ignores `pkg.Errors` | **Synthesize** | Never ignore `pkg.Errors`. **Structural/package-load/syntax failures** should fail deterministically; **type errors** may continue in syntactic-only mode if `pkg.Syntax` exists, but every `TypesInfo` use must be nil-guarded and the degraded result surfaced. This preserves utility without hiding real failures. | Strengthen |
+| **H3** Rust `end_line` uses identifier span only | **Synthesize** | Use the full item span/token range for multiline structs/consts/statics so `end_line` reflects the whole definition. | Defer |
+
+**Final ordered action list**
+
+1. **B4 + B6** — fix Go line semantics and Rust UTF-8 span handling first; these are isolated, high-confidence correctness bugs.
+2. **B3** — make all Go DB writes fail loudly at the extractor boundary; aggregate errors at the top level and exit non-zero.
+3. **B2** — convert freshen to parse-first, transactional swap, with visible skipped/error counts and preserved old rows on parse failure.
+4. **T1 + T2 (focused on B2/B4/B6/B3)** — lock in the new behavior with all-table cleanup checks and edge-case coverage.
+5. **C3 + H2** — unify Go file enumeration and stop ignoring `pkg.Errors`, with explicit degraded-vs-fatal behavior.
+6. **C2 + T4** — add joinable callee identity while preserving raw callee text; validate exact join counts.
+7. **B5** — implement atomic temp-DB full reindex before broader durability work.
+8. **S1** — block symlink escape by default.
+9. **S3 + S4** — extend transaction boundaries to full index and change SQLite durability defaults to `NORMAL` with an explicit unsafe opt-out.
+10. **H1** — refuse freshen on schema mismatch with a clear full-reindex instruction.
+11. **B7 + H3 + S2 + T3** — land the remaining low-risk correctness/hardening items.
+12. **C1 + C4 + B1** — finish with compatibility-safe normalization/docs work and retain the already-fixed regression coverage.
+
+This ordering preserves both plans’ strongest claims: **data loss and silent corruption first, compatibility-preserving normalization later, and documentation instead of schema churn where behavior appears intentional.**
+
+
+Changes   +0 -0
+Requests  1 Premium (1m 27s)
+Tokens    ↑ 26.6k • ↓ 5.4k • 16.9k (cached) • 3.5k (reasoning)

@@ -1,0 +1,318 @@
+● Rubber-duck Audit Rust indexnudge
+  └ Agent started in background with agent_id: audit-rust-impl. You'll be no...
+
+● Rubber-duck Audit Go indexnudge
+  └ Agent started in background with agent_id: audit-go-impl. You'll be noti...
+
+I've launched two background agents to analyze the Rust and Go implementations in parallel. I'll wait for their results before compiling my findings.
+
+Static review only; I couldn’t execute the code here. Biggest issues:
+
+## Blocking Issues
+
+- **Wrong import line numbers**  
+  **Impact:** `imports.line_num` is not a line number; `extractImports` stores `imp.Pos()` (`token.Pos` offset). Any line-based query is wrong.  
+  **Fix:** Pass `fset` into `extractImports` and store `fset.Position(imp.Pos()).Line`.  
+  **Test gap:** `TestImportsExtracted` only checks module names, so this bug passes.
+
+- **`freshen` can delete good data on a failed reindex**  
+  **Impact:** In `doFreshen`, existing rows are deleted **before** parsing/indexing the replacement. If parse/load/index fails, that file disappears from `lines/symbols/calls/imports/defs/files/channels`.  
+  **Worse:** if all changed files fail, `reindexed == 0 && removed == 0`, so `directories` and `lines_fts` are **not rebuilt**, leaving derived tables stale/inconsistent.  
+  **Fix:** Reindex in a transaction; only replace old rows after successful new indexing. Rebuild derived tables whenever any file was attempted/deleted, or make updates atomic.  
+  **Missing test:** modify a file into invalid Go and run `doFreshen`.
+
+- **Symbol identities are not globally unique across packages**  
+  **Impact:** `qualified_name`, `caller_symbol`, `defs.symbol`, `lines.symbol` omit package path. In multi-package repos, `main`, `Add`, `Point.Distance`, etc. collide semantically and queries return ambiguous/wrong results.  
+  **Fix:** Include package import path/package name in symbol keys and stored qualified names.  
+  **Missing test:** two packages with same type/function names.
+
+- **`loadPackages` ignores package/type errors**  
+  **Impact:** `packages.Load` often returns `nil` error while `pkg.Errors` contains real load/type failures. You silently index partial/bad type info. This already shows up in tests: the sample source imports `sync` but never uses it.  
+  **Fix:** inspect `pkg.Errors`; fail, warn, or explicitly degrade behavior.  
+  **Missing test:** broken package with syntax/type errors and expected degraded behavior.
+
+- **All DB writes ignore errors; indexing is non-atomic**  
+  **Impact:** nearly every `Prepare`/`Exec` error is discarded. Constraint failures, DB locks, bad schema state, duplicate inserts, etc. can produce silent partial indexes.  
+  **Fix:** check every DB error and wrap file/full-index operations in transactions.  
+  **Test gap:** no test injects a DB failure or validates atomicity.
+
+- **Fallback parse path loses channel range detection**  
+  **Impact:** files not returned by `loadPackages` are parsed with `info=nil`; `extractChannels` then never records `range` over channels. Same file can index differently depending on package loading/build tags/errors.  
+  **Fix:** type-check fallback files too, or explicitly document/flag reduced fidelity.  
+  **Missing test:** standalone/build-tagged file with `for v := range ch`.
+
+## Non-Blocking Issues
+
+- **Call extraction misclassifies selector calls**  
+  **Impact:** every `SelectorExpr` call is stored as kind `"method"`. `fmt.Println` is not a method. Nested selectors also lose context (`a.b.c()` becomes just `c` if `X` isn’t an `Ident`).  
+  **Fix:** use `types.Info.Uses/Selections` to distinguish package-qualified funcs vs methods; store fully qualified callee identity.  
+  **Weak test:** `TestCallsExtracted` actually bakes in the wrong behavior.
+
+- **Type/signature serialization is lossy/wrong**  
+  **Impact:** `exprName` drops array lengths, channel direction (`<-chan` / `chan<-`), generics, many composite forms, and `recvTypeName` only handles simple identifiers. Stored signatures can be wrong.  
+  **Fix:** use `go/printer` or `types.TypeString`.## Blocking Issues
+
+1.  
+  **Weak test:** **Freshen can silently delete good data**
+   - **Issue:** `TestFuncSignature` only does substring checks.
+
+- ** `freshen()` deletes old rows **before** `index_file()` succeeds, and`freshen` invalidation ` reliesindex_file only on mtime**  
+ ()` converts read/parse failures into `Ok(())`.
+   - **Impact:** **Impact:** A transient I/O error or parse failure removes a previously indexed file from `files/symbols/calls equal/imports-mtime rewrites, preserved mtimes, or coarse filesystem timestamps can miss real content changes.  
+  **Fix:** compare size/hash too, or store higher-resolution mtimes.  
+  **Weak test:** `TestFreshenDetectsStale/Filedefs`` with depends no hard on failure.
+ `  Sleep - **(Fix50:** Remsindex in)` a and transaction only or tests temp the happy tables, and path only.
+
+- **` replace old rows after successfuldefs parse+`insert records `_. Make per-file failures visible to the caller.
+
+2. **Incremental freshness check is unsafe**
+   -` blank identifiers as real vars**  
+  **Impact:** noisy/wrong defs data from `_ = x` and `for _, v := range ...`.  
+  **Fix:** skip `_`.  
+  **Issue:** `disk_mtime > db_mtime` misses changed files ** when mtMissingimes are test equal:**/co blankarse/p-reservedidentifier.
+ assignments   -/r **Impactanges:**.
+
+ Valid edits- **Schema can be skipped permits, leaving a silent stale index duplicates.  
+**    
+ -  **Impact:** `symbols`, `calls`, `defs`, `imports`, **Test impact:** `sleep(50ms)` is flaky on filesystems with ` 1channelss` granularity have.
+   no - uniqueness constraints. Re-index mistakes or repeated finalize/populate can duplicate data.  
+  **Fix:** add composite unique constraints ** orFix `:**INSERT Use OR content RE hashPLACE and/or size plus m` wheretime; appropriate at. minimum avoid  
+ strict  ` **Weak test>` dependence in tests and implementation.
+
+3. **Names are not truly qualified**
+   -:** most tests only check presence, not exact counts.
+
+- **Durability is intentionally weakened**  
+  **Impact:** `PRAGMA synchronous=OFF **Issue`:** risks Module scope DB is corruption ignored/data loss; on ` crash/pqualifiedower_name loss.`  
+ only  ** includesFix impl:** type use. Method calls are stored as bare names (`distance ``), not disambiguated by type/module/trait.
+   -NORMAL` at least, or make it configurable.
+
+- **Filesystem walk errors are silently ignored**  
+  **Impact:** unreadable files/dirs are skipped with no warning, producing incomplete indexes.  
+  **Fix:** log or return walk errors **.
+
+Impact:** Common Rust repos with## Tests That Cover But Don’t repeated Validate
+
+- names across modules/types produce ambiguous or `TestImportsExtracted`: incorrect does query not assert `line_num results.
+   - **Fix:** Track full scope stack including modules/traits/impls; store fully qualified caller/callee identities.
+
+4. **Trait default methods are only half-indexed**
+   -`, so the import-position bug passes.
+- `TestCallsExtracted`: only checks callee presence; doesn’t validate `kind`, caller, line, or exact count. Also codifies the **Issue:** `visit_trait_item_fn()` records a ` symbol butfmt.Println does not recurse into the default body, add parameter defs, or support line attribution.
+   -` ** misclassification.
+- `TestDefsExtracted`: doesn’t validate `kind`, line numbers, duplicates, or absence of `_`.
+Impact-:** ` Calls/TestLinesHaveSymbolAttribution`: content-based lookup only; doesndefs’t validate non-function lines, exact coverage, or duplicates.
+- inside ` defaultTest traitFTSSearchWorks`: `count >= 2 methods are silently missing.
+   - **` is too weak; duplicate FFixTS:** rows Push trait method would still pass.
+- scope, add params, visit default `TestDirectoriesPopulated body`: only, and checks teach ` rootLine `SymbolfileMapper_count``; to map no trait method bodies.
+
+5. **Index rebuild is non-atomic and durability is weakened**
+   - **Issue:** `full_index()` deletes the old DB up `total front; `_lines`,freshen()` mutates the live DB without a nested transaction; dirs schema sets, ` orsynchronous=OFF`.
+   - **Impact:** Crash/error can leave duplicate a partial/corrupt DB or lose the previous good index.
+   - population behavior.
+- Channel tests: mostly “operation exists” checks; they don’t verify exact rows, counts, ** lineFix numbers:** Build, in a or temp vars DB or.
+ transaction,- then Fresh atomicallyen replace tests; avoid: `s donynchronous=’tOFF` validate F unless explicitly opted in.
+
+TS/directory consistency---
+
+##, Non duplicate prevention, or failure behavior.
+
+## Missing Edge Cases
+
+- Multi-package repo with duplicate symbol names.
+- Broken/syntax-error package and explicit `pkg.Errors` handling.
+-Blocking Issues
+
+1. **Symbol ranges are wrong for several item kinds**
+   - **Issue:** `struct`, `const`, `static`, and `type` use the identifier span as `end_line`.
+   -- Freshen when changed file no longer parses.
+- Rewrites with unchanged ** mImpacttime:**.
+ Range--based navigation Stand/querying isalone/build incorrect for-tag multiline itemsged.
+ files   not - returned **Fix by:** ` Usego the closing/packages brace/`.
+semicolon- Arrays span.
+
+2., directional channels, generics, selector-qualified types in signatures.
+ **Import extraction loses meaning in some valid `use` forms**
+   - **Issue:** Aliases and `self- Blank identifiers in` imports are flattened imprecisely (` defsuse foo.
+::{-self Nested, bar as baz}`).
+   - selectors / package-qualified calls.
+- Unreadable dirs/files and empty repos.
+
+## Security / Robustness
+
+- **SQL injection:** I don’t see a real injection issue; values are parameterized, and the dynamic `DELETE` table **Impact:** Stored import data can be wrong or incomplete.
+   - **Fix:** Preserve alias/self semantics explicitly.
+
+3./column names come from constants.  
+- **Path safety:** `fullIndex` blindly `os.Remove(dbPath)`. If `-output **Silent partial indexing on traversal/read/parse errors**
+   - **Issue:**` is user-controlled, this can delete arbitrary paths.  
+- `WalkDir` errors are dropped, and `index_file()` logs parse/read failures but still returns success.
+   - **Resource usage:** full-module `go/packages` load with syntax + types + full-file reads can get expensive on large repos.
+
+Overall: the implementation is close **Impact:** The tool can report success with an incomplete index,.
+   but - the `freshen` failure mode **Fix:** Track skipped files and fail or summarize them explicitly.
+
+4., wrong import line numbers **Schema, is ignored too package permissive/**
+  DB - errors, and package-name collisions are the main correctness problems. **Issue:** Most tables lack `NOT NULL`, foreign keys, and uniqueness constraints.
+   - **Impact:** Partial failures or future code changes can silently create duplicates/orphans.
+   - **Fix:** Add constraints for required columns and referential integrity; add uniqueness where logical.
+
+5. **Resource exhaustion risk**
+   - **Issue:** Reads whole files into memory, stores all lines twice (`lines` + `lines_fts`), and walks everything except `target/`.
+   - **Impact:** Large/malicious repos can consume excessive memory/disk/time.
+   - **Fix:** Add file-size limits, ignore patterns, batching/transactions, and maybe optional FTS.
+
+---
+
+## Tests That Cover But Don’t Validate
+
+1. **`symbols_extracted`, `imports_extracted`, `defs_extracted`**
+   - **Issue:** Only check `contains`.
+   - **Impact:** Duplicate rows, wrong counts, and extra junk rows still pass.
+   - **Fix:** Assert exact sets/counts.
+
+2. **`calls_extracted`**
+   - **Issue:** Only validates callee presence.
+   - **Impact:** Wrong● Read (Rubber-duck agent — Audit Go indexnudge)
+  └ Completed
+
+ `caller_symbol`, wrong `kind`, wrong `line_num`, or ambiguous method-call encoding still pass.
+   - **Fix:** Assert full rows, especially for method calls.
+
+3. **`lines_have_symbol_attribution`**
+   - **Issue:** Uses `LIKE` + `query_row`, which returns the first match.
+   - **Impact:** Duplicate matching lines or wrong rows can still pass.
+   - **Fix:** Assert by exact `line_num`.
+
+4. **`fts_search_works`**
+   - **Issue:** Asserts only `count >= 2`.
+   - **Impact:** Duplicate/stale FTS rows still pass.
+   - **Fix:** Assert exact expected hits and verify no duplicates after refresh.
+
+5. **`freshen_detects_stale_file` / `freshen_removes_deleted_file`**
+   - **Issue:** Validate only a subset of tables.
+   - **Impact:** Stale rows in `lines`, `calls`, `imports`, `defs`, `lines_fts`, or `directories` would go unnoticed.
+   - **Fix:** Check all dependent tables and verify old rows are gone.
+
+6. **`freshen_detects_stale_file` is timing-fragile**
+   -Got the Go analysis. Now let me check on the Rust agent.
+
+ **Issue:** Depends on `sleep(50ms)`.
+   - **Impact:** Can pass/fail based on filesystem timestamp resolution.
+   - **Fix:** Force mtime changes deterministically or mock/stub mtime logic.
+
+---
+
+## Missing Edge Cases
+
+- Same function/method names in different modules
+- Trait default method bodies
+- Inline modules and nested module scope
+- Destructuring patterns in `let` and function params
+- `use foo::{self, bar as baz, *}` forms
+- UFCS calls like `<T as Trait>::func(...)`
+- File content changes with unchanged/preserved mtime
+- Read/parse failure during `freshen()` should preserve old data
+- Large files / huge repos / unreadable directories
+
+---
+
+## Security / Robustness Notes
+
+- **No obvious SQL injection issue**: queries use bound parameters.
+- **No obvious path traversal issue**: `WalkDir` stays under the root and does not follow symlinks by default.
+- **Main real risks** are:
+  - stale/corrupt data from non-atomic updates and `synchronous=OFF`
+  - memory/disk exhaustion on large or adversarial repos
+
+Overall: **there are real correctness bugs in incremental refresh and symbol qualification, and the tests currently would not catch them.**● Read (Rubber-duck agent — Audit Rust indexnudge)
+  └ Completed
+
+Now I have both analyses. Let me compile the comprehensive audit findings.
+
+---
+
+## Code Audit: indexnudge (Rust & Go)
+
+### PRODUCTION BUGS
+
+| # | Problem | Why It Matters | Triggering Scenario | Severity |
+|---|---------|----------------|---------------------|----------|
+| 1 | **Go: Import `line_num` stores token offset, not line number** | `extractImports` stores `imp.Pos()` (byte offset), not `fset.Position(imp.Pos()).Line`. All line-based import queries return garbage. | Any query on `imports.line_num`. | **High** |
+| 2 | **Both: `freshen` deletes rows before successful reindex** | If `index_file()` fails (parse error, I/O), the old data is already deleted. Rust silently returns `Ok(())` on failure; Go discards errors. | Modify a file to invalid syntax, run freshen → file vanishes from DB. | **High** |
+| 3 | **Both: Mtime comparison uses strict `>`, misses equal-mtime edits** | Filesystems with 1-second granularity or preserved mtimes will skip legitimate changes. | Fast edits within 1 second, or `touch -t` preserving mtime. | **Medium** |
+| 4 | **Rust: Trait default method bodies are not indexed** | `visit_trait_item_fn` doesn't recurse; calls/defs/line attribution inside default implementations are silently missing. | Any trait with a default method implementation. | **Medium** |
+| 5 | **Go: `loadPackages` ignores `pkg.Errors`** | Type errors are silently swallowed; partial/wrong type info is indexed. Affects channel-range detection and more. | Package with unused imports, type errors, or build tag mismatches. | **Medium** |
+| 6 | **Go: All DB writes ignore errors** | `stmt.Exec()` return values discarded everywhere. Constraint failures, locks, or corrupted state go unnoticed. | Any DB error scenario. | **Medium** |
+
+### TESTS THAT COVER BUT DON'T VALIDATE
+
+| # | Test | Problem | Why It Matters |
+|---|------|---------|----------------|
+| 1 | `TestImportsExtracted` (Go) | Only checks module names, not `line_num` | Bug #1 passes undetected |
+| 2 | `calls_extracted` (Rust), `TestCallsExtracted` (Go) | Only check callee presence | Wrong `kind`, `caller_symbol`, `line_num`, or duplicates pass |
+| 3 | `symbols_extracted`, `defs_extracted` (both) | Use `contains()` checks only | Duplicates, extra rows, wrong kinds pass |
+| 4 | `fts_search_works` / `TestFTSSearchWorks` | Assert `count >= 2` | Duplicate FTS rows pass |
+| 5 | `freshen_*` tests (both) | Only validate subset of tables | Stale rows in `lines`, `calls`, `imports`, `defs`, `directories`, `lines_fts` undetected |
+| 6 | `TestFuncSignature` (Go) | Substring checks only | Malformed signatures pass |
+
+### MISSING EDGE CASES
+
+| # | Edge Case | Potential Failure |
+|---|-----------|-------------------|
+| 1 | **Multi-module/package repos with duplicate names** | Ambiguous symbols; queries return wrong results |
+| 2 | **Parse failure during freshen** | Data loss (rows deleted, reindex fails, no rollback) |
+| 3 | **Nested modules (Rust) / multi-package (Go)** | `qualified_name` lacks module prefix; collisions |
+| 4 | **Empty files / 0-line files** | Potential off-by-one or empty-vec access |
+| 5 | **Binary files matching `.rs` / `.go` extension** | UTF-8 read failure, crash or skip without warning |
+| 6 | **Symlinks** | WalkDir follows by default in some configs; could escape directory |
+| 7 | **Very large files (>100MB)** | OOM - entire file read into memory |
+| 8 | **`use foo::{self, bar as baz}` (Rust)** | Import extraction is lossy |
+| 9 | **Blank identifier `_` in Go defs** | Recorded as real variable |
+| 10 | **Channel range without type info (Go fallback path)** | `range` over channel not detected when `info=nil` |
+
+### CROSS-LANGUAGE INCONSISTENCIES
+
+| # | Difference | Impact |
+|---|------------|--------|
+| 1 | **Qualified name separator**: Rust uses `::`, Go uses `.` | Same codebase concept produces different strings: `Point::new` vs `Point.Distance` |
+| 2 | **Go has `channels` table; Rust doesn't** | Schema mismatch; Go-specific concurrency indexed, Rust-specific features not |
+| 3 | **Go skips `_test.go` files; Rust indexes all `.rs`** | Test code indexed in Rust, excluded in Go |
+| 4 | **Go stores raw token offset for import lines** | Go import line numbers are wrong; Rust's are correct |
+| 5 | **Call kind classification differs** | Rust: `method` for `.method()` calls, Go: misclassifies `pkg.Func()` as `method` |
+| 6 | **Struct end_line**: Rust uses ident span (wrong), Go uses `End()` (correct) | Range queries differ |
+
+### SECURITY / ROBUSTNESS
+
+| # | Issue | Risk | Severity |
+|---|-------|------|----------|
+| 1 | **`PRAGMA synchronous=OFF`** | DB corruption on crash/power loss | **Medium** |
+| 2 | **Go: `os.Remove(dbPath)` with user-controlled `-output`** | Arbitrary file deletion | **Low** (requires local access) |
+| 3 | **No file size limits** | Memory exhaustion on large/malicious files | **Low** |
+| 4 | **No transaction wrapping** | Partial indexes on interruption | **Medium** |
+
+### DATA CORRECTNESS
+
+| # | Issue | Impact |
+|---|-------|--------|
+| 1 | **No uniqueness constraints on `symbols`, `calls`, `defs`, `imports`, `channels`** | Re-indexing or bugs can create duplicates |
+| 2 | **No foreign keys** | Orphan rows possible; referential integrity not enforced |
+| 3 | **Most columns allow NULL** | Missing required data goes unnoticed |
+| 4 | **Go `defs.symbol` and `defs.file` columns swapped in insert** | `extractDefs` has `stmt.Exec(callerSym, rel, ...)` — column order: `symbol, file`, but `callerSym` is the symbol, so it's correct, but confusing |
+
+---
+
+## Open-Ended Questions
+
+### A. Most damaging issue not in findings list?
+
+**The lack of any transactional or atomic semantics for the entire indexing operation.** If the process is interrupted mid-way through indexing (SIGKILL, power loss, OOM), the database is left in a partially indexed, inconsistent state with no way to detect or recover. For a tool meant to support "agentic querying," serving wrong/partial data silently is worse than failing loudly. A production-ready version needs either atomic DB swaps (build temp DB, then rename) or proper transaction wrapping with rollback.
+
+### B. Largest missed opportunity?
+
+**Cross-references and call graph resolution.** The tools extract calls but don't resolve them to definitions. Adding a `resolved_symbol_id` foreign key to `calls` that links `callee` → `symbols.id` would transform this from a text-search tool into a true code intelligence database. You could then answer queries like "what calls this function?" or "show me the full call graph" with simple SQL joins, which is the high-value use case for agentic code exploration.
+
+
+Changes   +0 -0
+Requests  3 Premium (7m 52s)
+Tokens    ↑ 446.7k • ↓ 45.8k • 329.3k (cached) • 14.1k (reasoning)

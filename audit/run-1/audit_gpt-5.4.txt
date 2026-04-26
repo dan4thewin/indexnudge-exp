@@ -1,0 +1,38 @@
+● Create audit notes (sql)
+  │ CREATE TABLE IF NOT EXISTS audit_findings (id TEXT PRIMARY KEY, area TEXT,
+  │ sever…
+  └ Schema operation completed successfully.
+
+I’ve got the main risk areas mapped out. I’m doing one quick pass against the actual workspace to confirm the higher-impact behaviors and avoid overreporting.
+
+● Search (glob)
+  │ "**/{main.go,main_test.go,main.rs}"
+  └ No matches found
+
+● Locate audit files (shell)
+  │ cd /home/dangood/src/indexnudge/audit/run-1 && pwd && find . -maxdepth 3 \(
+  │ -path './rust/src/main.rs' -o -path './go/main.go' -o -path
+  │ './go/main_test.go' \) -print
+  └ 2 lines...
+
+I found **8 correctness/robustness findings**. The biggest ones are **destructive full reindexing**, **silent SQL write failures in Go**, and **Go full vs incremental indexing different file sets**.
+
+| Finding | Why it matters | Exposing scenario | Severity |
+|---|---|---|---|
+| **1. Full reindex deletes the last good database before proving the new one can be built** (`rust/full_index`, `go/fullIndex`) | Both implementations remove the old DB up front (`fs::remove_file`, `os.Remove`). Any later failure leaves the user with **no usable index at all**. | `createSchema` fails, `loadPackages` fails, disk fills mid-run, output path becomes unwritable. | **high** |
+| **2. Freshen can erase a previously indexed file when re-indexing that file fails** (`rust/freshen`, `go/doFreshen`) | Both delete existing rows **before** attempting to rebuild them. In Rust, `index_file` returns `Ok(())` even on read/parse failure; in Go, freshen `continue`s after parse/index errors. Result: the file silently disappears from the DB. | Run `--freshen` while a file is temporarily unreadable or mid-edit with a syntax error. Old symbols/calls/imports/defs for that file are lost. | **medium** |
+| **3. Go ignores almost every SQL error during indexing and deletion** | `Prepare`/`Exec` errors are discarded in `indexLines`, `extractSymbols`, `extractCalls`, `extractImports`, `extractDefs`, `extractChannels`, `deleteFileRows`, `populateDirectories`, and the `files` insert. The program can print success while leaving a **partial or internally inconsistent DB**. | Read-only/locked DB, schema drift, disk full, duplicate insert failure, `channels` table missing in an older DB. | **high** |
+| **4. Go full index and Go freshen do not index the same set of files** | `fullIndex` only indexes files returned by `go/packages` under the current build context; `doFreshen` walks **all** `.go` files and falls back to raw parsing for files not in loaded packages. So a full rebuild and a freshen can produce different databases from the same tree. | `foo_windows.go`, build-tagged files, GOOS/GOARCH-specific files, or files excluded from the current package graph. Full index omits them; freshen may later add them. | **high** |
+| **5. Call records are not normalized to definition identities, and Rust/Go do it differently** | Rust method calls store only the bare method name (`distance`); Go stores the receiver expression (`p.Distance`), while symbol rows use the type-qualified name (`Point.Distance`). This makes call→definition joins unreliable and creates cross-language inconsistencies. | Two types both define `Close`; queries on `calls.callee` cannot tell which symbol was called. Renaming a receiver variable changes Go call data without any semantic change. | **medium** |
+| **6. Line counts and line rows disagree across languages for newline-terminated and empty files** | Rust uses `source.lines()`, Go uses `strings.Split(..., "\n")`. Go therefore records an extra blank line for files ending with `\n`, and even counts an empty file as 1 line. That changes `files.lines`, `directories.total_lines`, `lines`, and FTS contents. | Almost any normal source file ending with a newline; empty files amplify it further. | **medium** |
+| **7. The freshen tests cover the path but do not validate full incremental correctness** (`freshen_detects_stale_file`, `TestFreshenDetectsStaleFile`, related deletion tests) | The tests only check that a new symbol appears or that `files`/`symbols` counts drop. They do **not** verify that stale rows were removed from `lines`, `calls`, `imports`, `defs`, FTS, or `directories`. A broken incremental rebuild could still pass. | `deleteFileRows` misses one table, or directory/FTS rebuild is wrong after a file changes or is deleted. Current tests still go green. | **medium** |
+| **8. Symlinked source files can escape the requested root and index outside content** | Neither implementation rejects symlinked `.rs`/`.go` files. The walkers include the symlink path, and `read_to_string` / `os.ReadFile` follow it. That means the index can ingest content from outside the target tree under an in-tree relative path. | A repo contains `src/external.go -> /other/project/private.go` or similar. Running the indexer pulls outside content into the DB. | **medium** |
+
+**A. Most damaging thing not already in the findings list:** both programs set `PRAGMA synchronous=OFF`. That is a very aggressive durability tradeoff for a persisted SQLite artifact: a crash or power loss can leave the DB truncated or corrupt even when the program itself looks successful.
+
+**B. Largest missed opportunity:** neither implementation resolves extracted strings into **stable semantic edges**. The biggest value jump would come from recording things like **call site -> resolved symbol**, **import -> package/module identity**, and **definition/use links** instead of mostly raw text names. That would turn the DB from a searchable dump into something much closer to a real code intelligence index.
+
+
+Changes   +0 -0
+Requests  1 Premium (3m 18s)
+Tokens    ↑ 128.3k • ↓ 12.1k • 89.2k (cached) • 10.7k (reasoning)

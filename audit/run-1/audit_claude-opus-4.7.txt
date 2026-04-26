@@ -1,0 +1,95 @@
+# Audit Findings
+
+## High Severity
+
+**H1. Rust `extract_span` byte/char index mismatch can panic.**  
+`extract_span` slices `&line[start_col..end]` using `proc_macro2` column values, but mixes them with `line.len()` (bytes). In `sig_text` the values are taken from spans; for any source containing multi‑byte UTF‑8 (e.g., a Unicode identifier or a doc-comment line above a fn whose span column lies on a non‑char boundary), `line[start_col..end]` will panic at runtime, killing indexing of that file (and—because there is no transaction—leaving the DB in an inconsistent partial state).
+- Triggered by: any Rust source containing non‑ASCII characters where signature spans involve those columns.
+
+**H2. Go counts an extra empty line for every file ending in `\n`; Rust does not.**  
+Go: `strings.Split(string(src), "\n")` produces `len(lines) = N+1` for a file with N lines + trailing newline. The extra empty line is written into `lines` and into `files.lines`. Rust uses `source.lines()` which yields N. The two implementations therefore produce different `files.lines` and a different number of `lines` rows for the same file. (Empty file: Rust = 0 rows, Go = 1 row.)
+- Triggered by: virtually every real source file.
+
+**H3. Go swallows `db.Prepare` errors and uses the nil stmt.**  
+In every extractor (`extractSymbols`, `extractCalls`, `indexLines`, `extractDefs`, `extractImports`, `extractChannels`, `populateDirectories`) the pattern is `stmt, _ := db.Prepare(...)`. If a prepare ever fails (schema drift, locked DB, OOM), the next `stmt.Exec` panics with nil deref, taking down the whole run. Likewise `db.Exec` results are ignored throughout, so any insert failure is silently lost (data loss with no exit code change).
+
+**H4. Rust `collect_rs_files` strips any path component named `target` anywhere in the tree.**  
+`!e.path().components().any(|c| c.as_os_str() == "target")` excludes legitimate paths like `crates/foo/src/target/mod.rs` or any user dir named `target`. Files silently disappear from the index.
+
+**H5. Cross‑language: qualified‑name separator and symbol set differ.**  
+- Separator: Rust uses `Type::method`, Go uses `Type.method`.  
+- Symbols: Rust emits `const`, `static`, `type`, `macro`, `trait`, `trait_method`, plus `impl`/`trait_impl` rows; Go emits only `function`, `method`, `struct`, `interface`, `type`. Package‑level `var`/`const` end up in `defs`, not `symbols`.  
+- Defs `kind` vocabulary is disjoint: Rust `let`/`let_mut`/`parameter`/`assign`; Go `assign`/`short_var`/`range_key`/`range_value`/`var`/`const`.  
+- Calls `kind`: Rust `function`/`method`/`macro`; Go `function`/`method`.  
+Any tool that consumes both DBs cannot use the same query.
+
+## Medium Severity
+
+**M1. Rust freshen may leave duplicates if `delete_file_rows` partially fails.**  
+There is no transaction in `freshen` or `index_file`. If a delete succeeds but a subsequent insert fails (or vice‑versa), the DB ends in a half‑updated state. `lines` PRIMARY KEY (file, line_num) protects only `lines`; `symbols`, `calls`, `imports`, `defs` have no uniqueness constraint and silently double up on retry.
+
+**M2. Go `extractCalls` selector handling drops chained calls and qualifies methods incorrectly.**  
+`selectorString` returns `Sel.Name` only when `X` is not an `*ast.Ident`. So `foo.Bar().Baz()` is recorded as callee `"Baz"` (kind `method`), and `pkg.Sub.Fn()` becomes `"Sub.Fn"` losing the package. Cross‑language symmetry with Rust (which records the full path for `Expr::Path`) is broken.
+
+**M3. Go `extractCalls` attributes calls in nested function literals to the outer function.**  
+There is no scope push when entering `*ast.FuncLit`. A goroutine `go func(){ doX() }()` records `doX` as called by the outer function, polluting caller→callee analysis.
+
+**M4. Rust `visit_item_struct` sets `end_line == start_line`.**  
+A struct's `end_line` is just the ident span end, not the closing brace. Range queries like "what symbol contains line N" will misclassify lines inside multi‑line structs. Same approximation in `visit_item_const`, `visit_item_static`, `visit_item_type`, and `visit_item_macro`. (Tests don't validate `end_line`.)
+
+**M5. Rust `lines_have_symbol_attribution` and several Go tests assert only on `query_row` / first row.**  
+`SELECT symbol FROM lines WHERE content LIKE ...` will silently take the first match; if attribution is broken on other matching lines, the test still passes. The tests don't assert per‑line counts or that *all* lines in `main` have symbol = "main".
+
+**M6. Test `TestChannelsRangeOnlyForChannelTypes` passes for a wrong reason.**  
+The check is `count == 0`. If `info.Types[node.X]` is missing for *any* reason (type loading regression), the code path inserts nothing and the test still passes. There is no companion positive test that proves type info is actually being consulted (the `range` op for `ch` is checked elsewhere but on a different sample).
+
+**M7. Both `freshen_detects_stale_file` tests don't verify the old symbol survived.**  
+Rust and Go versions both check that `goodbye`/`Goodbye` appears, but never assert that `hello`/`Hello` is still present (and present exactly once). A bug that wipes unmodified symbols, or that double‑inserts on re‑freshen, would not be caught.
+
+**M8. `directories_populated` tests only check `path = '.'`.**  
+Neither test exercises a nested directory; the recursive ancestor logic in both implementations is essentially uncovered. (Rust `populate_directories` has subtle behaviour around empty `to_string_lossy()` that no test verifies.)
+
+**M9. Go `extractDefs` records every assignment LHS as a "def".**  
+For `x = 1` after a prior `x := 0`, Go inserts a new "assign" def row. Rust does similar with `assign`, but Go additionally records *every* index of multi‑LHS short‑var declarations even when only some are new (`x, err := f()` where `err` already existed). This pollutes `defs` and is not covered by any test.
+
+**M10. Channel detection misses common forms.**  
+`extractChannels` only looks at `*ast.Ident` callees for `make`/`close`. `builtin.close(c)` (renamed import edge case) and `make` invoked through a variable are not detected. More importantly, sends/receives inside a `*ast.FuncLit` outside the FuncDecl loop’s walker still get recorded but attributed to the outer function (see M3).
+
+**M11. SQLite `PRAGMA synchronous=OFF` + no fsync = potential corruption on crash.**  
+Both implementations set `synchronous=OFF`. A crash mid‑index can corrupt the DB. For an indexer this is acceptable (rebuild), but `freshen` mode persists state across runs, so a crash during freshen can leave a corrupt long‑lived DB the user is supposed to trust.
+
+**M12. Concurrent index race.**  
+`fullIndex` does `os.Remove(dbPath)` then `sql.Open`. Two concurrent invocations (e.g., editor + CLI) silently corrupt each other. No lockfile.
+
+## Low Severity
+
+**L1. Rust `flatten_use_tree` produces `a::self` for `use a::{self, b}`** — should be `a`. No test.
+
+**L2. Rust `expr_callee_name` for `Expr::Field` uses `source_text()` which returns `None` in many proc‑macro2 builds, recording empty‑string callees.**
+
+**L3. Rust `type_name` falls through to `quote!()` for non‑Path receivers, producing strings like `& mut Foo` with extra spaces — breaks equality with paths in callee/qname joins.**
+
+**L4. `fileMtime`: Go uses `UnixMilli()/1000.0` (millisecond resolution), Rust uses `as_secs_f64()` (sub‑microsecond). On filesystems with 1‑second granularity, both can miss a file that changed within the same second as the previous index — `freshen` will fail to detect it. No test exercises sub‑second changes.**
+
+**L5. `lines_fts` is not declared `content=lines` (external content) and isn't kept in sync via triggers; it's only rebuilt at finalize time.** After a `freshen` that touches no files, FTS is not rebuilt and remains accurate only because no rows changed — but if `delete_file_rows` is ever called outside the `if reindexed > 0 || removed > 0` branch (it isn't today, but it's brittle), FTS would diverge.
+
+**L6. Go `extractSymbols` does not record interface methods as symbols** (Rust records `trait_method`). Asymmetric.
+
+**L7. Tests never feed deliberately malformed source.** No coverage for parse errors, empty files, files with only comments, files with CRLF line endings, or files containing NUL bytes.
+
+**L8. Rust `freshen` opens the DB without re‑creating schema if it was created by an older version with a different layout** — no schema version check. A schema mismatch raises a runtime SQL error mid‑index.
+
+---
+
+## A. Most damaging single thing for production review (not above)
+
+**Neither implementation uses transactions for any phase.** Every row is inserted in autocommit mode. On a medium repo (a few thousand files) this is two to three orders of magnitude slower than wrapping each file (or the whole index) in `BEGIN/COMMIT`, and—worse—a crash leaves a partially‑populated DB that `freshen` will happily build on top of, since `freshen` trusts `files.indexed_mtime` rows whose corresponding `symbols`/`calls` rows may never have been written. There is no atomicity story tying the per‑file row sets together. An expert reviewer would flag this as both a perf and a correctness blocker.
+
+## B. Largest missed opportunity
+
+**There is no cross‑language linkage in the schema and no "definition" resolution.** The tools extract `calls.callee` as a bare string and `symbols.qualified_name` as another bare string, but never resolve `callee → symbols.id`. Adding even a best‑effort post‑pass that joins call sites to symbol IDs (and likewise resolves imports to symbols when a project includes its own dependencies) would turn this from "grep with structure" into a real call‑graph / jump‑to‑definition database — which is presumably the entire point of indexing for "agentic querying." Right now an agent querying `WHERE callee = 'distance'` gets a string match, not a resolved edge to `Point::distance` in `symbols`.
+
+
+Changes   +0 -0
+Requests  7.5 Premium (2m 49s)
+Tokens    ↑ 69.6k • ↓ 9.8k • 0 (cached)

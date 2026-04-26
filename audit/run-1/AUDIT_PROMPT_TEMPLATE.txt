@@ -1,0 +1,69 @@
+Audit the following source and test files for two programs that do
+the same thing in different languages: index source code into a
+SQLite database. One is Rust, one is Go. Both have unit tests.
+
+Your job is to find quality problems — bugs, logic errors, missing
+edge cases, incorrect assumptions, unsafe patterns, or tests that
+don't actually verify what they claim.
+
+Specifically look for:
+
+1. PRODUCTION BUGS: Logic errors, incorrect output, data loss,
+   crashes on valid input.
+
+2. TESTS THAT COVER BUT DON'T VALIDATE: Tests that execute code
+   paths but make weak or missing assertions — the test would pass
+   even if the code were broken.
+
+3. MISSING EDGE CASES: Inputs or conditions that no test exercises
+   but could cause incorrect behavior (empty files, binary files,
+   parse errors, Unicode, very large files, concurrent access,
+   filesystem errors).
+
+4. CROSS-LANGUAGE INCONSISTENCIES: Places where the Rust and Go
+   implementations would produce different databases from the same
+   source. Different symbol names, different line counts, different
+   call extraction, different schema population.
+
+5. SECURITY/ROBUSTNESS: SQL injection via filenames or source
+   content, path traversal, resource exhaustion, symlink following.
+
+6. DATA CORRECTNESS: Schema constraints that are missing or wrong,
+   data that could be silently dropped or duplicated, foreign key
+   relationships that aren't enforced.
+
+For each finding, state:
+- What the problem is
+- Why it matters (what goes wrong in practice)
+- What input or scenario would expose it
+- Severity: high / medium / low
+
+Do NOT comment on style, formatting, naming, documentation quality,
+or anything that doesn't affect correctness or robustness. Only
+report findings that could cause wrong behavior, data loss, or
+test false-positives.
+
+Two additional open-ended questions to answer after your findings:
+
+A. What single thing not already in your findings list would be most
+   damaging if an expert human were reviewing this code for production
+   readiness?
+
+B. What is the single largest missed opportunity — something the code
+   could do but doesn't, that would significantly improve its value?
+
+=== SOURCE FILES ===
+
+=== rust/src/main.rs ===
+[rust source here]
+
+=== go/main.go ===
+[go source here]
+
+=== TEST FILES ===
+
+=== rust/src/main.rs (tests section) ===
+[rust tests here]
+
+=== go/main_test.go ===
+[go tests here]

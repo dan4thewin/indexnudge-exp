@@ -1,0 +1,161 @@
+Here are the key quality findings from the audit, organized by category and severity:
+
+---
+
+## 1. PRODUCTION BUGS
+
+### Rust: Incorrect Handling of Symlinks and Path Traversal
+- **What:** `collect_rs_files` does not prevent following symlinks or path traversal, which could index files outside the intended directory.
+- **Why:** May index files outside the project, leak data, or cause infinite loops.
+- **Scenario:** A symlink in the tree points to `/etc/passwd` or a parent directory.
+- **Severity:** Medium
+
+### Go: No Error Handling for DB Writes
+- **What:** Many DB insertions (e.g., in `indexLines`, `extractSymbols`, etc.) ignore errors from `stmt.Exec`.
+- **Why:** Data loss or partial/corrupt indexes if the DB is full, locked, or schema is wrong.
+- **Scenario:** Disk full, DB locked, or schema mismatch.
+- **Severity:** High
+
+### Rust: No Error Handling for DB Writes in Insert Functions
+- **What:** Rust code does not check the result of `stmt.execute` in a loop (it just returns `Ok(())` at the end).
+- **Why:** Silent data loss if a row fails to insert.
+- **Scenario:** DB constraint violation, disk full, or other DB error.
+- **Severity:** High
+
+### Go: Incorrect Line Number for Imports
+- **What:** `extractImports` uses `imp.Pos()` for line number, which is a token.Pos, not a line number.
+- **Why:** Line numbers in the DB for imports are incorrect, breaking queries or UIs that rely on them.
+- **Scenario:** Any import statement.
+- **Severity:** Medium
+
+---
+
+## 2. TESTS THAT COVER BUT DON'T VALIDATE
+
+### Rust: No Negative/Corrupt Input Tests
+- **What:** No tests for parse errors, binary files, or unreadable files.
+- **Why:** Code may silently skip or mis-index such files, but tests would still pass.
+- **Scenario:** Corrupt `.rs` file, permission denied, or binary file.
+- **Severity:** Medium
+
+### Go: No Assertion on DB Error Handling
+- **What:** Tests do not simulate or assert DB errors (e.g., full disk, locked DB).
+- **Why:** Code may silently lose data or crash, but tests would not catch it.
+- **Scenario:** DB is read-only or out of space.
+- **Severity:** Medium
+
+---
+
+## 3. MISSING EDGE CASES
+
+### Both: No Test for Empty Files or Files with Only Comments
+- **What:** No test for empty `.rs`/`.go` files or files with only comments.
+- **Why:** Could cause off-by-one errors, panics, or incorrect DB rows.
+- **Scenario:** Empty file or file with only comments.
+- **Severity:** Low
+
+### Both: No Test for Large Files or Resource Exhaustion
+- **What:** No test for very large files or directories with thousands of files.
+- **Why:** Could cause OOM, slowdowns, or partial indexing.
+- **Scenario:** 10,000+ files or 10MB+ source file.
+- **Severity:** Medium
+
+### Both: No Test for Unicode or Non-UTF8 Files
+- **What:** No test for files with Unicode identifiers or non-UTF8 encoding.
+- **Why:** Could cause panics, mis-indexing, or data loss.
+- **Scenario:** File with Unicode variable names or non-UTF8 encoding.
+- **Severity:** Medium
+
+---
+
+## 4. CROSS-LANGUAGE INCONSISTENCIES
+
+### Symbol Qualification and Naming
+- **What:** Rust uses `Point::distance`, Go uses `Point.Distance` for qualified names. Method call extraction also differs (`Point::new` vs `p.Distance`).
+- **Why:** Same codebase indexed in both will produce different DBs, breaking cross-language tools.
+- **Scenario:** Any method or function call.
+- **Severity:** Medium
+
+### Schema Difference: Channels Table
+- **What:** Go creates and populates a `channels` table; Rust does not.
+- **Why:** DBs are not equivalent; tools expecting channel info will fail on Rust.
+- **Scenario:** Any Go code with channels.
+- **Severity:** Low
+
+### Import Path Extraction
+- **What:** Rust records full module paths (e.g., `std::collections::HashMap`), Go records only the import path (e.g., `fmt`).
+- **Why:** Queries for imported modules will behave differently.
+- **Scenario:** Any import statement.
+- **Severity:** Low
+
+---
+
+## 5. SECURITY/ROBUSTNESS
+
+### Both: No SQL Injection Protection for Filenames/Paths
+- **What:** Filenames and paths are inserted directly into SQL without sanitization.
+- **Why:** Malicious filenames could break queries or cause SQL injection if not parameterized.
+- **Scenario:** File named `foo'); DROP TABLE files;--.rs`
+- **Severity:** Medium (mitigated if all queries use parameterized statements, but not always clear)
+
+### Go: Follows Symlinks in File Walk
+- **What:** `filepath.Walk` in Go follows symlinks by default.
+- **Why:** Could index files outside the intended tree, or cause infinite loops.
+- **Scenario:** Symlink to parent directory or `/etc`.
+- **Severity:** Medium
+
+---
+
+## 6. DATA CORRECTNESS
+
+### Both: No Foreign Key Constraints
+- **What:** No foreign key constraints between tables (e.g., `symbols.file` → `files.file`).
+- **Why:** Orphaned rows possible, referential integrity not enforced.
+- **Scenario:** File deleted but symbols remain, or vice versa.
+- **Severity:** Medium
+
+### Both: No Uniqueness Constraints on Some Tables
+- **What:** Tables like `symbols`, `calls`, `defs` have no uniqueness constraints.
+- **Why:** Duplicate rows possible if a file is indexed twice without deletion.
+- **Scenario:** Indexing the same file multiple times.
+- **Severity:** Low
+
+---
+
+## 7. OTHER
+
+### Go: No Handling of Filesystem Errors in File Walk
+- **What:** Errors in `filepath.Walk` are ignored.
+- **Why:** Files may be skipped silently, leading to incomplete indexes.
+- **Scenario:** Permission denied on a directory.
+- **Severity:** Low
+
+---
+
+## Open-Ended Questions
+
+### A. Most Damaging Omission for Production Review
+
+**Lack of robust error handling for database writes (both Rust and Go):**  
+If any DB write fails (disk full, locked, schema error), the code often ignores the error, leading to silent data loss or partial/corrupt indexes. This is a critical production risk.
+
+### B. Largest Missed Opportunity
+
+**No concurrency or parallelism in indexing:**  
+Both implementations process files serially. For large codebases, parallelizing file parsing and DB insertion (with proper transaction management) would dramatically improve performance and scalability.
+
+---
+
+**Summary:**  
+The most severe issues are silent data loss due to ignored DB errors, cross-language inconsistencies in symbol naming, and lack of edge case tests for error conditions. The code is functional for small, well-behaved codebases, but not robust or production-ready for large or adversarial inputs.
+
+
+Changes   +0 -0
+Requests  0 Premium (27s)
+Tokens    ↑ 38.8k • ↓ 1.5k • 0 (cached)
+lures and inconsistent symbol/call naming, which can lead to data loss or unreliable cross-language queries. Edge case and security testing should be expanded, and error handling made robust before production use.
+
+
+Changes   +0 -0
+Requests  0 Premium (29s)
+Tokens    ↑ 38.8k • ↓ 1.6k • 0 (cached)
