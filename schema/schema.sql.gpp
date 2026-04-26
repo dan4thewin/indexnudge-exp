@@ -1,0 +1,83 @@
+-- indexnudge shared schema — the contract between indexers, shims, and tree patch.
+-- Both rust and go indexers must produce these tables identically.
+
+PRAGMA journal_mode=WAL;
+PRAGMA synchronous=OFF;
+
+CREATE TABLE lines (
+    file     TEXT,
+    line_num INTEGER,
+    content  TEXT,
+    symbol   TEXT,
+    PRIMARY KEY (file, line_num)
+);
+CREATE VIRTUAL TABLE lines_fts USING fts5(file, line_num, content, symbol);
+
+CREATE TABLE symbols (
+    id             INTEGER PRIMARY KEY,
+    name           TEXT,
+    qualified_name TEXT,
+    kind           TEXT,
+    file           TEXT,
+    start_line     INTEGER,
+    end_line       INTEGER,
+    parent         TEXT,
+    signature      TEXT
+);
+
+CREATE TABLE calls (
+    caller_file   TEXT,
+    caller_symbol TEXT,
+    callee        TEXT,
+    kind          TEXT,
+    line_num      INTEGER
+);
+
+CREATE TABLE defs (
+    symbol TEXT,
+    file   TEXT,
+    line_num INTEGER,
+    var    TEXT,
+    kind   TEXT
+);
+
+CREATE TABLE imports (
+    file   TEXT,
+    module TEXT,
+    line_num INTEGER
+);
+
+CREATE INDEX idx_symbols_name ON symbols(name);
+CREATE INDEX idx_symbols_qualified ON symbols(qualified_name);
+CREATE INDEX idx_symbols_file ON symbols(file);
+CREATE INDEX idx_calls_callee ON calls(callee);
+CREATE INDEX idx_calls_caller ON calls(caller_symbol);
+CREATE INDEX idx_defs_var ON defs(var);
+CREATE INDEX idx_imports_module ON imports(module);
+
+CREATE TABLE files (
+    file           TEXT PRIMARY KEY,
+    lines          INTEGER,
+    language       TEXT,
+    indexed_mtime  REAL
+);
+
+CREATE TABLE directories (
+    path        TEXT PRIMARY KEY,
+    file_count  INTEGER,
+    total_lines INTEGER
+);
+
+#ifdef LANG_GO
+-- Go-specific: channel operations (make, send, recv, close, range, select)
+CREATE TABLE channels (
+    id        INTEGER PRIMARY KEY,
+    file      TEXT,
+    symbol    TEXT,
+    line_num  INTEGER,
+    operation TEXT,
+    var       TEXT
+);
+CREATE INDEX idx_channels_var ON channels(var);
+CREATE INDEX idx_channels_file ON channels(file);
+#endif
