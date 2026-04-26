@@ -10,11 +10,14 @@ The question that started this project: can you make an agent prefer
 a structured database over raw file reads, without hardcoding the
 behavior?
 
-The answer is yes, but not the way you'd expect.
+The answer, at least for one model (Claude Opus 4.6) on one harness
+(goose), is yes — but not the way you'd expect.
 
 ## The experiments
 
-The experiments used a fixed task: investigate case exit status
+All five runs used Claude Opus 4.6 via goose's oneshot mode.  We
+haven't tested other models or other agent frameworks — the findings
+may not generalize.
 propagation in a Rust compiler's `transform.rs` (~1,400 lines).
 The task was given as a one-shot `goose run` against the same
 codebase each time, with tool call logs captured and compared.  The
@@ -188,8 +191,8 @@ The sed shim adds one line of negative reinforcement:
    "SELECT content FROM lines WHERE ..." **
 ```
 
-One contextual scolding at the moment of the wrong choice changes
-behavior within a single occurrence.
+In our runs with Opus 4.6, one contextual scolding at the moment of
+the wrong choice changed behavior for the rest of the session.
 
 The sqlite3 shim is the simplest and most important.  Every path
 leads to sqlite3 — the other shims redirect there, and once the
@@ -233,13 +236,14 @@ agent decides to read lines 80–160 of a file.  The shim's correction
 fires at that exact moment, in the output the agent is actively
 processing.
 
-Enriched output without the scolding doesn't change behavior — the
-agent sees example queries but doesn't adopt them.  The scolding
-without the enriched output would force adaptation but wouldn't show
-the right path.  Together, they produce a behavioral shift within one
-occurrence that persists for the rest of the session.
+Enriched output without the scolding didn't change behavior in our
+tests — the agent saw example queries but didn't adopt them.  The
+scolding without the enriched output would force adaptation but
+wouldn't show the right path.  Together, in our runs, they produced
+a behavioral shift that persisted for the rest of the session.
 
-The hierarchy, from most to least effective:
+What we observed, from most to least effective — bearing in mind this
+is one model on one harness:
 
 1. In-band correction at the moment of the wrong choice
 2. Tool output enrichment (showing what the right choice looks like)

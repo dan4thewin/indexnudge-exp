@@ -26,9 +26,8 @@ indexnudge makes the codebase a database.
    SQL query that produced them.  The agent sees by example how to
    query the index directly.
 3. **Scold** — one line of negative reinforcement in the shim output
-   ("STOP USING sed") changes behavior within a single occurrence.
-   The agent converges on sqlite3-only access for the rest of the
-   session.
+   ("STOP USING sed") changed behavior for the rest of the session
+   in our tests with Opus 4.6.
 
 ## Languages
 
@@ -186,7 +185,8 @@ export PATH=/path/to/indexnudge/bin-go:$PATH     # Go
 
 This project grew out of five controlled experiments with goose
 trying to improve tool selection in delegated coding tasks.  The
-full account is in the writeup.  The short version:
+full account is in `EXPERIMENTS.md`.  The short version, from our
+runs with Claude Opus 4.6 on goose:
 
 1. System prompt instructions ("prefer analyze over grep") don't
    change behavior.  Soft or hard, the model follows trained habits.
@@ -194,8 +194,8 @@ full account is in the writeup.  The short version:
    block sed, they discover awk.
 3. Enriching tool output helps incrementally but doesn't change
    the default choice.
-4. Contextual negative feedback at the moment of the wrong choice
-   changes behavior in one occurrence.
+4. In our tests, contextual negative feedback at the moment of the
+   wrong choice changed behavior for the rest of the session.
 
 The hierarchy: **in-band correction > tool output enrichment >
 system prompt instruction > adding new tools**.
