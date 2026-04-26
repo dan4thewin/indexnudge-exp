@@ -1,5 +1,5 @@
 diff --git a/crates/goose/src/agents/platform_extensions/developer/tree.rs b/crates/goose/src/agents/platform_extensions/developer/tree.rs
-index acb0f65a3..e6b0f2ebc 100644
+index acb0f65a3..819abe22a 100644
 --- a/crates/goose/src/agents/platform_extensions/developer/tree.rs
 +++ b/crates/goose/src/agents/platform_extensions/developer/tree.rs
 @@ -1,6 +1,8 @@
@@ -11,20 +11,23 @@ index acb0f65a3..e6b0f2ebc 100644
  
  use ignore::WalkBuilder;
  use rmcp::model::{CallToolResult, Content};
-@@ -61,6 +63,12 @@ impl TreeTool {
+@@ -61,6 +63,15 @@ impl TreeTool {
              .with_priority(0.0)]);
          }
  
 +        // Check for .indexnudge.db in root or ancestors
 +        if let Some(db_path) = find_index_db(&root) {
-+            return self.tree_from_index(&db_path, &root);
++            if has_sqlite3() {
++                return self.tree_from_index(&db_path, &root);
++            }
++            // sqlite3 not on PATH — fall through to filesystem walk
 +        }
 +
 +        // Fallback: filesystem walk
          let max_depth = if depth == 0 {
              None
          } else {
-@@ -78,6 +86,73 @@ impl TreeTool {
+@@ -78,6 +89,73 @@ impl TreeTool {
  
          CallToolResult::success(vec![Content::text(output).with_priority(0.0)])
      }
@@ -98,7 +101,7 @@ index acb0f65a3..e6b0f2ebc 100644
  }
  
  impl Default for TreeTool {
-@@ -86,6 +161,73 @@ impl Default for TreeTool {
+@@ -86,6 +164,82 @@ impl Default for TreeTool {
      }
  }
  
@@ -145,6 +148,15 @@ index acb0f65a3..e6b0f2ebc 100644
 +    })
 +}
 +
++/// Check once per process whether sqlite3 is on PATH.
++fn has_sqlite3() -> bool {
++    static RESULT: OnceLock<bool> = OnceLock::new();
++    *RESULT.get_or_init(|| {
++        let path_var = std::env::var("PATH").unwrap_or_default();
++        path_var.split(':').any(|dir| PathBuf::from(dir).join("sqlite3").is_file())
++    })
++}
++
 +/// Walk up from `start` looking for .indexnudge.db
 +fn find_index_db(start: &Path) -> Option<PathBuf> {
 +    let mut dir = start.to_path_buf();
@@ -172,7 +184,7 @@ index acb0f65a3..e6b0f2ebc 100644
  #[derive(Default)]
  struct DirectoryNode {
      dirs: BTreeMap<String, DirectoryNode>,
-@@ -298,4 +440,20 @@ mod tests {
+@@ -298,4 +452,20 @@ mod tests {
          assert!(!text.contains("ignored"));
          assert!(!text.contains("debug.log"));
      }
