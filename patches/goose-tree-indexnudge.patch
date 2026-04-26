@@ -1,5 +1,5 @@
 diff --git a/crates/goose/src/agents/platform_extensions/developer/tree.rs b/crates/goose/src/agents/platform_extensions/developer/tree.rs
-index acb0f65a3..3f4115f21 100644
+index acb0f65a3..e6b0f2ebc 100644
 --- a/crates/goose/src/agents/platform_extensions/developer/tree.rs
 +++ b/crates/goose/src/agents/platform_extensions/developer/tree.rs
 @@ -1,6 +1,8 @@
@@ -98,18 +98,32 @@ index acb0f65a3..3f4115f21 100644
  }
  
  impl Default for TreeTool {
-@@ -86,6 +161,58 @@ impl Default for TreeTool {
+@@ -86,6 +161,73 @@ impl Default for TreeTool {
      }
  }
  
-+/// Check once per process whether indexnudge shims are on PATH.
-+/// Looks for `sed` in PATH order and checks if the first hit is the shim
-+/// (contains "indexnudge" in the first 512 bytes — real sed is an ELF binary).
++/// Check once per process whether indexnudge binary and shims are on PATH.
++/// Two checks: (1) is `indexnudge` on PATH at all, (2) is the first `sed`
++/// on PATH the shim (contains "indexnudge" in the first 512 bytes).
 +fn shims_on_path() -> &'static Option<String> {
 +    static RESULT: OnceLock<Option<String>> = OnceLock::new();
 +    RESULT.get_or_init(|| {
 +        let path_var = std::env::var("PATH").unwrap_or_default();
-+        for dir in path_var.split(':') {
++        let dirs: Vec<&str> = path_var.split(':').collect();
++
++        // Check 1: is indexnudge binary on PATH?
++        let has_indexnudge = dirs.iter().any(|dir| {
++            PathBuf::from(dir).join("indexnudge").is_file()
++        });
++        if !has_indexnudge {
++            return Some(
++                "Note: .indexnudge.db found but indexnudge not on PATH. \
++                 The shims need the indexnudge binary for incremental reindexing.".to_string()
++            );
++        }
++
++        // Check 2: is the first sed on PATH the shim?
++        for dir in &dirs {
 +            let candidate = PathBuf::from(dir).join("sed");
 +            if candidate.is_file() {
 +                if let Ok(bytes) = fs::read(&candidate) {
@@ -118,15 +132,16 @@ index acb0f65a3..3f4115f21 100644
 +                        return None; // shim found first — all good
 +                    }
 +                }
-+                // First sed on PATH is not the shim
 +                return Some(
-+                    "Note: .indexnudge.db found but indexnudge shims not on PATH. \
++                    "Note: .indexnudge.db found but indexnudge shims not first on PATH. \
 +                     Add: export PATH=/path/to/indexnudge/bin:$PATH".to_string()
 +                );
 +            }
 +        }
-+        Some("Note: .indexnudge.db found but indexnudge shims not on PATH. \
-+              Add: export PATH=/path/to/indexnudge/bin:$PATH".to_string())
++        Some(
++            "Note: .indexnudge.db found but sed not found on PATH. \
++             Add: export PATH=/path/to/indexnudge/bin:$PATH".to_string()
++        )
 +    })
 +}
 +
@@ -157,7 +172,7 @@ index acb0f65a3..3f4115f21 100644
  #[derive(Default)]
  struct DirectoryNode {
      dirs: BTreeMap<String, DirectoryNode>,
-@@ -298,4 +425,20 @@ mod tests {
+@@ -298,4 +440,20 @@ mod tests {
          assert!(!text.contains("ignored"));
          assert!(!text.contains("debug.log"));
      }
