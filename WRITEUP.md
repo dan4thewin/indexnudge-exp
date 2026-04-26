@@ -1,440 +1,264 @@
-# Teaching an AI Agent to Use a Code Index
+# Nudging an AI Agent Toward Better Tools
 
-## The problem
+AI coding agents read source code the way a programmer at a terminal
+might — grep for a pattern, sed to read around the hits, cat to see
+the whole file.  These tools work.  They also waste 75% of the
+agent's tool calls on orientation: reconstructing structural
+understanding that a database could answer in one query.
 
-AI coding agents read source code the way a human might — `cat`, `head`,
-`sed -n '80,160p'`, `grep`.  These tools work, but they're wasteful.  The
-agent burns context window and turns scrolling through raw source when a
-structured index of every symbol, call, import, and line already exists.
+The question that started this project: can you make an agent prefer
+a structured database over raw file reads, without hardcoding the
+behavior?
 
-The question: **can you make an agent prefer a structured database over
-raw file reads, without hardcoding the behavior?**
+The answer is yes, but not the way you'd expect.
 
-This is the story of how we got there, iterating through prompt
-engineering, tool removal, tool modification, shell shims, and finally
-in-band negative reinforcement — and what worked.
+## The experiments
 
-## Background: goose and the developer extension
+The experiments used a fixed task: investigate case exit status
+propagation in a Rust compiler's `transform.rs` (~1,400 lines).
+The task was given as a one-shot `goose run` against the same
+codebase each time, with tool call logs captured and compared.  The
+correct answer is "there is no bug" — reaching it requires reading
+two functions, understanding a phi insertion pattern, and comparing
+them.  A good tool user would do this in 2–3 targeted calls.
 
-[Goose](https://github.com/block/goose) is Block's open-source AI agent.
-Its built-in **developer extension** provides four tools: `write`, `edit`,
-`shell`, and `tree`.  The agent explores codebases by calling `tree` for
-structure, then `shell` to run `cat`, `sed`, `grep`, `head`, etc. to read
-source files.
+### Avenue 1: positive instructions
 
-## Phase 1: the `analyze` tool (added, then removed)
+Added to the developer extension's system prompt: "When you have
+access to the analyze tool, prefer it over grep/cat for understanding
+code structure."
 
-Goose originally shipped an `analyze` tool — a tree-sitter-based code
-structure analyzer with modes for directory overview, file detail, and
-symbol focus with call graphs.  It was substantial: ~3,000 lines of Rust
-across cache, formatter, parser, graph, and per-language modules
-supporting Rust, Go, Python, JavaScript, Ruby, Swift, Java, and Kotlin.
+The agent used analyze once at the start to orient, then fell back to
+grep/sed for everything else.  37 total calls, 19K tokens, 5
+minutes.  Reached the correct conclusion.
 
-The problem wasn't capability — it was adoption.  The agent had to
-*choose* `analyze` over the familiar `shell` + `grep`/`sed`/`cat` pattern.
-Two tools doing similar things created decision overhead.  In commit
-`ced5c1b10` ("simplify developer extension"), `analyze` was removed
-entirely, along with the `goose-mcp` crate — a net reduction of ~9,800
-lines.
+Soft instructions don't override trained habits.
 
-**Lesson: adding a better tool alongside the existing tools doesn't
-change behavior.  The agent defaults to what it knows.**
+### Avenue 2: prescriptive prohibitions
 
-## Phase 2: indexnudge — a standalone indexer
+Rewrote the instructions with explicit rules: "Do NOT use cat, sed,
+or head/tail to read source code.  Do NOT use grep.  Use analyze for
+all code investigation."
 
-Rather than embedding analysis in goose, we built
-[indexnudge](https://github.com/dan4thewin/indexnudge) — a standalone Rust
-CLI (~860 lines) that walks a Rust codebase and produces a `.indexnudge.db`
-SQLite database with these tables:
+Worse than doing nothing.  60 total calls, 38K tokens, 14 minutes.
+The model tried to fix the non-existent bug, hit build failures,
+git-stashed, reverted, and spent the second half thrashing through
+another file with sed.  Didn't reach the correct conclusion.
 
-| Table | Contents |
-|-------|----------|
-| `lines` | Every source line, tagged with enclosing symbol |
-| `lines_fts` | FTS5 full-text search over source lines |
-| `symbols` | Functions, structs, enums, traits, impls — name, kind, file, line range, signature |
-| `calls` | Function/method call sites, caller → callee |
-| `defs` | Variable/binding definitions |
-| `imports` | `use` statements |
-| `files` | Per-file line counts, language, indexed mtime |
-| `directories` | Aggregated file/line counts per directory |
+Prescriptive prohibitions are counterproductive.  The stronger
+framing may have increased cognitive load without changing behavior.
 
-The database is designed for agent consumption — structured, queryable,
-and complete.  Every line of source is in there.  The agent never needs
-to read a raw file.
+### Avenue 3: richer tool output
 
-## Phase 3: prompt engineering
+The model falls back to sed because analyze doesn't show function
+bodies — only call graphs and line numbers.  Modified analyze to
+return the actual code: tracked `end_line` on every symbol, carried
+source text in the analysis output, printed numbered source lines
+for focused symbols.
 
-The developer extension's system prompt was modified to direct the agent
-toward the database:
+3 analyze calls (up from 1–2), including one that followed the call
+graph deeper than any previous run.  Still 14 grep, 11 sed — but
+less sed for the focused function and more for files outside the
+focus.
 
-```
-Query `.indexnudge.db` in the project root with `sqlite3` to understand
-the codebase.  Start with `directories` and `files` for orientation,
-then `symbols`, `calls`, `imports`, `defs` for structure, and
-`lines_fts` for full-text search.  The database contains every line
-of source and all structural metadata.  Run `.schema` to see
-the full schema.
-```
+Partial win.  Enriching tool output helps at the margin.
 
-This replaced the upstream instructions which said:
+### Avenue 4: negative reinforcement
 
-```
-...prefer the flow of using tree to understand the codebase structure
-and file sizes. When you need to search, prefer rg... Then use cat or
-sed to gather the context you need...
-```
+Created PATH shims that returned error messages pointing to the
+correct tools.  grep → "ERROR: grep is disabled.  Use rg."
+sed → "ERROR: sed is disabled.  Use analyze."
 
-**Result: partial success.**  The agent used sqlite3 for structural
-queries (symbol lookup, call graphs) but continued reaching for `sed` and
-`head` to read code.  The prompt instruction was too far from the point
-of action — by the time the agent needed to read lines 80–160 of a file,
-the prompt was 10,000 tokens in the past.
+7 analyze calls, 0 grep, 0 sed, 33 rg calls.  The model used rg
+idiomatically — context flags, fixed-string mode, counting mode —
+and followed analyze call graphs deeply.  60 total calls, 33K
+tokens, 7 minutes.
 
-## Phase 4: modifying `tree` (the entry point)
+Negative reinforcement works where instructions fail.  The model
+can use the right tools.  It won't volunteer to.
 
-The key insight: every agent session starts with `tree`.  It's the
-orientation tool — the first thing called.  If `tree` itself could
-detect `.indexnudge.db` and serve structured data instead of a filesystem
-listing, the agent would see the database *before* it formed any plans.
+### Avenue 5: transparent upgrade
 
-The `tree` tool in goose was modified (in DG's fork) to:
+Instead of blocking grep, upgrade it.  The shim intercepts grep, runs
+`git grep -p` instead, returns JSON with function names containing
+each match plus a hint to use analyze.  The model gets better results
+than it asked for, plus a breadcrumb to the right workflow.
 
-1. Walk up from the target directory looking for `.indexnudge.db` (same
-   convention as `.git` discovery)
-2. When found, query `directories` and `files` tables and format the
-   output as structured tables
-3. Append a nudge: "Every line of source is in `lines`. Every function
-   call is in `calls`. For deeper exploration: `sqlite3 <db> .schema`"
-4. Fall back to normal filesystem walking when no `.indexnudge.db` exists
+5 analyze calls, 14 grep (all returning JSON), 1 sed, 5 awk (routed
+around the sed shim), 2 write, 1 edit.  40 total calls (lowest),
+23K tokens (second lowest), 4 minutes (fastest).  Correct conclusion.
 
-This was invisible to the agent — it called `tree` as always, but got
-enriched output with breadcrumbs toward the database.  The agent
-consistently followed the breadcrumbs and went straight to sqlite3 for
-structural queries on its next tool call.
+The model partially followed the grep→analyze breadcrumb but also
+discovered `awk 'NR>=X && NR<=Y'` as a sed replacement.  Block one
+tool, they find another.
 
-**Lesson: modifying the tool the agent already reaches for is more
-effective than adding a new tool or putting instructions in the prompt.**
+### Summary
 
-## Phase 5: early shims (blocking)
+| Metric     | Soft | Ban | Enrich | Block | Upgrade |
+|------------|-----:|----:|-------:|------:|--------:|
+| analyze    |    1 |   2 |      3 |     7 |       5 |
+| grep       |   10 |  18 |     14 |     0 |      14 |
+| sed        |    3 |  14 |     11 |     0 |       1 |
+| Total      |   37 |  60 |     60 |    60 |      40 |
+| Tokens     |  19K |  38K |   31K |   33K |     23K |
+| Duration   |   5m |  14m |   10m |    7m |      4m |
+| Correct?   |  Yes |   No |  Maybe | Maybe |     Yes |
 
-The `tree` modification got the agent to sqlite3 for structure, but it
-still used `sed`, `head`, and `cat` to read code.  Early shim attempts
-(found in `/tmp/goose_shims/`) took a hard-blocking approach:
+## From experiments to indexnudge
 
-- **sed**: `echo "ERROR: sed is disabled. Use 'analyze'..." && exit 1`
-- **cat**: blocked source file extensions (`.rs`, `.py`, `.go`, etc.),
-  passed through non-code files
-- **grep**: the cleverest — upgraded to `git grep -p` with JSON output
-  including function context, plus a nudge
+Three findings shaped what came next:
 
-The sed and cat shims were blunt instruments.  The grep shim was more
-interesting because it *improved* the output rather than just blocking.
+1. Instructions don't override training.  Neither soft nor hard
+   system prompt instructions reliably change tool selection.
+2. Models route around obstacles.  Block sed, they discover awk.
+   The underlying behavior — line-oriented code navigation — will
+   find expression through whatever tools remain.
+3. Transparent upgrades are the sweet spot.  Replace the tool's
+   output with something better, and the model benefits without
+   needing to change its behavior.
 
-**Problem: the shims referenced `analyze`, which no longer existed.**
-They were from an earlier iteration.  And hard blocking just made the
-agent try alternate tools.
+The key insight: instead of fighting the model's habits, use them as
+a delivery mechanism.  The agent will call grep and sed.  Let it.
+Intercept those calls, serve better data, and show by example what
+the right query looks like.
 
-## Phase 6: enriching shims
+## The index
 
-The new shims (in `bin/`) follow the `tree` philosophy: **enrich, don't
-block**.  Each shim intercepts the read pattern, serves the data from
-`.indexnudge.db` with additional context, and shows the SQL query that
-produced the result.
+indexnudge is a standalone CLI that walks a source tree and produces
+a `.indexnudge.db` — a SQLite database containing:
 
-### sqlite3
+- Every line of source, tagged with its enclosing symbol, full-text
+  searchable via FTS5
+- Every symbol definition — functions, methods, structs, traits,
+  interfaces — with name, kind, file, line range, and signature
+- Every call site, caller to callee
+- Every variable binding and assignment
+- Every import
 
-The simplest and most important shim.  Since every path leads to
-sqlite3 — the other shims redirect there, and once the agent learns,
-it goes direct — this shim guarantees freshness:
+Two indexers share the same schema: a Rust indexer using `syn` and a
+Go indexer using `go/ast` with `go/types` for accurate type
+information.  The Go indexer adds a `channels` table tracking the
+lifecycle of Go channels — where created, written to, read from,
+closed, and selected on.  `go/types` ensures that `range` over a
+slice doesn't appear in the channels table; only actual channel
+operations do.
 
-```bash
-for arg; do
-    if [[ "$arg" == *.indexnudge.db ]]; then
-        indexnudge --freshen "$dir"
-    fi
-done
-exec sqlite3 "$@"
-```
+The schema is the interface.  `.schema` is the documentation.
 
-### sed
+## The tree patch
 
-Intercepts `sed -n 'N,Mp' file` (the line-range read pattern).  Serves
-lines from the database with:
-
-- The SQL query that produced the output (teaching by example)
-- Line numbers
-- Enclosing symbol context (which function am I looking at?)
-- Ready-to-run sqlite3 commands to read each enclosing function in full
+Every agent session starts with `tree`.  It's the orientation
+tool — the first call in almost every session.  A small patch to
+goose's tree tool (maintained as `patches/goose-tree-indexnudge.patch`)
+detects `.indexnudge.db` by walking up from the target directory and,
+when found, serves structured tables from the database instead of a
+filesystem listing.  The output ends with a nudge:
 
 ```
-── sqlite3 .indexnudge.db ──
-query: SELECT line_num, content FROM lines WHERE file='src/main.rs'
-       AND line_num BETWEEN 490 AND 500;
+Every line of source is in `lines`. Every function call is in `calls`.
+For deeper exploration: sqlite3 .indexnudge.db .schema
+```
+
+The agent follows the breadcrumb.  On its next tool call it runs
+sqlite3 — not grep.
+
+The patch also checks, once per process lifetime, whether the
+indexnudge shims are on PATH.  It finds `sed` in PATH order and reads
+the first 512 bytes — the real sed is an ELF binary, the shim is a
+bash script containing "indexnudge."  If the shims aren't first on
+PATH, the tree output includes a warning with the exact `export
+PATH=...` command to fix it.
+
+## The shims
+
+Six shell shims — `sed`, `grep`, `head`, `tail`, `cat`, `sqlite3` —
+sit in `bin/` and intercept the patterns agents use to read code.
+Each shim:
+
+1. Detects `.indexnudge.db` by walking up from the target file
+2. Serves the data from the database instead of the filesystem
+3. Shows the SQL query that produced the result
+4. Falls through to the real tool when the database isn't available
+   or the command isn't a code-reading pattern
+
+The sed shim adds one line of negative reinforcement:
+
+```
 ** STOP USING sed. Query the DB directly: sqlite3 .indexnudge.db
    "SELECT content FROM lines WHERE ..." **
-
- 490 │     pipeline_context: &mut PipelineExecutionContext,
- 491 │     mut params: ExecutionParameters,
-   ...
-
-── enclosing: execute_in_pipeline | method | lines 488-543 ──
-── full method: sqlite3 .indexnudge.db "SELECT content FROM lines
-   WHERE file='...' AND line_num BETWEEN 488 AND 543 ORDER BY
-   line_num;" ──
 ```
 
-### head, tail
+One contextual scolding at the moment of the wrong choice changes
+behavior within a single occurrence.
 
-Same pattern — intercept `head -n N file` and `tail -n N file`, serve
-from the database.  Pass through for pipes (`command | head -20`)
-since those aren't file reads.
+The sqlite3 shim is the simplest and most important.  Every path
+leads to sqlite3 — the other shims redirect there, and once the
+agent learns, it goes direct.  The sqlite3 shim calls
+`indexnudge --freshen` before every query, guaranteeing that the
+database reflects the current state of the source files.
 
-### grep
+Freshness is evaluated lazily at the read boundary.  No daemons, no
+filesystem watchers, no hooks on write or edit.  The agent can
+mutate files through any mechanism; the index is refreshed when
+something reads from it.
 
-Intercepts `grep pattern file` and routes to FTS5 MATCH for simple
-alphanumeric patterns, LIKE fallback for complex patterns.  Every match
-includes the enclosing symbol name:
+## Results
 
-```
-src/main.rs:47  │ create_schema(&conn)?;  # in: full_index
-src/main.rs:211 │ fn create_schema(...    # in: create_schema
-```
+### Brush (Rust, 148 files, 32K lines)
 
-### cat
+One-shot goose run with a code exploration prompt.  Shims on PATH,
+patched tree.
 
-Serves the full file from the database with a symbol summary and a
-nudge toward focused exploration via the symbols table.
+7 of 12 tool calls went straight to the database.  The single sed
+call was the agent's first code-read attempt.  After the scolding,
+every subsequent read was a `SELECT content FROM lines`.
 
-### Common infrastructure
+### TibbitWiki (Go, 14 files, 3.7K lines)
 
-All shims source `_indexnudge_common.bash`, which:
+Same setup with the Go indexer.
 
-- Removes the shim directory from `$PATH` so `exec sed "$@"` finds the
-  real tool (works regardless of where the real tool lives — `/usr/bin`,
-  Homebrew, Linuxbrew)
-- Provides `find_indexnudge_db()` — walks up from a path to find
-  `.indexnudge.db`
-- Provides `freshen_db()` — calls `indexnudge --freshen` if available
-
-## Phase 7: freshness
-
-A critical concern: the agent edits a file via `edit` or `write`, then
-reads it back through a shim serving stale database content.  It doesn't
-see its own change.  This could cause loops or silent validation against
-old code.
-
-The solution has two parts:
-
-### Incremental reindexing (`indexnudge --freshen`)
-
-`indexnudge --freshen <dir>` opens the existing database (doesn't
-rebuild), walks the directory, and compares each file's filesystem mtime
-to the `indexed_mtime` stored in the `files` table.  Only stale, new, or
-deleted files are processed.  A single-file `syn` parse + sqlite insert
-is milliseconds.
-
-### Lazy evaluation at the read boundary
-
-The sqlite3 shim calls `indexnudge --freshen` before every query against
-`.indexnudge.db`.  Since every read path terminates at sqlite3 — whether
-directly or through the other shims — freshness is guaranteed at the
-point of consumption.
-
-No daemons, no filesystem watchers, no hooks on `edit`/`write`/`shell`.
-The agent can mutate files through any tool call; the index is refreshed
-lazily when something reads from it.
-
-## Phase 8: experimental results
-
-We ran controlled one-shot experiments — invoking goose with a code
-exploration prompt against the [brush](https://github.com/reubeno/brush)
-shell project (148 files, 32K lines, 1764 symbols) and counting tool
-usage.
-
-### Run 1: no shims on PATH
-
-The agent used `tree` (got indexnudge-enhanced output), went to sqlite3
-for structural queries, but used `sed -n` for all code reading.  The
-system prompt instruction to use sqlite3 was effective for structure but
-not for reading code.
-
-### Run 2: shims on PATH, no exhortation
-
-Shims intercepted every `sed` and `head` call, serving enriched output
-with SQL queries and enclosing symbols.  The agent saw the SQL queries
-but **never copied them** — it continued using `sed -n` for every code
-read (5 sed calls, 0 `SELECT content FROM lines`).
-
-The shims were transparent infrastructure.  The agent didn't notice or
-learn from the enriched output.
-
-### Run 3: shims on PATH, with negative reinforcement
-
-Added a single line to the sed shim output:
-
-```
-** STOP USING sed. Query the DB directly: sqlite3 .indexnudge.db
-   "SELECT content FROM lines WHERE file='...' AND line_num BETWEEN
-   START AND END ORDER BY line_num;" **
-```
-
-Results:
-
-| Metric | Without exhortation | With exhortation |
-|--------|-------------------|-----------------|
-| `sed -n` calls | 5 | **1** |
-| sqlite3 calls | 6 | **10** |
-| `SELECT content` (reading code) | 0 | **3** |
-| Other shell tools | grep, head | **none** |
-
-The agent used sed exactly once — its first code-read attempt.  After
-seeing the `STOP USING sed` message, every subsequent code read went
-through `sqlite3 ... "SELECT content FROM lines ..."` directly.  It
-also began querying symbol boundaries *first* and reading exact ranges,
-rather than guessing line numbers.
-
-**One contextual scolding was more effective than the system prompt
-instruction, the enriched output, and the example queries combined.**
+The agent queried the `channels` table on its second tool call —
+tracing the goroutine architecture without any prompting about where
+to look.  It used `cat` for four small files, which is reasonable at
+that scale.  Zero sed, zero grep, zero head.
 
 ## Why it works
 
 The system prompt tells the agent what to do.  The shim tells it what
-it just did wrong.  Both are needed, but they work at different moments:
+it just did wrong.  Both are needed, but they work at different
+moments.
 
-- **Prompt instruction** (far from action): gets the agent to sqlite3
-  for structural queries from the start.  Effective for navigation, not
-  for reading.
-- **Enriched output** (at point of action): shows SQL queries as
-  templates.  Educational but not behavioral — the agent sees the
-  queries but doesn't adopt them.
-- **Negative reinforcement** (at point of wrong action): fires at the
-  exact moment the agent makes the wrong choice, in the output it's
-  actively processing.  Changes behavior within one occurrence.
+The prompt instruction is 10,000 tokens in the past by the time the
+agent decides to read lines 80–160 of a file.  The shim's correction
+fires at that exact moment, in the output the agent is actively
+processing.
 
-The hierarchy: **in-band correction > tool output enrichment > system
-prompt instruction > adding new tools**.
+Enriched output without the scolding doesn't change behavior — the
+agent sees example queries but doesn't adopt them.  The scolding
+without the enriched output would force adaptation but wouldn't show
+the right path.  Together, they produce a behavioral shift within one
+occurrence that persists for the rest of the session.
 
-## Architecture summary
+The hierarchy, from most to least effective:
 
-```
-Agent session starts
-        │
-        ▼
-    ┌─────┐     detects .indexnudge.db
-    │tree │ ──────────────────────────► structured tables + nudge
-    └─────┘                             "use sqlite3 for deeper exploration"
-        │
-        ▼
-  Agent uses sqlite3 for structure
-  (symbols, calls, imports)
-        │
-        ▼
-  Agent tries sed/head/grep/cat       ◄── habit
-        │
-        ▼
-    ┌──────┐    intercepts, serves from DB
-    │ shim │ ──────────────────────────► enriched output + SQL query
-    └──────┘    "STOP USING sed"         + enclosing symbol context
-        │
-        ▼
-    ┌─────────┐  freshens DB first
-    │sqlite3  │ ─────────────────────► indexnudge --freshen
-    │ shim    │                         (mtime-based, per-file)
-    └─────────┘
-        │
-        ▼
-  Agent converges on sqlite3-only
-```
-
-## What's in the box
-
-```
-indexnudge/
-├── src/main.rs          # Rust indexer (~860 lines)
-├── Cargo.toml
-├── mkfile               # build, install, test, clean
-├── bin/
-│   ├── _indexnudge_common.bash  # shared helpers
-│   ├── indexnudge        # symlink → target/release/indexnudge
-│   ├── sqlite3          # freshen-before-query shim
-│   ├── sed              # line-range read → DB query + scolding
-│   ├── head             # head -n N file → DB query
-│   ├── tail             # tail -n N file → DB query
-│   ├── grep             # pattern search → FTS5/LIKE + symbol context
-│   └── cat              # full file → DB + symbol summary
-└── README.md
-```
-
-To use: `export PATH=/path/to/indexnudge/bin:$PATH`
+1. In-band correction at the moment of the wrong choice
+2. Tool output enrichment (showing what the right choice looks like)
+3. System prompt instruction
+4. Adding better tools alongside existing ones
 
 ## Open questions
 
-- **Does learning persist across sessions?**  No.  The agent has no
-  memory.  Each session, it tries sed once, gets scolded, and converges.
-  That first sed call is the cost of the pattern.
+**Does learning persist across sessions?**  No.  The agent has no
+memory.  Each session, it tries sed once, gets scolded, and converges.
+That first sed call is the cost of the pattern — a kind of toll.
 
-- **Should the scolding be in all shims?**  Currently only in sed.  The
-  other shims (head, tail, grep, cat) enrich but don't scold.  In
-  practice, once the agent stops using sed it stops using all of them —
-  the scolding in sed is sufficient.
+**What about larger codebases?**  The TibbitWiki run used `cat` for
+small files.  On a 100K-line codebase the agent would presumably not
+cat a 3,000-line file.  Whether it goes to sqlite3 or falls back to
+sed for the first read is the question — and the shim is there for
+exactly that case.
 
-- **What about non-Rust codebases?**  indexnudge currently only indexes
-  `.rs` files.  The shim architecture is language-agnostic — it just
-  needs a populated `.indexnudge.db`.  The indexer needs language support
-  added (tree-sitter would be the obvious path, which circles back to
-  what `analyze` did — but now as an offline index builder, not a
-  runtime tool).
-
-- **Should the `tree` tool in goose call `--freshen` too?**  Currently
-  it reads the database as-is.  The sqlite3 shim handles freshness for
-  direct queries, but the tree tool shells out to sqlite3 directly.
-  Wiring it through the shim (or calling freshen itself) would close
-  this gap.
-
-## Ideas from the neighborhood
-
-A survey of six other projects named `indexnudge` on GitHub revealed a
-crowded space but distinct approaches.  Nobody else has our shim
-architecture or in-band behavior modification — those are genuinely
-novel.  But several projects have ideas worth adopting:
-
-- **MCP server registration** (lexandro/indexnudge-mcp): their
-  `register project .` command auto-writes `.mcp.json` for agent
-  discovery.  We currently require manually prepending `bin/` to PATH.
-  A `indexnudge init` command that wires up the shims and writes agent
-  config would lower the setup barrier.
-
-- **Call chain traversal** (LydiaCai1203/indexnudge): configurable
-  forward/reverse call graph depth.  Our `calls` table has the raw data
-  but we don't expose traversal queries.  A `indexnudge calls --depth=3
-  function_name` command — or a view/query template — would make the
-  call graph immediately useful to agents.
-
-- **Agent config injection** (dreamlx/indexnudge): auto-modifying agent
-  configuration files (like `CLAUDE.md`) to include project context.
-  Similar spirit to our shims but at the config layer.  We could
-  generate a `.goosehints` fragment or append to the system prompt
-  template automatically.
-
-- **File watching** (LydiaCai1203/indexnudge): chokidar-based real-time
-  re-indexing.  Our lazy `--freshen` at the read boundary is simpler
-  and daemonless, but a watch mode could be useful for long development
-  sessions where the agent makes many edits between reads.
-
-- **Multi-language support**: every competitor supports multiple
-  languages.  Our indexer is Rust-only.  The shim architecture is
-  language-agnostic (it just needs a populated `.indexnudge.db`), so
-  the gap is purely in the indexer.  Tree-sitter is the obvious path
-  — which circles back to what the removed `analyze` tool did, but
-  now as an offline index builder rather than a runtime tool.
-
-## Key insight
-
-The most effective way to change an AI agent's tool usage is not
-instruction (prompt engineering), not competition (better tools), and
-not enrichment (showing what it could do).  It's **contextual negative
-feedback at the exact moment of the wrong choice**.  One scolding in
-the output of the wrong tool, containing the right command to use
-instead, changed behavior in a single occurrence.
-
-This is perhaps unsurprising — it's how humans learn too.
+**Should the index replace the filesystem entirely?**  No.  The
+agent still needs `write` and `edit` to modify files.  The index
+replaces *reads*, not writes.  The freshness mechanism bridges the
+gap.

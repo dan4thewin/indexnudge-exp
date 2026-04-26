@@ -2,200 +2,200 @@
 
 A persistent code index for AI agents, stored as SQLite.
 
-## Problem
+## The problem
 
-AI agents navigating codebases waste 75% of their tool calls on
-orientation: grepping for patterns, reading code with sed/cat, and
-reconstructing structural understanding from scratch every session.
-We ran controlled experiments and found that agents make 30+ tool
-calls just to understand what a codebase does before they can start
-working.  Instructions telling them to use better tools don't help —
-the behavior is deeply embedded in training data.
+AI coding agents navigate source code the way a programmer might —
+`grep` for a pattern, `sed -n '80,160p'` to read around the hits,
+`cat` to see the whole file.  This works, but it's wasteful.  The
+agent burns context window and tool calls reconstructing structural
+understanding that a database could answer in one query.
 
-But models are fluent in SQL.  They write joins and subqueries as
+Models are fluent in SQL.  They write joins and subqueries as
 naturally as they write grep commands.  If the codebase were a
-database, the agent could answer structural questions in one query
-instead of a spiral of grep → sed → grep → sed.
+database, one `SELECT` would replace ten greps.
 
-## Idea
+indexnudge makes the codebase a database.
 
-Build a tool that indexes a source tree into a SQLite database.
-The agent opens the database and queries it directly.  No new tool
-API to learn, no documentation to read — `.schema` *is* the
-interface.
+## What it does
 
-One `SELECT` replaces ten greps.  Full-text search replaces
-`grep -rn`.  Join across symbol and call tables replaces manual
-call-graph tracing.  The model's SQL fluency becomes a superpower
-instead of lying dormant.
+1. **Index** — parse source files and store everything in SQLite:
+   every line of source (full-text searchable), every symbol
+   definition, every call site, every variable binding, every import.
+2. **Nudge** — shell shims intercept `sed`, `grep`, `head`, `tail`,
+   `cat` and serve results from the database instead, showing the
+   SQL query that produced them.  The agent sees by example how to
+   query the index directly.
+3. **Scold** — one line of negative reinforcement in the shim output
+   ("STOP USING sed") changes behavior within a single occurrence.
+   The agent converges on sqlite3-only access for the rest of the
+   session.
 
-## What it indexes
+## Languages
 
-Tree-sitter parses source files and extracts:
+| Language | Indexer | Parser | Language-specific tables |
+|----------|---------|--------|------------------------|
+| Rust | `rust/` | `syn` (native AST) | — |
+| Go | `go/` | `go/ast` + `go/types` | `channels` (make, send, recv, close, range, select) |
 
-- **Every line of source** — searchable via FTS5
-- **Every symbol definition** — functions, methods, classes, structs
-- **Caller→callee relationships** — static call graph
-- **Variable mutation points** — where variables are defined, assigned, modified
-- **Imports/dependencies** — module relationships
+Both indexers produce the same shared schema — the shims and the
+goose tree patch work identically regardless of which indexer built
+the database.
 
 ## Schema
 
-```sql
--- Project structure: files and directories
-CREATE TABLE files (
-    file     TEXT PRIMARY KEY,
-    lines    INTEGER,
-    language TEXT
-);
+The shared schema lives in `schema/schema.sql.gpp` and is
+preprocessed with `gpp` for language-specific extensions.
 
-CREATE TABLE directories (
-    path        TEXT PRIMARY KEY,
-    file_count  INTEGER,
-    total_lines INTEGER
-);
+### Shared tables (all languages)
 
--- Every source line, full-text searchable
-CREATE TABLE lines (
-    file    TEXT,
-    line    INTEGER,
-    content TEXT,
-    symbol  TEXT,     -- enclosing function/method/class
-    PRIMARY KEY (file, line)
-);
-CREATE VIRTUAL TABLE lines_fts USING fts5(file, line_num, content, symbol);
+| Table | Contents |
+|-------|----------|
+| `lines` | Every source line, tagged with enclosing symbol |
+| `lines_fts` | FTS5 full-text search over source |
+| `symbols` | Functions, methods, structs, traits, interfaces — name, kind, file, line range, signature |
+| `calls` | Caller → callee edges |
+| `defs` | Variable/binding definitions |
+| `imports` | Import/use statements |
+| `files` | Per-file line counts, language, indexed mtime |
+| `directories` | Aggregated file/line counts per directory |
 
--- Every symbol definition
-CREATE TABLE symbols (
-    id             INTEGER PRIMARY KEY,
-    name           TEXT,
-    qualified_name TEXT,    -- e.g. "Foo::bar" for methods
-    kind           TEXT,    -- function, method, struct, enum, trait, impl, const, static, type, macro
-    file           TEXT,
-    start_line     INTEGER,
-    end_line       INTEGER,
-    parent         TEXT,    -- enclosing impl/trait/mod
-    signature      TEXT     -- full signature text
-);
+### Go-specific
 
--- Caller → callee edges
-CREATE TABLE calls (
-    caller_file   TEXT,
-    caller_symbol TEXT,
-    callee        TEXT,
-    kind          TEXT,    -- function, method, macro
-    line          INTEGER
-);
+| Table | Contents |
+|-------|----------|
+| `channels` | Channel lifecycle: where created, written to, read from, closed, selected on. Uses `go/types` for accuracy — `range` over a slice won't appear here. |
 
--- Variable definitions and modifications
-CREATE TABLE defs (
-    symbol TEXT,    -- enclosing function
-    file   TEXT,
-    line   INTEGER,
-    var    TEXT,
-    kind   TEXT     -- let, let_mut, assign, parameter
-);
+## How the nudge works
 
--- Imports and dependencies
-CREATE TABLE imports (
-    file   TEXT,
-    module TEXT,
-    line   INTEGER
-);
+Every agent session starts with `tree`.  The goose tree tool is
+patched (via `patches/goose-tree-indexnudge.patch`) to detect
+`.indexnudge.db` and serve structured tables from the database
+instead of a filesystem listing.  The output ends with:
+
+```
+Every line of source is in `lines`. Every function call is in `calls`.
+For deeper exploration: sqlite3 .indexnudge.db .schema
 ```
 
-## Example queries
+The agent follows the breadcrumb.  On its next tool call it runs
+`sqlite3` — not `grep`.
 
-```sql
--- "what's the shape of this project?"
-SELECT * FROM directories ORDER BY path;
+When habit reasserts itself and the agent reaches for `sed -n`, the
+shim intercepts, serves the data from the database, shows the SQL
+query that produced it, and adds:
 
--- "what are the biggest files?"
-SELECT file, lines FROM files ORDER BY lines DESC LIMIT 10;
-
--- "how does exit status flow through case statements?"
-SELECT s.name, s.file, s.start_line, s.end_line
-FROM defs d
-JOIN symbols s ON d.symbol = s.name AND d.file = s.file
-WHERE d.var = '?';
-
--- "who calls lower_case?"
-SELECT caller_symbol, caller_file, line
-FROM calls WHERE callee = 'lower_case';
-
--- "show me the function"
-SELECT content FROM lines
-WHERE file = 'sash/src/transform.rs'
-  AND line BETWEEN 1274 AND 1424;
-
--- "what functions mention phi?"
-SELECT DISTINCT symbol FROM lines_fts
-WHERE lines_fts MATCH 'phi';
-
--- "what does lower_if call?"
-SELECT callee, line FROM calls
-WHERE caller_symbol = 'lower_if';
+```
+** STOP USING sed. Query the DB directly: sqlite3 .indexnudge.db
+   "SELECT content FROM lines WHERE ..." **
 ```
 
-## Design
+One contextual scolding at the moment of the wrong choice is more
+effective than system prompt instructions, enriched output, and
+example queries combined.
 
-This is a **proof of concept**.  The goal is to determine whether a
-SQL-queryable code index significantly improves agentic coding.  If
-it does, expect a rewrite for multi-language support.
+## Experimental results
 
-- **Language:** Rust (POC only — best index quality for Rust targets)
-- **Parser:** `syn` for AST extraction.  Native Rust parser, no FFI,
-  no grammar files.  Gets exact Rust semantics including macro
-  invocations (though not macro expansion).
-- **Output:** `.indexnudge.db` at repo root (gitignored).
-- **Target language:** Rust only (POC scope).
-- **Incremental updates:** Out of scope for POC.  Full re-index.
-- **Agent integration:** Agent runs `sqlite3` directly against the
-  database.  No custom tool API — `.schema` is the interface.
+### Brush (Rust, 148 files, 32K lines)
 
-## Design decisions
+Goose oneshot with a code exploration prompt.  Shims on PATH, patched
+tree, negative reinforcement in sed shim.
 
-**Symbol naming:** Store both short name (`bar`) and qualified name
-(`Foo::bar`) for methods/associated functions.  Short name in `name`,
-qualified in a `qualified_name` column.  Agents search either way.
+| Tool | Calls |
+|------|-------|
+| tree | 1 |
+| sqlite3 (direct) | 7 |
+| sed (shimmed) | 1 |
+| head | 2 |
+| grep | 2 |
+| cat | 0 |
 
-**Call extraction:** Store what `syn` can resolve statically.
-`x.process()` → callee `process` (no type qualifier — `syn` can't
-resolve it).  Macro invocations stored as calls with `kind: "macro"`.
-Don't fake type resolution.
+7 of 12 calls went straight to the database.  The single sed call
+was the agent's first code-read attempt — after the scolding, every
+subsequent read was a `SELECT content FROM lines`.
 
-**Source lines:** Store every line in SQLite with FTS5.  Duplicates
-the source (~10-20MB for 100k LOC) but the whole point is the agent
-shouldn't need to shell out to read code.
+### TibbitWiki (Go, 14 files, 3.7K lines)
 
-**Variable tracking (`defs` table):** Best-effort.  Extract `let`
-bindings, assignments, parameter definitions, and `&mut` where
-visible.  Experiments showed agents chasing variable assignments
-(e.g., exit status flow) — this table supports that pattern.
+Same setup with the Go indexer and Go-specific `channels` table.
 
-## Evaluation plan
+| Tool | Calls |
+|------|-------|
+| tree | 1 |
+| sqlite3 (direct) | 2 |
+| cat | 4 |
+| sed / grep / head | 0 |
 
-Index a real Rust codebase.  Run the same set of agentic tasks
-(orientation, bug finding, refactoring) with and without the index.
-Measure tool calls, wall time, and outcome quality.
+The agent queried the `channels` table immediately — tracing
+goroutine architecture (wiki.loop, watcher.eventLoop, hub) without
+prompting.  It used `cat` for four small files (57–577 lines), which
+is reasonable for files that size.  Zero sed, zero grep, zero head.
 
-Target codebase: goose itself (Rust, ~100k LOC, complex enough to
-be realistic).
+## Freshness
+
+The agent edits a file, then reads it back through a shim.  If the
+database is stale, it doesn't see its own change.
+
+`indexnudge --freshen <dir>` compares each file's mtime to the
+`indexed_mtime` stored in the `files` table.  Only changed, new, or
+deleted files are reprocessed.  The sqlite3 shim calls `--freshen`
+before every query.  Since every read path terminates at sqlite3 —
+directly or through the other shims — freshness is guaranteed at the
+point of consumption.
+
+No daemons, no filesystem watchers, no hooks on `edit` or `write`.
+
+## Project structure
+
+```
+indexnudge/
+├── rust/                # Rust indexer (syn-based)
+│   ├── src/main.rs
+│   └── Cargo.toml
+├── go/                  # Go indexer (go/ast + go/types)
+│   ├── main.go
+│   └── go.mod
+├── schema/
+│   └── schema.sql.gpp   # shared schema, gpp-preprocessed
+├── bin/                  # shims (shared, language-agnostic)
+│   ├── _indexnudge_common.bash
+│   ├── sed, grep, head, tail, cat, sqlite3
+│   └── indexnudge
+├── bin-go/               # Go shim set (symlinks + Go binary)
+├── patches/
+│   └── goose-tree-indexnudge.patch
+├── goose/                # goose submodule (pinned, patched)
+└── test_brush.sh, test_tibbiwiki.sh
+```
+
+## Setup
+
+```bash
+# Build the indexer (pick one)
+cd rust && cargo build --release
+cd go && go build -o indexnudge-go .
+
+# Index a project
+indexnudge /path/to/project          # Rust projects
+indexnudge-go -dir /path/to/project  # Go projects
+
+# Put shims on PATH
+export PATH=/path/to/indexnudge/bin:$PATH       # Rust
+export PATH=/path/to/indexnudge/bin-go:$PATH     # Go
+```
 
 ## Background
 
-This project grew out of experiments with goose (Block's AI agent)
-trying to get better tool usage from delegated tasks.  Five
-controlled runs showed that:
+This project grew out of five controlled experiments with goose
+trying to improve tool selection in delegated coding tasks.  The
+full account is in the writeup.  The short version:
 
-1. System prompt instructions don't change tool selection behavior
-2. Blocking bad tools forces adaptation but models route around
-3. Enriching tool output (function bodies, JSON grep) improves
-   efficiency
-4. Models are fluent in SQL and leverage it immediately
+1. System prompt instructions ("prefer analyze over grep") don't
+   change behavior.  Soft or hard, the model follows trained habits.
+2. Blocking tools forces adaptation but models route around —
+   block sed, they discover awk.
+3. Enriching tool output helps incrementally but doesn't change
+   the default choice.
+4. Contextual negative feedback at the moment of the wrong choice
+   changes behavior in one occurrence.
 
-Full writeup: `GooseToolSelectionExperiments` in TibbitWiki.
-
-## Status
-
-POC.  Rust implementation, Rust-only indexing, using `syn`.
+The hierarchy: **in-band correction > tool output enrichment >
+system prompt instruction > adding new tools**.
