@@ -368,7 +368,7 @@ func indexFile(db *sql.DB, fset *token.FileSet, rel, absPath string, f *ast.File
 	indexLines(db, fset, rel, lines, f)
 	extractSymbols(db, fset, rel, f)
 	extractCalls(db, fset, rel, f)
-	extractImports(db, rel, f)
+	extractImports(db, fset, rel, f)
 	extractDefs(db, fset, rel, f)
 	extractChannels(db, fset, rel, f, info)
 
@@ -487,12 +487,12 @@ func extractCalls(db *sql.DB, fset *token.FileSet, rel string, f *ast.File) {
 	}
 }
 
-func extractImports(db *sql.DB, rel string, f *ast.File) {
+func extractImports(db *sql.DB, fset *token.FileSet, rel string, f *ast.File) {
 	stmt, _ := db.Prepare("INSERT INTO imports (file, module, line_num) VALUES (?, ?, ?)")
 	defer stmt.Close()
 	for _, imp := range f.Imports {
 		path := strings.Trim(imp.Path.Value, `"`)
-		stmt.Exec(rel, path, imp.Pos())
+		stmt.Exec(rel, path, fset.Position(imp.Pos()).Line)
 	}
 }
 

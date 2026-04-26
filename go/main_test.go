@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -240,6 +241,16 @@ func TestImportsExtracted(t *testing.T) {
 	}
 	if !contains(modules, "sync") {
 		t.Error("missing import sync")
+	}
+
+	// Verify line numbers are actual source lines, not token.Pos offsets
+	lines := queryStrings(t, db, "SELECT CAST(line_num AS TEXT) FROM imports WHERE file = 'example.go' AND module = 'fmt'")
+	if len(lines) == 0 {
+		t.Fatal("no line number for fmt import")
+	}
+	lineNum, _ := strconv.Atoi(lines[0])
+	if lineNum < 1 || lineNum > 10 {
+		t.Errorf("fmt import line should be in first 10 lines, got %d (token.Pos leak?)", lineNum)
 	}
 }
 
