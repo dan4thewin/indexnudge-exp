@@ -46,3 +46,40 @@ This ordering preserves both plans’ strongest claims: **data loss and silent c
 Changes   +0 -0
 Requests  1 Premium (1m 27s)
 Tokens    ↑ 26.6k • ↓ 5.4k • 16.9k (cached) • 3.5k (reasoning)
+
+---
+
+## Amendment: B2 revised after discussion (2026-04-27)
+
+The original B2 plan preserved old rows on parse failure. On review,
+this is wrong: the agent would see stale source text at the exact
+moment it needs the current version (e.g., after a compile error
+sends it to the DB to read the broken line).
+
+**Revised B2: index lines, drop structure, record error.**
+
+Parse failures are not unrecoverable — the file has a syntax error
+right now but will be fixed soon. Lines don't need parsing. So:
+
+1. Add `parse_error INTEGER DEFAULT 0` to the `files` table schema.
+2. Freshen: always read the file and split into lines.
+3. Attempt AST parse.
+4. If parse succeeds: delete old rows, insert everything (lines +
+   structure), set `parse_error = 0`.
+5. If parse fails: delete old rows, insert new lines only, set
+   `parse_error = 1`, log the error. Structural tables (symbols,
+   calls, imports, defs, channels) are empty for this file — not
+   stale, just absent.
+6. Next successful parse clears the flag and restores structure.
+
+**Tree patch addition:** query `SELECT file FROM files WHERE
+parse_error = 1` and append a note to tree output if any:
+
+```
+Note: 2 files have parse errors (lines available, symbols/calls missing):
+  src/main.rs, src/lib.rs
+```
+
+**Tests:** freshen with a broken file → lines present with current
+content, symbols/calls empty, `files.parse_error = 1`. Fix the file,
+freshen again → structure restored, `parse_error = 0`.
