@@ -8,4 +8,6 @@ Project state and plans for the indexnudge code indexer.
 
 [Long Term](long-term.md)
 
+[Concurrency Design](concurrency-design.md)
+
 [Pinned](pinned.md)

@@ -1,6 +1,6 @@
 # Status
 
-23 commits on master, not pushed.
+24 commits on master, not pushed.
 
 ## Done
 
@@ -11,7 +11,9 @@
 - Bug fix: extractImports token.Pos → line number (B1)
 - iwe knowledge graph set up, .goosehints directs future sessions here
 - iwe skill improved and installed to ~/.config/goose/skills/
+- Concurrency design documented: rename protocol + SQLite lock escalation
 
 ## Current
 
 - Audit remediation fix-now items next (B4, B3, B2, B6)
+- Concurrency design ready for implementation — switch WAL→DELETE, add BEGIN IMMEDIATE, rename protocol
