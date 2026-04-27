@@ -10,4 +10,8 @@ Project state and plans for the indexnudge code indexer.
 
 [Concurrency Design](concurrency-design.md)
 
+[Design Decisions](design-decisions.md)
+
+[Test Results](test-results.md)
+
 [Pinned](pinned.md)
