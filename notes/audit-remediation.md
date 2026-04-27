@@ -21,11 +21,12 @@ Reconciled plan from 8-model adversarial audit (run-1). See `audit/run-1/reconci
 
 ## Strengthen
 
-1. T1+T2: Freshen tests verify all tables + edge case tests (empty files, CRLF, NUL, parse errors)
-2. C3+H2: Go full/freshen file set mismatch — one shared enumerator. Stop ignoring pkg.Errors.
-3. C2+T4: Call callee naming joinable to symbols — add `callee_qname` field, validate with join-count assertions
-4. Go call→symbol resolution via types.Info.Uses/Selections (~20 lines on existing infrastructure)
-5. S1: Symlink blocking — skip symlinks by default via Lstat/symlink_metadata
+1. Incremental FTS: per-file FTS delete/insert during freshen instead of full rebuild. Current full rebuild is the slowest part of freshen on large repos.
+2. T1+T2: Freshen tests verify all tables + edge case tests (empty files, CRLF, NUL, parse errors)
+3. C3+H2: Go full/freshen file set mismatch — one shared enumerator. Stop ignoring pkg.Errors.
+4. C2+T4: Call callee naming joinable to symbols — add `callee_qname` field, validate with join-count assertions
+5. Go call→symbol resolution via types.Info.Uses/Selections (~20 lines on existing infrastructure)
+6. S1: Symlink blocking — skip symlinks by default via Lstat/symlink_metadata
 
 ## Defer
 
