@@ -230,8 +230,8 @@ func TestQualifiedNames(t *testing.T) {
 	if len(qnames) == 0 {
 		t.Fatal("Distance should have a qualified name")
 	}
-	if qnames[0] != "Point.Distance" {
-		t.Errorf("expected Point.Distance, got %s", qnames[0])
+	if qnames[0] != "*testmod.Point.Distance" {
+		t.Errorf("expected *testmod.Point.Distance, got %s", qnames[0])
 	}
 }
 
@@ -269,6 +269,45 @@ func TestCallsExtracted(t *testing.T) {
 	if !contains(callees, "p.Distance") || !contains(callees, "fmt.Println") {
 		// method calls show as receiver.method
 		t.Errorf("expected method calls, got %v", callees)
+	}
+}
+
+
+func TestCalleeQnamePopulated(t *testing.T) {
+	db := setupDB(t)
+	indexSample(t, db, sample, "example.go")
+
+	// callee_qname should be non-empty for at least some calls
+	total := queryInt(t, db, "SELECT count(*) FROM calls WHERE caller_file = 'example.go'")
+	if total < 1 {
+		t.Fatal("no calls found")
+	}
+	withQname := queryInt(t, db, "SELECT count(*) FROM calls WHERE callee_qname != '' AND callee_qname IS NOT NULL")
+	if withQname < 1 {
+		t.Errorf("no calls have callee_qname populated, total calls = %d", total)
+	}
+
+	// callee_qname for fmt.Println should contain "fmt"
+	qnames := queryStrings(t, db, "SELECT callee_qname FROM calls WHERE callee = 'fmt.Println'")
+	if len(qnames) == 0 {
+		t.Error("no qname for fmt.Println")
+	} else if !strings.Contains(qnames[0], "fmt") {
+		t.Errorf("fmt.Println qname = %q, expected to contain 'fmt'", qnames[0])
+	}
+}
+
+func TestCalleeQnameJoinableToSymbols(t *testing.T) {
+	db := setupDB(t)
+	indexSample(t, db, sample, "example.go")
+
+	// Any call whose callee matches a local symbol name should have
+	// callee_qname that's joinable (i.e., the qualified_name exists in symbols)
+	joinCount := queryInt(t, db, `
+		SELECT count(*) FROM calls c
+		JOIN symbols s ON c.callee_qname = s.qualified_name
+		WHERE c.caller_file = 'example.go'`)
+	if joinCount < 1 {
+		t.Errorf("no calls join to symbols via callee_qname, expected at least 1")
 	}
 }
 

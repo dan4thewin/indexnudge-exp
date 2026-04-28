@@ -332,10 +332,10 @@ fn create_schema(conn: &Connection) -> Result<()> {
             caller_file   TEXT,
             caller_symbol TEXT,
             callee        TEXT,
+            callee_qname  TEXT,
             kind          TEXT,
             line_num      INTEGER
         );
-
         CREATE TABLE defs (
             symbol TEXT,
             file   TEXT,
@@ -475,6 +475,7 @@ struct CallRecord {
     caller_symbol: Option<String>,
     callee: String,
     kind: String, // "function", "method", "macro"
+    callee_qname: Option<String>,
     line_num: usize,
 }
 
@@ -773,6 +774,7 @@ impl<'ast> Visit<'ast> for Extractor {
                 caller_file: self.file.clone(),
                 caller_symbol: self.current_scope(),
                 callee,
+                callee_qname: None,
                 kind: "function".into(),
                 line_num: span_start_line(node.func.span()),
             });
@@ -785,6 +787,7 @@ impl<'ast> Visit<'ast> for Extractor {
             caller_file: self.file.clone(),
             caller_symbol: self.current_scope(),
             callee: node.method.to_string(),
+            callee_qname: None,
             kind: "method".into(),
             line_num: span_start_line(node.method.span()),
         });
@@ -797,6 +800,7 @@ impl<'ast> Visit<'ast> for Extractor {
             caller_file: self.file.clone(),
             caller_symbol: self.current_scope(),
             callee: name,
+            callee_qname: None,
             kind: "macro".into(),
             line_num: span_start_line(node.path.span()),
         });
@@ -1003,14 +1007,15 @@ fn insert_symbols(conn: &Connection, symbols: &[SymbolRecord]) -> Result<()> {
 
 fn insert_calls(conn: &Connection, calls: &[CallRecord]) -> Result<()> {
     let mut stmt = conn.prepare(
-        "INSERT INTO calls (caller_file, caller_symbol, callee, kind, line_num)
-         VALUES (?1, ?2, ?3, ?4, ?5)",
+        "INSERT INTO calls (caller_file, caller_symbol, callee, callee_qname, kind, line_num)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
     )?;
     for c in calls {
         stmt.execute(rusqlite::params![
             c.caller_file,
             c.caller_symbol,
             c.callee,
+            c.callee_qname,
             c.kind,
             c.line_num as i64,
         ])?;

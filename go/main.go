@@ -309,7 +309,10 @@ func loadPackages(dir string) (*token.FileSet, map[string]*ast.File, *types.Info
 
 	// Merge all type info into one
 	info := &types.Info{
-		Types: make(map[ast.Expr]types.TypeAndValue),
+		Types:      make(map[ast.Expr]types.TypeAndValue),
+		Defs:       make(map[*ast.Ident]types.Object),
+		Uses:       make(map[*ast.Ident]types.Object),
+		Selections: make(map[*ast.SelectorExpr]*types.Selection),
 	}
 	result := make(map[string]*ast.File)
 	var fset *token.FileSet
@@ -320,6 +323,15 @@ func loadPackages(dir string) (*token.FileSet, map[string]*ast.File, *types.Info
 		}
 		for k, v := range pkg.TypesInfo.Types {
 			info.Types[k] = v
+		}
+		for k, v := range pkg.TypesInfo.Defs {
+			info.Defs[k] = v
+		}
+		for k, v := range pkg.TypesInfo.Uses {
+			info.Uses[k] = v
+		}
+		for k, v := range pkg.TypesInfo.Selections {
+			info.Selections[k] = v
 		}
 		for i, f := range pkg.Syntax {
 			if i < len(pkg.GoFiles) {
@@ -395,10 +407,10 @@ CREATE TABLE calls (
     caller_file   TEXT,
     caller_symbol TEXT,
     callee        TEXT,
+    callee_qname  TEXT,
     kind          TEXT,
     line_num      INTEGER
 );
-
 CREATE TABLE defs (
     symbol TEXT,
     file   TEXT,
@@ -461,10 +473,10 @@ func indexFile(db *sql.DB, fset *token.FileSet, rel, absPath string, f *ast.File
 	if err := indexLines(db, fset, rel, lines, f); err != nil {
 		return err
 	}
-	if err := extractSymbols(db, fset, rel, f); err != nil {
+	if err := extractSymbols(db, fset, rel, f, info); err != nil {
 		return err
 	}
-	if err := extractCalls(db, fset, rel, f); err != nil {
+	if err := extractCalls(db, fset, rel, f, info); err != nil {
 		return err
 	}
 	if err := extractImports(db, fset, rel, f); err != nil {
@@ -568,7 +580,7 @@ func indexLines(db *sql.DB, fset *token.FileSet, rel string, lines []string, f *
 	return nil
 }
 
-func extractSymbols(db *sql.DB, fset *token.FileSet, rel string, f *ast.File) error {
+func extractSymbols(db *sql.DB, fset *token.FileSet, rel string, f *ast.File, info *types.Info) error {
 	stmt, err := db.Prepare(
 		"INSERT INTO symbols (name, qualified_name, kind, file, start_line, end_line, parent, signature) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
 	if err != nil {
@@ -582,16 +594,38 @@ func extractSymbols(db *sql.DB, fset *token.FileSet, rel string, f *ast.File) er
 			name := d.Name.Name
 			kind := "function"
 			var parent, qname, sig *string
+
 			if d.Recv != nil {
 				kind = "method"
 				recvType := recvTypeName(d.Recv)
 				if recvType != "" {
 					p := recvType
 					parent = &p
-					q := recvType + "." + name
+				}
+				// Use types.Info for qualified name if available
+				if info != nil {
+					if obj, ok := info.Defs[d.Name]; ok && obj != nil {
+						if fn, ok := obj.(*types.Func); ok {
+							q := fn.Type().(*types.Signature).Recv().Type().String() + "." + name
+							qname = &q
+						}
+					}
+				}
+				if qname == nil && parent != nil {
+					q := *parent + "." + name
 					qname = &q
 				}
+			} else {
+				if info != nil {
+					if obj, ok := info.Defs[d.Name]; ok && obj != nil {
+						if pkg := obj.Pkg(); pkg != nil {
+							q := pkg.Path() + "." + name
+							qname = &q
+						}
+					}
+				}
 			}
+
 			s := funcSignature(d)
 			if s != "" {
 				sig = &s
@@ -625,9 +659,9 @@ func extractSymbols(db *sql.DB, fset *token.FileSet, rel string, f *ast.File) er
 	return nil
 }
 
-func extractCalls(db *sql.DB, fset *token.FileSet, rel string, f *ast.File) error {
+func extractCalls(db *sql.DB, fset *token.FileSet, rel string, f *ast.File, info *types.Info) error {
 	stmt, err := db.Prepare(
-		"INSERT INTO calls (caller_file, caller_symbol, callee, kind, line_num) VALUES (?, ?, ?, ?, ?)")
+		"INSERT INTO calls (caller_file, caller_symbol, callee, callee_qname, kind, line_num) VALUES (?, ?, ?, ?, ?, ?)")
 	if err != nil {
 		return err
 	}
@@ -649,11 +683,32 @@ func extractCalls(db *sql.DB, fset *token.FileSet, rel string, f *ast.File) erro
 			case *ast.CallExpr:
 				line := fset.Position(expr.Pos()).Line
 				switch fun := expr.Fun.(type) {
-				case *ast.Ident:
-					_, execErr = stmt.Exec(rel, callerSym, fun.Name, "function", line)
-				case *ast.SelectorExpr:
+			case *ast.Ident:
+					qname := ""
+					if info != nil {
+						if obj, ok := info.Uses[fun]; ok && obj != nil {
+							if pkg := obj.Pkg(); pkg != nil {
+								qname = pkg.Path() + "." + obj.Name()
+							} else {
+								qname = obj.Name()
+							}
+						}
+					}
+					_, execErr = stmt.Exec(rel, callerSym, fun.Name, qname, "function", line)
+			case *ast.SelectorExpr:
 					callee := selectorString(fun)
-					_, execErr = stmt.Exec(rel, callerSym, callee, "method", line)
+					qname := ""
+					if info != nil {
+						if sel, ok := info.Selections[fun]; ok {
+							recv := sel.Recv().String()
+							qname = recv + "." + fun.Sel.Name
+						} else if obj, ok := info.Uses[fun.Sel]; ok && obj != nil {
+							if pkg := obj.Pkg(); pkg != nil {
+								qname = pkg.Path() + "." + obj.Name()
+							}
+						}
+					}
+					_, execErr = stmt.Exec(rel, callerSym, callee, qname, "method", line)
 				}
 			}
 			return true
