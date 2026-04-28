@@ -78,12 +78,31 @@ func fullIndex(dir, dbPath string) error {
 			return fmt.Errorf("loading packages: %w", err)
 		}
 
-		fmt.Fprintf(os.Stderr, "Indexing %d files...\n", len(pkgFiles))
+		// Use collectGoFiles as the canonical file list so fullIndex
+		// and doFreshen see the same set of files.
+		diskFiles := collectGoFiles(dir)
+		fmt.Fprintf(os.Stderr, "Indexing %d files...\n", len(diskFiles))
 
-		for absPath, f := range pkgFiles {
+		for _, absPath := range diskFiles {
 			rel, _ := filepath.Rel(dir, absPath)
-			if err := indexFile(db, fset, rel, absPath, f, info); err != nil {
-				fmt.Fprintf(os.Stderr, "skip %s: %v\n", rel, err)
+			if f, ok := pkgFiles[absPath]; ok {
+				if err := indexFile(db, fset, rel, absPath, f, info); err != nil {
+					fmt.Fprintf(os.Stderr, "skip %s: %v\n", rel, err)
+				}
+			} else {
+				localFset := token.NewFileSet()
+				src, _ := os.ReadFile(absPath)
+				parsed, parseErr := parser.ParseFile(localFset, absPath, src, parser.ParseComments)
+				if parseErr != nil {
+					fmt.Fprintf(os.Stderr, "parse error %s: %v (indexing lines only)\n", rel, parseErr)
+					if err := indexFileLinesOnly(db, rel, absPath); err != nil {
+						fmt.Fprintf(os.Stderr, "skip %s: %v\n", rel, err)
+					}
+				} else {
+					if err := indexFile(db, localFset, rel, absPath, parsed, nil); err != nil {
+						fmt.Fprintf(os.Stderr, "skip %s: %v\n", rel, err)
+					}
+				}
 			}
 		}
 
