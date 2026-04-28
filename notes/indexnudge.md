@@ -15,3 +15,5 @@ Project state and plans for the indexnudge code indexer.
 [Test Results](test-results.md)
 
 [Pinned](pinned.md)
+
+[Tasks](tasks/)

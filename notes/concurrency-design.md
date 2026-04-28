@@ -94,7 +94,7 @@ as race 1.
 ## Schema changes required
 
 - `PRAGMA journal_mode=DELETE` (remove WAL)
-- `PRAGMA synchronous=NORMAL` (not OFF — need crash safety for rollback journal)
+- `PRAGMA synchronous=OFF` (safe: rename is the durability boundary, not fsync)
 - `ALTER TABLE files ADD COLUMN parse_error INTEGER DEFAULT 0`
 
 ## Tree patch addition

@@ -33,6 +33,18 @@ Rollback journal mode (`journal_mode=DELETE`) gives proper lock escalation:
 RESERVED → PENDING (blocks new readers) → EXCLUSIVE (waits for existing
 readers to drain). See `concurrency-design.md` for details.
 
+## synchronous=OFF is safe under rename protocol
+
+The concurrency design originally specified `synchronous=NORMAL`. We use
+`synchronous=OFF` instead. Rationale: the rename is the durability boundary,
+not fsync. In both paths (full index and freshen), the data is written to a
+temporary file/backup that gets renamed to the canonical path only on success.
+If a crash happens mid-write, the temporary is discarded — the canonical DB
+was never modified. So fsync during writes is wasted I/O. The rename (which
+is atomic on Linux/macOS) is what makes the data durable.
+
+Performance impact is significant — ~100x difference on bulk inserts.
+
 ## Audit model selection
 
 For future audits, 5 well-chosen models catch everything 9 models found.
