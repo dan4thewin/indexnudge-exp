@@ -3,6 +3,8 @@ package main
 import (
 	"database/sql"
 	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -505,6 +507,93 @@ func TestLineCountNoTrailingPhantom(t *testing.T) {
 	}
 }
 
+
+func TestParseErrorIndexesLinesOnly(t *testing.T) {
+	db := setupDB(t)
+
+	// Write invalid Go to a temp file
+	dir := t.TempDir()
+	badFile := filepath.Join(dir, "bad.go")
+	badSrc := "package main\n\nfunc broken( {\n\treturn\n}\n"
+	os.WriteFile(badFile, []byte(badSrc), 0644)
+
+	// Try to parse — should fail
+	fset := token.NewFileSet()
+	_, parseErr := parser.ParseFile(fset, badFile, nil, parser.ParseComments)
+	if parseErr == nil {
+		t.Fatal("expected parse error for invalid Go")
+	}
+
+	// Index lines only
+	if err := indexFileLinesOnly(db, "bad.go", badFile); err != nil {
+		t.Fatal(err)
+	}
+
+	// Lines should be present
+	lineCount := queryInt(t, db, "SELECT COUNT(*) FROM lines WHERE file = 'bad.go'")
+	if lineCount != 5 {
+		t.Errorf("lines count = %d, want 5", lineCount)
+	}
+
+	// parse_error should be 1
+	parseError := queryInt(t, db, "SELECT parse_error FROM files WHERE file = 'bad.go'")
+	if parseError != 1 {
+		t.Errorf("parse_error = %d, want 1", parseError)
+	}
+
+	// No symbols should exist
+	symCount := queryInt(t, db, "SELECT COUNT(*) FROM symbols WHERE file = 'bad.go'")
+	if symCount != 0 {
+		t.Errorf("symbols count = %d, want 0 for parse error file", symCount)
+	}
+
+	// No calls should exist
+	callCount := queryInt(t, db, "SELECT COUNT(*) FROM calls WHERE caller_file = 'bad.go'")
+	if callCount != 0 {
+		t.Errorf("calls count = %d, want 0 for parse error file", callCount)
+	}
+}
+
+func TestParseErrorClearedOnFix(t *testing.T) {
+	db := setupDB(t)
+
+	dir := t.TempDir()
+	badFile := filepath.Join(dir, "fixme.go")
+
+	// First: index broken file
+	badSrc := "package main\n\nfunc broken( {\n}\n"
+	os.WriteFile(badFile, []byte(badSrc), 0644)
+	indexFileLinesOnly(db, "fixme.go", badFile)
+
+	pe := queryInt(t, db, "SELECT parse_error FROM files WHERE file = 'fixme.go'")
+	if pe != 1 {
+		t.Fatalf("parse_error should be 1, got %d", pe)
+	}
+
+	// Fix the file
+	goodSrc := "package main\n\nfunc fixed() {\n}\n"
+	os.WriteFile(badFile, []byte(goodSrc), 0644)
+
+	// Delete old rows and re-index
+	deleteFileRows(db, "fixme.go")
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, badFile, nil, parser.ParseComments)
+	if err != nil {
+		t.Fatal(err)
+	}
+	indexFile(db, fset, "fixme.go", badFile, f, nil)
+
+	pe2 := queryInt(t, db, "SELECT parse_error FROM files WHERE file = 'fixme.go'")
+	if pe2 != 0 {
+		t.Errorf("parse_error should be 0 after fix, got %d", pe2)
+	}
+
+	// Symbols should now exist
+	symCount := queryInt(t, db, "SELECT COUNT(*) FROM symbols WHERE file = 'fixme.go'")
+	if symCount == 0 {
+		t.Error("expected symbols after fixing parse error")
+	}
+}
 func TestFuncSignature(t *testing.T) {
 	db := setupDB(t)
 	indexSample(t, db, sample, "example.go")

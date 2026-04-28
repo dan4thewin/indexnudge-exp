@@ -231,8 +231,16 @@ func doFreshen(dir, dbPath string) error {
 					src, _ := os.ReadFile(absPath)
 					parsed, parseErr := parser.ParseFile(localFset, absPath, src, parser.ParseComments)
 					if parseErr != nil {
-						fmt.Fprintf(os.Stderr, "skip %s: %v\n", rel, parseErr)
-						continue
+						fmt.Fprintf(os.Stderr, "parse error %s: %v (indexing lines only)\n", rel, parseErr)
+						if err := indexFileLinesOnly(db, rel, absPath); err != nil {
+							fmt.Fprintf(os.Stderr, "skip %s: %v\n", rel, err)
+							continue
+						}
+					} else {
+						if err := indexFile(db, localFset, rel, absPath, parsed, nil); err != nil {
+							fmt.Fprintf(os.Stderr, "skip %s: %v\n", rel, err)
+							continue
+						}
 					}
 					if err := indexFile(db, localFset, rel, absPath, parsed, nil); err != nil {
 						fmt.Fprintf(os.Stderr, "skip %s: %v\n", rel, err)
@@ -401,7 +409,8 @@ CREATE TABLE files (
     file           TEXT PRIMARY KEY,
     lines          INTEGER,
     language       TEXT,
-    indexed_mtime  REAL
+    indexed_mtime  REAL,
+    parse_error    INTEGER DEFAULT 0
 );
 
 CREATE TABLE directories (
@@ -461,6 +470,34 @@ func indexFile(db *sql.DB, fset *token.FileSet, rel, absPath string, f *ast.File
 	return nil
 }
 
+func indexFileLinesOnly(db *sql.DB, rel, absPath string) error {
+	src, err := os.ReadFile(absPath)
+	if err != nil {
+		return err
+	}
+
+	content := strings.TrimSuffix(string(src), "\n")
+	lines := strings.Split(content, "\n")
+
+	stmt, err := db.Prepare("INSERT INTO lines (file, line_num, content, symbol) VALUES (?, ?, ?, '')")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+	for i, line := range lines {
+		if _, err := stmt.Exec(rel, i+1, line); err != nil {
+			return err
+		}
+	}
+
+	mtime := fileMtime(absPath)
+	if _, err := db.Exec("INSERT INTO files (file, lines, language, indexed_mtime, parse_error) VALUES (?, ?, 'go', ?, 1)",
+		rel, len(lines), mtime); err != nil {
+		return err
+	}
+
+	return nil
+}
 func indexLines(db *sql.DB, fset *token.FileSet, rel string, lines []string, f *ast.File) error {
 	// Build line→symbol map
 	symMap := make(map[int]string)

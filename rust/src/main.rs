@@ -216,8 +216,8 @@ fn index_file(conn: &Connection, rel_str: &str, abs_path: &PathBuf) -> Result<()
     let syntax = match syn::parse_file(&source) {
         Ok(s) => s,
         Err(e) => {
-            eprintln!("parse error in {}: {}", rel_str, e);
-            return Ok(());
+            eprintln!("parse error in {}: {} (indexing lines only)", rel_str, e);
+            return index_file_lines_only(conn, rel_str, &source, abs_path);
         }
     };
 
@@ -235,6 +235,23 @@ fn index_file(conn: &Connection, rel_str: &str, abs_path: &PathBuf) -> Result<()
     let mtime = file_mtime(abs_path);
     conn.execute(
         "INSERT INTO files (file, lines, language, indexed_mtime) VALUES (?1, ?2, ?3, ?4)",
+        rusqlite::params![rel_str, line_count, "rust", mtime],
+    )?;
+    Ok(())
+}
+
+fn index_file_lines_only(conn: &Connection, rel_str: &str, source: &str, abs_path: &PathBuf) -> Result<()> {
+    let mut stmt = conn.prepare(
+        "INSERT INTO lines (file, line_num, content, symbol) VALUES (?1, ?2, ?3, '')",
+    )?;
+    for (i, line) in source.lines().enumerate() {
+        stmt.execute(rusqlite::params![rel_str, (i + 1) as i64, line])?;
+    }
+
+    let line_count = source.lines().count() as i64;
+    let mtime = file_mtime(abs_path);
+    conn.execute(
+        "INSERT INTO files (file, lines, language, indexed_mtime, parse_error) VALUES (?1, ?2, ?3, ?4, 1)",
         rusqlite::params![rel_str, line_count, "rust", mtime],
     )?;
     Ok(())
@@ -340,7 +357,8 @@ fn create_schema(conn: &Connection) -> Result<()> {
             file           TEXT PRIMARY KEY,
             lines          INTEGER,
             language       TEXT,
-            indexed_mtime  REAL
+            indexed_mtime  REAL,
+            parse_error    INTEGER DEFAULT 0
         );
 
         CREATE TABLE directories (
