@@ -1,51 +1,34 @@
-# Status
+title: Status
 
-31 commits on master, not pushed. No remote configured.
+## Current state
 
-## Done
+All audit remediation complete (fix-now + strengthen tiers). 9 commits ahead of pre-session state, no remote configured.
 
-- Core: freshen, shims, rename, goose submodule+patch, tree diagnostics
-- Tests: 11 Rust, 20 Go, shim tests pass with controlled PATH
-- Docs: README, EXPERIMENTS.md rewritten, claims scoped to Opus 4.6/goose
-- Audit remediation COMPLETE:
-  - B4: line-count off-by-one (TrimSuffix + regression test)
-  - B3: unchecked DB write errors (all extractors return error, errcheck clean)
-  - B6: Rust extract_span UTF-8 panic — won't fix (preconditions can't arise, panic correct)
-  - B2+B5+S3+S4: rename protocol, DELETE journal, busy_timeout, concurrent freshen guard
-  - parse_error column: index lines for unparseable files, skip structure, set flag
-  - mkfile shim-test uses controlled PATH (prevents cross-language indexer contamination)
-- Concurrency design fully implemented
-- Design decisions documented (anti-goals, model selection, WAL rejection, synchronous=OFF justified)
-- Test results documented (brush, TibbitWiki)
-- iwe knowledge graph set up, .goosehints directs future sessions here
-- Wiki page on rime: Indexnudge Adversarial Audit
+## Session 2025-04-28
+
+- B4+B3: line-count off-by-one, unchecked DB errors
+- B2+B5+S3+S4: rename protocol, DELETE journal, busy_timeout, shim safety
+- parse_error column + handling + tests
+- S1: incremental FTS
+- T1+T2: freshen tests, edge cases
+- S6: symlink blocking
+- C3: shared file enumerator
+- C2+C5+T4: callee_qname, types.Info, join tests
+- 9 task notes created in notes/tasks/
+
+## Observations
+
+- ed with line addresses is the right mutation tool when shims annotate output
+- edit tool's exact-match requirement is what breaks the shim loop
+- Cross-language indexer contamination: shim runs wrong indexer when both on PATH (task created)
+- synchronous=OFF is safe under rename protocol (rename is durability boundary)
 
 ## iwe enhancement work
 
-Spec and implementation plan written at ~/src/iwe/:
-- ENHANCEMENTS_SPEC.md — full spec, all design questions resolved
-- IMPLEMENTATION_PLAN.md — exact files, changes, tests, phase ordering
-- .goosehints — iwe-specific project hints
-- run-enhancements.sh — launch script for autonomous goose session
+Spec at ~/src/iwe/ENHANCEMENTS_SPEC.md, plan at ~/src/iwe/IMPLEMENTATION_PLAN.md.
+Autonomous session implemented Phases 0-3 (bare frontmatter, --meta filter, virtual dirs).
+All tests passing. Changes not yet committed or reviewed.
 
-Four phases: config plumbing → bare front matter → --meta find filter → virtual directories
-Plus task management wrapper (shell script, separate from iwe)
+## Remaining work
 
-Ready to launch via run-enhancements.sh.
-
-## Session observations
-
-- ed with line addresses works naturally with shim-annotated output; the edit tool's exact-match requirement breaks the shim loop
-- Behavior changes stick when they relieve active friction, not when they're theoretically better
-- "Ingrained in training data" was a rationalization for tree; real blocker is not self-monitoring tool usage patterns
-- Delegates get full system prompt including global/project hints — can be counterproductive for work in different repos
-- Distinct goose sessions are better than delegates for cross-repo work: own cwd, own .goosehints, own PATH, own delegates
-
-## Remaining (strengthen tier)
-
-1. Incremental FTS (per-file delete/insert during freshen)
-2. Freshen edge case tests (empty files, CRLF, NUL)
-3. Go full/freshen file set mismatch — shared enumerator
-4. Call callee naming joinable to symbols
-5. Go call→symbol resolution via types.Info
-6. Symlink blocking
+9 tasks in notes/tasks/ — 8 ready, 1 design (file-size-limits).
