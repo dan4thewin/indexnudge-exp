@@ -197,6 +197,7 @@ fn collect_rs_files(dir: &PathBuf) -> Vec<PathBuf> {
         .into_iter()
         .filter_map(|e| e.ok())
         .filter(|e| e.path().extension().is_some_and(|ext| ext == "rs"))
+        .filter(|e| !e.path_is_symlink())
         .filter(|e| !e.path().components().any(|c| c.as_os_str() == "target"))
         .map(|e| e.into_path())
         .collect()

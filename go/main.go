@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
+	"io/fs"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -315,11 +316,14 @@ func loadPackages(dir string) (*token.FileSet, map[string]*ast.File, *types.Info
 
 func collectGoFiles(dir string) []string {
 	var files []string
-	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+	filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
-		if info.IsDir() {
+		if d.Type()&os.ModeSymlink != 0 {
+			return nil
+		}
+		if d.IsDir() {
 			base := filepath.Base(path)
 			if base == "vendor" || base == ".git" || base == "node_modules" {
 				return filepath.SkipDir
