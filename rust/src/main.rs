@@ -164,9 +164,8 @@ fn freshen(dir: &PathBuf, db_path: &PathBuf) -> Result<()> {
         if reindexed > 0 || removed > 0 {
             // Rebuild directories and FTS
             conn.execute("DELETE FROM directories", [])?;
-            conn.execute("DELETE FROM lines_fts", [])?;
+            conn.execute("DELETE FROM directories", [])?;
             populate_directories(&conn)?;
-            conn.execute_batch("INSERT INTO lines_fts(file, line_num, content, symbol) SELECT file, line_num, content, symbol FROM lines;")?;
         }
 
         conn.execute_batch("COMMIT;")?;
@@ -245,7 +244,12 @@ fn index_file_lines_only(conn: &Connection, rel_str: &str, source: &str, abs_pat
         "INSERT INTO lines (file, line_num, content, symbol) VALUES (?1, ?2, ?3, '')",
     )?;
     for (i, line) in source.lines().enumerate() {
+
+    let mut stmt_fts = conn.prepare(
+        "INSERT INTO lines_fts (file, line_num, content, symbol) VALUES (?1, ?2, ?3, '')",
+    )?;
         stmt.execute(rusqlite::params![rel_str, (i + 1) as i64, line])?;
+        stmt_fts.execute(rusqlite::params![rel_str, (i + 1) as i64, line])?;
     }
 
     let line_count = source.lines().count() as i64;
@@ -260,6 +264,7 @@ fn index_file_lines_only(conn: &Connection, rel_str: &str, source: &str, abs_pat
 /// Delete all rows for a file from every table
 fn delete_file_rows(conn: &Connection, file: &str) -> Result<()> {
     conn.execute("DELETE FROM lines WHERE file = ?1", rusqlite::params![file])?;
+    conn.execute("DELETE FROM lines_fts WHERE file = ?1", rusqlite::params![file])?;
     conn.execute(
         "DELETE FROM symbols WHERE file = ?1",
         rusqlite::params![file],
@@ -292,7 +297,6 @@ fn file_mtime(path: &PathBuf) -> f64 {
 /// Rebuild directories table and populate FTS (used after full index)
 fn finalize(conn: &Connection) -> Result<()> {
     populate_directories(conn)?;
-    conn.execute_batch("INSERT INTO lines_fts(file, line_num, content, symbol) SELECT file, line_num, content, symbol FROM lines;")?;
     Ok(())
 }
 
@@ -385,10 +389,14 @@ fn index_lines(conn: &Connection, file: &str, source: &str, syntax: &syn::File) 
 
     let mut stmt = conn
         .prepare("INSERT INTO lines (file, line_num, content, symbol) VALUES (?1, ?2, ?3, ?4)")?;
+
+    let mut stmt_fts = conn
+        .prepare("INSERT INTO lines_fts (file, line_num, content, symbol) VALUES (?1, ?2, ?3, ?4)")?;
     for (i, line_content) in source.lines().enumerate() {
         let line_num = (i + 1) as i64;
         let sym = line_symbols.get(i + 1).and_then(|s| s.as_deref());
         stmt.execute(rusqlite::params![file, line_num, line_content, sym])?;
+        stmt_fts.execute(rusqlite::params![file, line_num, line_content, sym])?;
     }
     Ok(())
 }

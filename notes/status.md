@@ -1,45 +1,51 @@
 # Status
 
-30 commits on master, not pushed. No remote configured.
+31 commits on master, not pushed. No remote configured.
 
 ## Done
 
 - Core: freshen, shims, rename, goose submodule+patch, tree diagnostics
-- Tests: 11 Rust, 18 Go, 11 shim, 4 tree diagnostic cases verified
+- Tests: 11 Rust, 20 Go, shim tests pass with controlled PATH
 - Docs: README, EXPERIMENTS.md rewritten, claims scoped to Opus 4.6/goose
-- Audit: 8-model adversarial audit, triage, reconciled remediation plan
-- Bug fixes: extractImports token.Pos → line number (B1)
-- Audit remediation complete:
+- Audit remediation COMPLETE:
   - B4: line-count off-by-one (TrimSuffix + regression test)
   - B3: unchecked DB write errors (all extractors return error, errcheck clean)
-  - B6: Rust extract_span UTF-8 panic — won't fix (preconditions can't arise, panic is correct for corruption)
+  - B6: Rust extract_span UTF-8 panic — won't fix (preconditions can't arise, panic correct)
   - B2+B5+S3+S4: rename protocol, DELETE journal, busy_timeout, concurrent freshen guard
-- Concurrency design implemented (rename protocol, DELETE journal, synchronous=OFF justified by rename as durability boundary)
-- Design decisions documented (anti-goals, model selection, WAL rejection)
+  - parse_error column: index lines for unparseable files, skip structure, set flag
+  - mkfile shim-test uses controlled PATH (prevents cross-language indexer contamination)
+- Concurrency design fully implemented
+- Design decisions documented (anti-goals, model selection, WAL rejection, synchronous=OFF justified)
 - Test results documented (brush, TibbitWiki)
 - iwe knowledge graph set up, .goosehints directs future sessions here
-- iwe skill improved and installed to ~/.config/goose/skills/
-- Wiki page on rime: Indexnudge Adversarial Audit (report card, excerpts, plan changes)
-- mkfile shim-test uses controlled PATH to prevent cross-language indexer contamination
+- Wiki page on rime: Indexnudge Adversarial Audit
 
-## Concurrency design — remaining items
+## iwe enhancement work
 
-- parse_error column in files table
-- Parse failure handling (index lines, drop structure, set flag)
-- Tree patch to report files with parse_error = 1
-- Tests: parse error scenarios, concurrent freshen, failed freshen
+Spec and implementation plan written at ~/src/iwe/:
+- ENHANCEMENTS_SPEC.md — full spec, all design questions resolved
+- IMPLEMENTATION_PLAN.md — exact files, changes, tests, phase ordering
+- .goosehints — iwe-specific project hints
+- run-enhancements.sh — launch script for autonomous goose session
 
-## iwe enhancements
+Four phases: config plumbing → bare front matter → --meta find filter → virtual directories
+Plus task management wrapper (shell script, separate from iwe)
 
-Spec written at ~/src/iwe/ENHANCEMENTS_SPEC.md covering:
-1. Bare front matter support (enables TibbitWiki compatibility)
-2. --meta key=value filtering on find (enables querying by front matter fields)
-3. Virtual directory nodes (auto-include directory contents)
-4. Task management wrapper (workflow policy, gate enforcement, readiness propagation)
+Ready to launch via run-enhancements.sh.
 
 ## Session observations
 
-- ed with line addresses works naturally with shim-annotated output; the edit tool's exact-match requirement is what breaks the shim loop
+- ed with line addresses works naturally with shim-annotated output; the edit tool's exact-match requirement breaks the shim loop
 - Behavior changes stick when they relieve active friction, not when they're theoretically better
-- iwe knowledge graph needs task-tracking notes with checkboxes, not just design docs — todo extension is ephemeral, doesn't persist across sessions
-- Targeted iwe retrieval (retrieve -k specific-key -d 0) beats bulk retrieval (retrieve -k root -d 2 | grep)
+- "Ingrained in training data" was a rationalization for tree; real blocker is not self-monitoring tool usage patterns
+- Delegates get full system prompt including global/project hints — can be counterproductive for work in different repos
+- Distinct goose sessions are better than delegates for cross-repo work: own cwd, own .goosehints, own PATH, own delegates
+
+## Remaining (strengthen tier)
+
+1. Incremental FTS (per-file delete/insert during freshen)
+2. Freshen edge case tests (empty files, CRLF, NUL)
+3. Go full/freshen file set mismatch — shared enumerator
+4. Call callee naming joinable to symbols
+5. Go call→symbol resolution via types.Info
+6. Symlink blocking

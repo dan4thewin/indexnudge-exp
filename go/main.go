@@ -242,10 +242,6 @@ func doFreshen(dir, dbPath string) error {
 							continue
 						}
 					}
-					if err := indexFile(db, localFset, rel, absPath, parsed, nil); err != nil {
-						fmt.Fprintf(os.Stderr, "skip %s: %v\n", rel, err)
-						continue
-					}
 				}
 				reindexed++
 			}
@@ -253,9 +249,6 @@ func doFreshen(dir, dbPath string) error {
 
 		if reindexed > 0 || removed > 0 {
 			if _, err := db.Exec("DELETE FROM directories"); err != nil {
-				return err
-			}
-			if _, err := db.Exec("DELETE FROM lines_fts"); err != nil {
 				return err
 			}
 			if err := finalize(db); err != nil {
@@ -484,8 +477,18 @@ func indexFileLinesOnly(db *sql.DB, rel, absPath string) error {
 		return err
 	}
 	defer stmt.Close()
+
+	stmtFts, err := db.Prepare("INSERT INTO lines_fts (file, line_num, content, symbol) VALUES (?, ?, ?, '')")
+	if err != nil {
+		return err
+	}
+	defer stmtFts.Close()
+
 	for i, line := range lines {
 		if _, err := stmt.Exec(rel, i+1, line); err != nil {
+			return err
+		}
+		if _, err := stmtFts.Exec(rel, i+1, line); err != nil {
 			return err
 		}
 	}
@@ -519,17 +522,24 @@ func indexLines(db *sql.DB, fset *token.FileSet, rel string, lines []string, f *
 		return err
 	}
 	defer stmt.Close()
+
+	stmtFts, err := db.Prepare("INSERT INTO lines_fts (file, line_num, content, symbol) VALUES (?, ?, ?, ?)")
+	if err != nil {
+		return err
+	}
+	defer stmtFts.Close()
+
 	for i, line := range lines {
 		lineNum := i + 1
 		sym, ok := symMap[lineNum]
-		if ok {
-			if _, err := stmt.Exec(rel, lineNum, line, sym); err != nil {
-				return err
-			}
-		} else {
-			if _, err := stmt.Exec(rel, lineNum, line, nil); err != nil {
-				return err
-			}
+		if !ok {
+			sym = ""
+		}
+		if _, err := stmt.Exec(rel, lineNum, line, sym); err != nil {
+			return err
+		}
+		if _, err := stmtFts.Exec(rel, lineNum, line, sym); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -902,7 +912,7 @@ func exprName(expr ast.Expr) string {
 }
 
 func deleteFileRows(db *sql.DB, file string) error {
-	for _, table := range []string{"lines", "symbols", "calls", "imports", "defs", "files", "channels"} {
+	for _, table := range []string{"lines", "lines_fts", "symbols", "calls", "imports", "defs", "files", "channels"} {
 		col := "file"
 		if table == "calls" {
 			col = "caller_file"
@@ -915,11 +925,7 @@ func deleteFileRows(db *sql.DB, file string) error {
 }
 
 func finalize(db *sql.DB) error {
-	if err := populateDirectories(db); err != nil {
-		return err
-	}
-	_, err := db.Exec("INSERT INTO lines_fts(file, line_num, content, symbol) SELECT file, line_num, content, symbol FROM lines")
-	return err
+	return populateDirectories(db)
 }
 
 func populateDirectories(db *sql.DB) error {
