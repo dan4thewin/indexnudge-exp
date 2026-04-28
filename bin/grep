@@ -53,11 +53,11 @@ if [[ -n "$target" ]]; then
         # FTS5 doesn't support regex, so for simple alphanumeric patterns use MATCH,
         # otherwise fall back to LIKE
         if [[ "$pattern" =~ ^[a-zA-Z0-9_]+$ ]]; then
-            result=$(sqlite3 -separator '|' "$CODEINDEX_DB" \
+            result=$(sqlite3 -cmd '.timeout 5000' -separator '|' "$CODEINDEX_DB" \
                 "SELECT file, line_num, content, symbol FROM lines_fts WHERE content MATCH '\"$safe_pattern\"' ORDER BY file, line_num;" 2>/dev/null)
             query="SELECT file, line_num, content, symbol FROM lines_fts WHERE content MATCH '\"$safe_pattern\"';"
         else
-            result=$(sqlite3 -separator '|' "$CODEINDEX_DB" \
+            result=$(sqlite3 -cmd '.timeout 5000' -separator '|' "$CODEINDEX_DB" \
                 "SELECT file, line_num, content, symbol FROM lines WHERE content LIKE '%$safe_pattern%' ORDER BY file, line_num;" 2>/dev/null)
             query="SELECT file, line_num, content, symbol FROM lines WHERE content LIKE '%$safe_pattern%';"
         fi

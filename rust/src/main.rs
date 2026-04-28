@@ -38,109 +38,158 @@ fn main() -> Result<()> {
 }
 
 fn full_index(dir: &PathBuf, db_path: &PathBuf) -> Result<()> {
-    // Remove old DB for full re-index
+    let bak_path = db_path.with_extension("db.bak");
+    let tmp_path = db_path.with_extension("db.tmp");
+
+    // Move existing DB to .bak for safety
     if db_path.exists() {
-        fs::remove_file(db_path)?;
+        fs::rename(db_path, &bak_path)?;
     }
+    // Remove any stale .tmp
+    let _ = fs::remove_file(&tmp_path);
 
-    let conn = Connection::open(db_path)?;
-    create_schema(&conn)?;
+    let result = (|| -> Result<()> {
+        let conn = Connection::open(&tmp_path)?;
+        create_schema(&conn)?;
 
-    let files = collect_rs_files(dir);
-    eprintln!("Indexing {} files...", files.len());
+        let files = collect_rs_files(dir);
+        eprintln!("Indexing {} files...", files.len());
 
-    for file in &files {
-        let rel = file.strip_prefix(dir).unwrap_or(file);
-        let rel_str = rel.to_string_lossy();
-        index_file(&conn, &rel_str, file)?;
+        for file in &files {
+            let rel = file.strip_prefix(dir).unwrap_or(file);
+            let rel_str = rel.to_string_lossy();
+            index_file(&conn, &rel_str, file)?;
+        }
+
+        finalize(&conn)?;
+        Ok(())
+    })();
+
+    match result {
+        Ok(()) => {
+            fs::rename(&tmp_path, db_path)?;
+            let _ = fs::remove_file(&bak_path);
+            eprintln!("Done. Database: {}", db_path.display());
+            Ok(())
+        }
+        Err(e) => {
+            // .tmp is partial, .bak (if any) is last good, canonical absent
+            eprintln!("Full index failed: {}. Old database preserved as .bak if it existed.", e);
+            Err(e)
+        }
     }
-
-    finalize(&conn)?;
-    eprintln!("Done. Database: {}", db_path.display());
-    Ok(())
 }
 
 fn freshen(dir: &PathBuf, db_path: &PathBuf) -> Result<()> {
+    let bak_path = db_path.with_extension("db.bak");
+
     if !db_path.exists() {
+        if bak_path.exists() {
+            // Another freshen is in progress — exit, let shim fall back
+            eprintln!("Another freshen in progress, skipping.");
+            return Ok(());
+        }
         eprintln!("No existing database, doing full index.");
         return full_index(dir, db_path);
     }
 
-    let conn = Connection::open(db_path)?;
-    conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=OFF;")?;
+    // Rename canonical → .bak
+    fs::rename(db_path, &bak_path)?;
 
-    // Collect current files on disk
-    let disk_files = collect_rs_files(dir);
-    let disk_set: std::collections::HashSet<String> = disk_files
-        .iter()
-        .map(|f| {
-            f.strip_prefix(dir)
-                .unwrap_or(f)
-                .to_string_lossy()
-                .to_string()
-        })
-        .collect();
+    let result = (|| -> Result<(u64, u64)> {
+        let conn = Connection::open(&bak_path)?;
+        conn.execute_batch("PRAGMA journal_mode=DELETE; PRAGMA synchronous=OFF; PRAGMA busy_timeout=5000;")?;
+        conn.execute_batch("BEGIN IMMEDIATE;")?;
 
-    // Get indexed files and their mtimes from DB
-    let mut stmt = conn.prepare("SELECT file, indexed_mtime FROM files")?;
-    let db_files: Vec<(String, f64)> = stmt
-        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
-        .filter_map(|r| r.ok())
-        .collect();
-    let db_set: std::collections::HashSet<String> =
-        db_files.iter().map(|(f, _)| f.clone()).collect();
+        // Collect current files on disk
+        let disk_files = collect_rs_files(dir);
+        let disk_set: std::collections::HashSet<String> = disk_files
+            .iter()
+            .map(|f| {
+                f.strip_prefix(dir)
+                    .unwrap_or(f)
+                    .to_string_lossy()
+                    .to_string()
+            })
+            .collect();
 
-    let mut reindexed = 0u64;
-    let mut removed = 0u64;
+        // Get indexed files and their mtimes from DB
+        let mut stmt = conn.prepare("SELECT file, indexed_mtime FROM files")?;
+        let db_files: Vec<(String, f64)> = stmt
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+            .filter_map(|r| r.ok())
+            .collect();
+        let db_set: std::collections::HashSet<String> =
+            db_files.iter().map(|(f, _)| f.clone()).collect();
 
-    // Delete files that no longer exist on disk
-    for (db_file, _) in &db_files {
-        if !disk_set.contains(db_file.as_str()) {
-            delete_file_rows(&conn, db_file)?;
-            removed += 1;
-        }
-    }
+        let mut reindexed = 0u64;
+        let mut removed = 0u64;
 
-    // Build a map of db file → indexed_mtime for quick lookup
-    let db_mtimes: std::collections::HashMap<&str, f64> =
-        db_files.iter().map(|(f, m)| (f.as_str(), *m)).collect();
-
-    // Index new or stale files
-    for file in &disk_files {
-        let rel = file
-            .strip_prefix(dir)
-            .unwrap_or(file)
-            .to_string_lossy()
-            .to_string();
-        let disk_mtime = file_mtime(file);
-
-        let needs_index = if let Some(&db_mtime) = db_mtimes.get(rel.as_str()) {
-            disk_mtime > db_mtime
-        } else {
-            true // new file
-        };
-
-        if needs_index {
-            if db_set.contains(&rel) {
-                delete_file_rows(&conn, &rel)?;
+        // Delete files that no longer exist on disk
+        for (db_file, _) in &db_files {
+            if !disk_set.contains(db_file.as_str()) {
+                delete_file_rows(&conn, db_file)?;
+                removed += 1;
             }
-            index_file(&conn, &rel, file)?;
-            reindexed += 1;
+        }
+
+        // Build a map of db file → indexed_mtime for quick lookup
+        let db_mtimes: std::collections::HashMap<&str, f64> =
+            db_files.iter().map(|(f, m)| (f.as_str(), *m)).collect();
+
+        // Index new or stale files
+        for file in &disk_files {
+            let rel = file
+                .strip_prefix(dir)
+                .unwrap_or(file)
+                .to_string_lossy()
+                .to_string();
+            let disk_mtime = file_mtime(file);
+
+            let needs_index = if let Some(&db_mtime) = db_mtimes.get(rel.as_str()) {
+                disk_mtime > db_mtime
+            } else {
+                true // new file
+            };
+
+            if needs_index {
+                if db_set.contains(&rel) {
+                    delete_file_rows(&conn, &rel)?;
+                }
+                index_file(&conn, &rel, file)?;
+                reindexed += 1;
+            }
+        }
+
+        if reindexed > 0 || removed > 0 {
+            // Rebuild directories and FTS
+            conn.execute("DELETE FROM directories", [])?;
+            conn.execute("DELETE FROM lines_fts", [])?;
+            populate_directories(&conn)?;
+            conn.execute_batch("INSERT INTO lines_fts(file, line_num, content, symbol) SELECT file, line_num, content, symbol FROM lines;")?;
+        }
+
+        conn.execute_batch("COMMIT;")?;
+        Ok((reindexed, removed))
+    })();
+
+    match result {
+        Ok((reindexed, removed)) => {
+            fs::rename(&bak_path, db_path)?;
+            if reindexed > 0 || removed > 0 {
+                eprintln!("Freshened: {} reindexed, {} removed.", reindexed, removed);
+            } else {
+                eprintln!("All files up to date.");
+            }
+            Ok(())
+        }
+        Err(e) => {
+            // ROLLBACK implicit on drop. .bak is untouched (pre-freshen state).
+            // Canonical absent — shims fall back to filesystem.
+            eprintln!("Freshen failed: {}. Database preserved as .bak.", e);
+            Err(e)
         }
     }
-
-    if reindexed > 0 || removed > 0 {
-        // Rebuild directories and FTS
-        conn.execute("DELETE FROM directories", [])?;
-        conn.execute("DELETE FROM lines_fts", [])?;
-        populate_directories(&conn)?;
-        conn.execute_batch("INSERT INTO lines_fts(file, line_num, content, symbol) SELECT file, line_num, content, symbol FROM lines;")?;
-        eprintln!("Freshened: {} reindexed, {} removed.", reindexed, removed);
-    } else {
-        eprintln!("All files up to date.");
-    }
-
-    Ok(())
 }
 
 /// Collect all .rs files under dir, skipping target/
@@ -233,7 +282,7 @@ fn finalize(conn: &Connection) -> Result<()> {
 fn create_schema(conn: &Connection) -> Result<()> {
     conn.execute_batch(
         "
-        PRAGMA journal_mode=WAL;
+        PRAGMA journal_mode=DELETE;
         PRAGMA synchronous=OFF;
 
         CREATE TABLE lines (

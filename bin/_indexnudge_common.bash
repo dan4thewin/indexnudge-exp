@@ -56,3 +56,4 @@ rel_path() {
     abs=$(resolve_path "$1")
     echo "${abs#"$CODEINDEX_DIR/"}"
 }
+

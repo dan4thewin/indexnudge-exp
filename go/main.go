@@ -48,170 +48,229 @@ func main() {
 }
 
 func fullIndex(dir, dbPath string) error {
-	os.Remove(dbPath)
-	db, err := sql.Open("sqlite", dbPath)
-	if err != nil {
-		return err
-	}
-	defer db.Close()
+	bakPath := dbPath + ".bak"
+	tmpPath := dbPath + ".tmp"
 
-	if err := createSchema(db); err != nil {
-		return err
-	}
-
-	fset, pkgFiles, info, err := loadPackages(dir)
-	if err != nil {
-		return fmt.Errorf("loading packages: %w", err)
-	}
-
-	fmt.Fprintf(os.Stderr, "Indexing %d files...\n", len(pkgFiles))
-
-	for absPath, f := range pkgFiles {
-		rel, _ := filepath.Rel(dir, absPath)
-		if err := indexFile(db, fset, rel, absPath, f, info); err != nil {
-			fmt.Fprintf(os.Stderr, "skip %s: %v\n", rel, err)
+	// Move existing DB to .bak for safety
+	if _, err := os.Stat(dbPath); err == nil {
+		if err := os.Rename(dbPath, bakPath); err != nil {
+			return err
 		}
 	}
+	// Remove any stale .tmp
+	os.Remove(tmpPath)
 
-	if err := finalize(db); err != nil {
+	db, err := sql.Open("sqlite", tmpPath)
+	if err != nil {
 		return err
 	}
+
+	indexErr := func() error {
+		defer db.Close()
+
+		if err := createSchema(db); err != nil {
+			return err
+		}
+
+		fset, pkgFiles, info, err := loadPackages(dir)
+		if err != nil {
+			return fmt.Errorf("loading packages: %w", err)
+		}
+
+		fmt.Fprintf(os.Stderr, "Indexing %d files...\n", len(pkgFiles))
+
+		for absPath, f := range pkgFiles {
+			rel, _ := filepath.Rel(dir, absPath)
+			if err := indexFile(db, fset, rel, absPath, f, info); err != nil {
+				fmt.Fprintf(os.Stderr, "skip %s: %v\n", rel, err)
+			}
+		}
+
+		return finalize(db)
+	}()
+
+	if indexErr != nil {
+		fmt.Fprintf(os.Stderr, "Full index failed: %v. Old database preserved as .bak if it existed.\n", indexErr)
+		return indexErr
+	}
+
+	if err := os.Rename(tmpPath, dbPath); err != nil {
+		return err
+	}
+	os.Remove(bakPath)
 	fmt.Fprintf(os.Stderr, "Done. Database: %s\n", dbPath)
 	return nil
 }
 
 func doFreshen(dir, dbPath string) error {
+	bakPath := dbPath + ".bak"
+
 	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		if _, err := os.Stat(bakPath); err == nil {
+			// Another freshen is in progress — exit, let shim fall back
+			fmt.Fprintln(os.Stderr, "Another freshen in progress, skipping.")
+			return nil
+		}
 		fmt.Fprintln(os.Stderr, "No existing database, doing full index.")
 		return fullIndex(dir, dbPath)
 	}
 
-	db, err := sql.Open("sqlite", dbPath)
-	if err != nil {
+	// Rename canonical → .bak
+	if err := os.Rename(dbPath, bakPath); err != nil {
 		return err
 	}
-	defer db.Close()
 
-	diskFiles := collectGoFiles(dir)
-	diskSet := make(map[string]bool)
-	for _, f := range diskFiles {
-		rel, _ := filepath.Rel(dir, f)
-		diskSet[rel] = true
-	}
-
-	rows, err := db.Query("SELECT file, indexed_mtime FROM files")
-	if err != nil {
-		return err
-	}
-	type dbFile struct {
-		file  string
-		mtime float64
-	}
-	var dbFiles []dbFile
-	for rows.Next() {
-		var f dbFile
-		if err := rows.Scan(&f.file, &f.mtime); err != nil {
+	freshenErr := func() error {
+		db, err := sql.Open("sqlite", bakPath)
+		if err != nil {
 			return err
 		}
-		dbFiles = append(dbFiles, f)
-	}
-	rows.Close()
+		defer db.Close()
 
-	dbMtimes := make(map[string]float64)
-	for _, f := range dbFiles {
-		dbMtimes[f.file] = f.mtime
-	}
-
-	// Check if anything needs updating
-	needsWork := false
-	for _, f := range dbFiles {
-		if !diskSet[f.file] {
-			needsWork = true
-			break
+		if _, err := db.Exec("PRAGMA journal_mode=DELETE; PRAGMA synchronous=OFF; PRAGMA busy_timeout=5000"); err != nil {
+			return err
 		}
-	}
-	if !needsWork {
+		if _, err := db.Exec("BEGIN IMMEDIATE"); err != nil {
+			return err
+		}
+
+		diskFiles := collectGoFiles(dir)
+		diskSet := make(map[string]bool)
+		for _, f := range diskFiles {
+			rel, _ := filepath.Rel(dir, f)
+			diskSet[rel] = true
+		}
+
+		rows, err := db.Query("SELECT file, indexed_mtime FROM files")
+		if err != nil {
+			return err
+		}
+		type dbFile struct {
+			file  string
+			mtime float64
+		}
+		var dbFiles []dbFile
+		for rows.Next() {
+			var f dbFile
+			if err := rows.Scan(&f.file, &f.mtime); err != nil {
+				return err
+			}
+			dbFiles = append(dbFiles, f)
+		}
+		rows.Close()
+
+		dbMtimes := make(map[string]float64)
+		for _, f := range dbFiles {
+			dbMtimes[f.file] = f.mtime
+		}
+
+		// Check if anything needs updating
+		needsWork := false
+		for _, f := range dbFiles {
+			if !diskSet[f.file] {
+				needsWork = true
+				break
+			}
+		}
+		if !needsWork {
+			for _, absPath := range diskFiles {
+				rel, _ := filepath.Rel(dir, absPath)
+				diskMtime := fileMtime(absPath)
+				dbMtime, exists := dbMtimes[rel]
+				if !exists || diskMtime > dbMtime {
+					needsWork = true
+					break
+				}
+			}
+		}
+
+		if !needsWork {
+			fmt.Fprintln(os.Stderr, "All files up to date.")
+			if _, err := db.Exec("COMMIT"); err != nil {
+				return err
+			}
+			return nil
+		}
+
+		// Load type info for accurate channel detection
+		fset, pkgFiles, info, err := loadPackages(dir)
+		if err != nil {
+			return fmt.Errorf("loading packages: %w", err)
+		}
+
+		var reindexed, removed int
+
+		// Remove deleted files
+		for _, f := range dbFiles {
+			if !diskSet[f.file] {
+				if err := deleteFileRows(db, f.file); err != nil {
+					return err
+				}
+				removed++
+			}
+		}
+
+		// Index new or stale files
 		for _, absPath := range diskFiles {
 			rel, _ := filepath.Rel(dir, absPath)
 			diskMtime := fileMtime(absPath)
 			dbMtime, exists := dbMtimes[rel]
 			if !exists || diskMtime > dbMtime {
-				needsWork = true
-				break
+				if exists {
+					if err := deleteFileRows(db, rel); err != nil {
+						return err
+					}
+				}
+				if astFile, ok := pkgFiles[absPath]; ok {
+					if err := indexFile(db, fset, rel, absPath, astFile, info); err != nil {
+						fmt.Fprintf(os.Stderr, "skip %s: %v\n", rel, err)
+						continue
+					}
+				} else {
+					localFset := token.NewFileSet()
+					src, _ := os.ReadFile(absPath)
+					parsed, parseErr := parser.ParseFile(localFset, absPath, src, parser.ParseComments)
+					if parseErr != nil {
+						fmt.Fprintf(os.Stderr, "skip %s: %v\n", rel, parseErr)
+						continue
+					}
+					if err := indexFile(db, localFset, rel, absPath, parsed, nil); err != nil {
+						fmt.Fprintf(os.Stderr, "skip %s: %v\n", rel, err)
+						continue
+					}
+				}
+				reindexed++
 			}
 		}
-	}
 
-	if !needsWork {
-		fmt.Fprintln(os.Stderr, "All files up to date.")
-		return nil
-	}
-
-	// Load type info for accurate channel detection
-	fset, pkgFiles, info, err := loadPackages(dir)
-	if err != nil {
-		return fmt.Errorf("loading packages: %w", err)
-	}
-
-	var reindexed, removed int
-
-	// Remove deleted files
-	for _, f := range dbFiles {
-		if !diskSet[f.file] {
-			if err := deleteFileRows(db, f.file); err != nil {
+		if reindexed > 0 || removed > 0 {
+			if _, err := db.Exec("DELETE FROM directories"); err != nil {
 				return err
 			}
-			removed++
+			if _, err := db.Exec("DELETE FROM lines_fts"); err != nil {
+				return err
+			}
+			if err := finalize(db); err != nil {
+				return err
+			}
+			fmt.Fprintf(os.Stderr, "Freshened: %d reindexed, %d removed.\n", reindexed, removed)
 		}
+
+		if _, err := db.Exec("COMMIT"); err != nil {
+			return err
+		}
+		return nil
+	}()
+
+	if freshenErr != nil {
+		// db.Close() via defer triggers ROLLBACK. .bak is untouched (pre-freshen state).
+		// Canonical absent — shims fall back to filesystem.
+		fmt.Fprintf(os.Stderr, "Freshen failed: %v. Database preserved as .bak.\n", freshenErr)
+		return freshenErr
 	}
 
-	// Index new or stale files
-	for _, absPath := range diskFiles {
-		rel, _ := filepath.Rel(dir, absPath)
-		diskMtime := fileMtime(absPath)
-		dbMtime, exists := dbMtimes[rel]
-		if !exists || diskMtime > dbMtime {
-			if exists {
-				if err := deleteFileRows(db, rel); err != nil {
-					return err
-				}
-			}
-			if astFile, ok := pkgFiles[absPath]; ok {
-				if err := indexFile(db, fset, rel, absPath, astFile, info); err != nil {
-					fmt.Fprintf(os.Stderr, "skip %s: %v\n", rel, err)
-					continue
-				}
-			} else {
-				// File not in loaded packages (maybe a standalone file)
-				localFset := token.NewFileSet()
-				src, _ := os.ReadFile(absPath)
-				parsed, err := parser.ParseFile(localFset, absPath, src, parser.ParseComments)
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "skip %s: %v\n", rel, err)
-					continue
-				}
-				if err := indexFile(db, localFset, rel, absPath, parsed, nil); err != nil {
-					fmt.Fprintf(os.Stderr, "skip %s: %v\n", rel, err)
-					continue
-				}
-			}
-			reindexed++
-		}
-	}
-
-	if reindexed > 0 || removed > 0 {
-		if _, err := db.Exec("DELETE FROM directories"); err != nil {
-			return err
-		}
-		if _, err := db.Exec("DELETE FROM lines_fts"); err != nil {
-			return err
-		}
-		if err := finalize(db); err != nil {
-			return err
-		}
-		fmt.Fprintf(os.Stderr, "Freshened: %d reindexed, %d removed.\n", reindexed, removed)
-	}
-	return nil
+	// Success — rename .bak back to canonical
+	return os.Rename(bakPath, dbPath)
 }
 
 // loadPackages uses go/packages to get type information for the whole module.
@@ -284,7 +343,7 @@ func fileMtime(path string) float64 {
 
 func createSchema(db *sql.DB) error {
 	schema := `
-PRAGMA journal_mode=WAL;
+PRAGMA journal_mode=DELETE;
 PRAGMA synchronous=OFF;
 
 CREATE TABLE lines (

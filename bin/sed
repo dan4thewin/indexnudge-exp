@@ -38,16 +38,16 @@ if [[ "$*" =~ -n ]]; then
             freshen_db
             rel=$(rel_path "$abs")
             # Query the DB
-            result=$(sqlite3 "$CODEINDEX_DB" \
+            result=$(sqlite3 -cmd '.timeout 5000' "$CODEINDEX_DB" \
                 "SELECT line_num, content FROM lines WHERE file='$rel' AND line_num BETWEEN $start AND $end ORDER BY line_num;")
             if [[ -n "$result" ]]; then
                 # Get enclosing symbol
-                symbol=$(sqlite3 "$CODEINDEX_DB" \
+                symbol=$(sqlite3 -cmd '.timeout 5000' "$CODEINDEX_DB" \
                     "SELECT DISTINCT symbol FROM lines WHERE file='$rel' AND line_num BETWEEN $start AND $end AND symbol IS NOT NULL LIMIT 3;")
                 sym_info=""
                 if [[ -n "$symbol" ]]; then
                     # Get enclosing symbol details (symbols whose range overlaps the requested lines)
-                    sym_info=$(sqlite3 "$CODEINDEX_DB" -separator ' | ' \
+                    sym_info=$(sqlite3 -cmd '.timeout 5000' "$CODEINDEX_DB" -separator ' | ' \
                         "SELECT name, kind, 'lines ' || start_line || '-' || end_line FROM symbols WHERE file='$rel' AND start_line <= $end AND end_line >= $start ORDER BY start_line;")
                 fi
 

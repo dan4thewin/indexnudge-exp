@@ -23,37 +23,41 @@ test:V: rust-test go-test shim-test
 	echo 'ALL PASSED'
 
 shim-test:V: rust go
+	clean=$(echo $PATH | tr : \\n | grep -Fv "$PWD" | tr \\n :)
+	echo $clean
+	PATH=$PWD/bin-rust:$clean
+	pat='sqlite3 [^ ]*\.indexnudge\.db '
 	(cd rust && target/release/indexnudge)
 	echo 'PASS: rust full index'
 	(cd rust && target/release/indexnudge --freshen 2>&1) | grep -q 'up to date'
 	echo 'PASS: rust freshen no-op'
+	env head -20 rust/src/main.rs | grep -q "$pat"
+	echo 'PASS: head shim (rust)'
+	env sed -n '1,10p' rust/src/main.rs | grep -q "$pat"
+	echo 'PASS: sed shim (rust)'
+	env grep create_schema rust/src/main.rs | grep -q "$pat"
+	echo 'PASS: grep shim (rust)'
+	env cat rust/src/main.rs | grep -q "$pat"
+	echo 'PASS: cat shim (rust)'
+	env tail -5 rust/src/main.rs | grep -q "$pat"
+	echo 'PASS: tail shim (rust)'
+	env sqlite3 rust/.indexnudge.db 'SELECT count(*) FROM files;' | grep -qE '^[1-9]'
+	echo 'PASS: sqlite3 shim (rust)'
+	PATH=$PWD/bin-go:$clean
 	(cd go && ./indexnudge)
 	echo 'PASS: go full index'
 	(cd go && ./indexnudge --freshen 2>&1) | grep -q 'up to date'
-	pat='sqlite3 [^ ]*\.indexnudge\.db '
-	bin/head -20 rust/src/main.rs | grep -q "$pat"
-	echo 'PASS: head shim (rust)'
-	bin/sed -n '1,10p' rust/src/main.rs | grep -q "$pat"
-	echo 'PASS: sed shim (rust)'
-	bin/grep create_schema rust/src/main.rs | grep -q "$pat"
-	echo 'PASS: grep shim (rust)'
-	bin/cat rust/src/main.rs | grep -q "$pat"
-	echo 'PASS: cat shim (rust)'
-	bin/tail -5 rust/src/main.rs | grep -q "$pat"
-	echo 'PASS: tail shim (rust)'
-	bin/head -20 go/main.go | grep -q "$pat"
+	echo 'PASS: go freshen no-op'
+	env head -20 go/main.go | grep -q "$pat"
 	echo 'PASS: head shim (go)'
-	bin/sed -n '1,10p' go/main.go | grep -q "$pat"
+	env sed -n '1,10p' go/main.go | grep -q "$pat"
 	echo 'PASS: sed shim (go)'
-	bin/grep extractSymbols go/main.go | grep -q "$pat"
+	env grep extractSymbols go/main.go | grep -q "$pat"
 	echo 'PASS: grep shim (go)'
-	bin/sqlite3 rust/.indexnudge.db 'SELECT count(*) FROM files;' | grep -qE '^[1-9]'
-	echo 'PASS: sqlite3 shim (rust)'
-	bin/sqlite3 go/.indexnudge.db 'SELECT count(*) FROM files;' | grep -qE '^[1-9]'
+	env sqlite3 go/.indexnudge.db 'SELECT count(*) FROM files;' | grep -qE '^[1-9]'
 	echo 'PASS: sqlite3 shim (go)'
 	echo 'SHIM TESTS PASSED'
 
-#PATH=~+/bin-rust:$PATH bash -c 'cd rust; head src/main.rs'
 patch:V:
 	cd goose
 	git checkout -- crates/goose/src/agents/platform_extensions/developer/tree.rs

@@ -32,10 +32,10 @@ if [[ ${#files[@]} -eq 1 ]] && [[ -f "${files[0]}" ]]; then
         freshen_db
         rel=$(rel_path "$abs")
         # Check if file is in the index
-        in_index=$(sqlite3 "$CODEINDEX_DB" "SELECT count(*) FROM files WHERE file='$rel';")
+        in_index=$(sqlite3 -cmd '.timeout 5000' "$CODEINDEX_DB" "SELECT count(*) FROM files WHERE file='$rel';")
         if [[ "$in_index" -gt 0 ]]; then
-            total=$(sqlite3 "$CODEINDEX_DB" "SELECT lines FROM files WHERE file='$rel';")
-            syms=$(sqlite3 "$CODEINDEX_DB" -separator ' | ' \
+            total=$(sqlite3 -cmd '.timeout 5000' "$CODEINDEX_DB" "SELECT lines FROM files WHERE file='$rel';")
+            syms=$(sqlite3 -cmd '.timeout 5000' "$CODEINDEX_DB" -separator ' | ' \
                 "SELECT kind, name, 'lines ' || start_line || '-' || end_line FROM symbols WHERE file='$rel' ORDER BY start_line;")
             echo "── sqlite3 $CODEINDEX_DB ──"
             echo "query: SELECT content FROM lines WHERE file='$rel' ORDER BY line_num;"

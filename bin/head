@@ -42,10 +42,10 @@ if [[ -n "$file" ]] && [[ -f "$file" ]]; then
     if find_indexnudge_db "$abs"; then
         freshen_db
         rel=$(rel_path "$abs")
-        result=$(sqlite3 "$CODEINDEX_DB" \
+        result=$(sqlite3 -cmd '.timeout 5000' "$CODEINDEX_DB" \
             "SELECT line_num, content FROM lines WHERE file='$rel' AND line_num <= $n ORDER BY line_num;")
         if [[ -n "$result" ]]; then
-            total=$(sqlite3 "$CODEINDEX_DB" "SELECT lines FROM files WHERE file='$rel';")
+            total=$(sqlite3 -cmd '.timeout 5000' "$CODEINDEX_DB" "SELECT lines FROM files WHERE file='$rel';")
             echo "── sqlite3 $CODEINDEX_DB ──"
             echo "query: SELECT line_num, content FROM lines WHERE file='$rel' AND line_num <= $n;"
             echo ""
