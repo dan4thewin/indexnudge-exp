@@ -158,7 +158,9 @@ func doFreshen(dir, dbPath string) error {
 	// Remove deleted files
 	for _, f := range dbFiles {
 		if !diskSet[f.file] {
-			deleteFileRows(db, f.file)
+			if err := deleteFileRows(db, f.file); err != nil {
+				return err
+			}
 			removed++
 		}
 	}
@@ -170,7 +172,9 @@ func doFreshen(dir, dbPath string) error {
 		dbMtime, exists := dbMtimes[rel]
 		if !exists || diskMtime > dbMtime {
 			if exists {
-				deleteFileRows(db, rel)
+				if err := deleteFileRows(db, rel); err != nil {
+					return err
+				}
 			}
 			if astFile, ok := pkgFiles[absPath]; ok {
 				if err := indexFile(db, fset, rel, absPath, astFile, info); err != nil {
@@ -196,8 +200,12 @@ func doFreshen(dir, dbPath string) error {
 	}
 
 	if reindexed > 0 || removed > 0 {
-		db.Exec("DELETE FROM directories")
-		db.Exec("DELETE FROM lines_fts")
+		if _, err := db.Exec("DELETE FROM directories"); err != nil {
+			return err
+		}
+		if _, err := db.Exec("DELETE FROM lines_fts"); err != nil {
+			return err
+		}
 		if err := finalize(db); err != nil {
 			return err
 		}
@@ -364,22 +372,37 @@ func indexFile(db *sql.DB, fset *token.FileSet, rel, absPath string, f *ast.File
 		return err
 	}
 
-	lines := strings.Split(string(src), "\n")
-	indexLines(db, fset, rel, lines, f)
-	extractSymbols(db, fset, rel, f)
-	extractCalls(db, fset, rel, f)
-	extractImports(db, fset, rel, f)
-	extractDefs(db, fset, rel, f)
-	extractChannels(db, fset, rel, f, info)
+	content := strings.TrimSuffix(string(src), "\n")
+	lines := strings.Split(content, "\n")
+	if err := indexLines(db, fset, rel, lines, f); err != nil {
+		return err
+	}
+	if err := extractSymbols(db, fset, rel, f); err != nil {
+		return err
+	}
+	if err := extractCalls(db, fset, rel, f); err != nil {
+		return err
+	}
+	if err := extractImports(db, fset, rel, f); err != nil {
+		return err
+	}
+	if err := extractDefs(db, fset, rel, f); err != nil {
+		return err
+	}
+	if err := extractChannels(db, fset, rel, f, info); err != nil {
+		return err
+	}
 
 	mtime := fileMtime(absPath)
-	db.Exec("INSERT INTO files (file, lines, language, indexed_mtime) VALUES (?, ?, 'go', ?)",
-		rel, len(lines), mtime)
+	if _, err := db.Exec("INSERT INTO files (file, lines, language, indexed_mtime) VALUES (?, ?, 'go', ?)",
+		rel, len(lines), mtime); err != nil {
+		return err
+	}
 
 	return nil
 }
 
-func indexLines(db *sql.DB, fset *token.FileSet, rel string, lines []string, f *ast.File) {
+func indexLines(db *sql.DB, fset *token.FileSet, rel string, lines []string, f *ast.File) error {
 	// Build line→symbol map
 	symMap := make(map[int]string)
 	ast.Inspect(f, func(n ast.Node) bool {
@@ -395,22 +418,33 @@ func indexLines(db *sql.DB, fset *token.FileSet, rel string, lines []string, f *
 		return true
 	})
 
-	stmt, _ := db.Prepare("INSERT INTO lines (file, line_num, content, symbol) VALUES (?, ?, ?, ?)")
+	stmt, err := db.Prepare("INSERT INTO lines (file, line_num, content, symbol) VALUES (?, ?, ?, ?)")
+	if err != nil {
+		return err
+	}
 	defer stmt.Close()
 	for i, line := range lines {
 		lineNum := i + 1
 		sym, ok := symMap[lineNum]
 		if ok {
-			stmt.Exec(rel, lineNum, line, sym)
+			if _, err := stmt.Exec(rel, lineNum, line, sym); err != nil {
+				return err
+			}
 		} else {
-			stmt.Exec(rel, lineNum, line, nil)
+			if _, err := stmt.Exec(rel, lineNum, line, nil); err != nil {
+				return err
+			}
 		}
 	}
+	return nil
 }
 
-func extractSymbols(db *sql.DB, fset *token.FileSet, rel string, f *ast.File) {
-	stmt, _ := db.Prepare(
+func extractSymbols(db *sql.DB, fset *token.FileSet, rel string, f *ast.File) error {
+	stmt, err := db.Prepare(
 		"INSERT INTO symbols (name, qualified_name, kind, file, start_line, end_line, parent, signature) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+	if err != nil {
+		return err
+	}
 	defer stmt.Close()
 
 	for _, decl := range f.Decls {
@@ -435,7 +469,9 @@ func extractSymbols(db *sql.DB, fset *token.FileSet, rel string, f *ast.File) {
 			}
 			start := fset.Position(d.Pos()).Line
 			end := fset.Position(d.End()).Line
-			stmt.Exec(name, qname, kind, rel, start, end, parent, sig)
+			if _, err := stmt.Exec(name, qname, kind, rel, start, end, parent, sig); err != nil {
+				return err
+			}
 
 		case *ast.GenDecl:
 			for _, spec := range d.Specs {
@@ -450,19 +486,24 @@ func extractSymbols(db *sql.DB, fset *token.FileSet, rel string, f *ast.File) {
 					}
 					start := fset.Position(s.Pos()).Line
 					end := fset.Position(s.End()).Line
-					stmt.Exec(s.Name.Name, nil, kind, rel, start, end, nil, nil)
+					if _, err := stmt.Exec(s.Name.Name, nil, kind, rel, start, end, nil, nil); err != nil {
+						return err
+					}
 				}
 			}
 		}
 	}
+	return nil
 }
 
-func extractCalls(db *sql.DB, fset *token.FileSet, rel string, f *ast.File) {
-	stmt, _ := db.Prepare(
+func extractCalls(db *sql.DB, fset *token.FileSet, rel string, f *ast.File) error {
+	stmt, err := db.Prepare(
 		"INSERT INTO calls (caller_file, caller_symbol, callee, kind, line_num) VALUES (?, ?, ?, ?, ?)")
+	if err != nil {
+		return err
+	}
 	defer stmt.Close()
 
-	// Walk each function body
 	for _, decl := range f.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
 		if !ok || fn.Body == nil {
@@ -470,35 +511,52 @@ func extractCalls(db *sql.DB, fset *token.FileSet, rel string, f *ast.File) {
 		}
 		callerSym := funcDeclName(fn)
 
+		var execErr error
 		ast.Inspect(fn.Body, func(n ast.Node) bool {
+			if execErr != nil {
+				return false
+			}
 			switch expr := n.(type) {
 			case *ast.CallExpr:
 				line := fset.Position(expr.Pos()).Line
 				switch fun := expr.Fun.(type) {
 				case *ast.Ident:
-					stmt.Exec(rel, callerSym, fun.Name, "function", line)
+					_, execErr = stmt.Exec(rel, callerSym, fun.Name, "function", line)
 				case *ast.SelectorExpr:
 					callee := selectorString(fun)
-					stmt.Exec(rel, callerSym, callee, "method", line)
+					_, execErr = stmt.Exec(rel, callerSym, callee, "method", line)
 				}
 			}
 			return true
 		})
+		if execErr != nil {
+			return execErr
+		}
 	}
+	return nil
 }
 
-func extractImports(db *sql.DB, fset *token.FileSet, rel string, f *ast.File) {
-	stmt, _ := db.Prepare("INSERT INTO imports (file, module, line_num) VALUES (?, ?, ?)")
+func extractImports(db *sql.DB, fset *token.FileSet, rel string, f *ast.File) error {
+	stmt, err := db.Prepare("INSERT INTO imports (file, module, line_num) VALUES (?, ?, ?)")
+	if err != nil {
+		return err
+	}
 	defer stmt.Close()
 	for _, imp := range f.Imports {
 		path := strings.Trim(imp.Path.Value, `"`)
-		stmt.Exec(rel, path, fset.Position(imp.Pos()).Line)
+		if _, err := stmt.Exec(rel, path, fset.Position(imp.Pos()).Line); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
-func extractDefs(db *sql.DB, fset *token.FileSet, rel string, f *ast.File) {
-	stmt, _ := db.Prepare(
+func extractDefs(db *sql.DB, fset *token.FileSet, rel string, f *ast.File) error {
+	stmt, err := db.Prepare(
 		"INSERT INTO defs (symbol, file, line_num, var, kind) VALUES (?, ?, ?, ?, ?)")
+	if err != nil {
+		return err
+	}
 	defer stmt.Close()
 
 	for _, decl := range f.Decls {
@@ -508,7 +566,11 @@ func extractDefs(db *sql.DB, fset *token.FileSet, rel string, f *ast.File) {
 		}
 		callerSym := funcDeclName(fn)
 
+		var execErr error
 		ast.Inspect(fn.Body, func(n ast.Node) bool {
+			if execErr != nil {
+				return false
+			}
 			switch node := n.(type) {
 			case *ast.AssignStmt:
 				kind := "assign"
@@ -518,25 +580,28 @@ func extractDefs(db *sql.DB, fset *token.FileSet, rel string, f *ast.File) {
 				for _, lhs := range node.Lhs {
 					if ident, ok := lhs.(*ast.Ident); ok {
 						line := fset.Position(ident.Pos()).Line
-						stmt.Exec(callerSym, rel, line, ident.Name, kind)
+						_, execErr = stmt.Exec(callerSym, rel, line, ident.Name, kind)
 					}
 				}
 			case *ast.RangeStmt:
 				if node.Key != nil {
 					if ident, ok := node.Key.(*ast.Ident); ok {
 						line := fset.Position(ident.Pos()).Line
-						stmt.Exec(callerSym, rel, line, ident.Name, "range_key")
+						_, execErr = stmt.Exec(callerSym, rel, line, ident.Name, "range_key")
 					}
 				}
 				if node.Value != nil {
 					if ident, ok := node.Value.(*ast.Ident); ok {
 						line := fset.Position(ident.Pos()).Line
-						stmt.Exec(callerSym, rel, line, ident.Name, "range_value")
+						_, execErr = stmt.Exec(callerSym, rel, line, ident.Name, "range_value")
 					}
 				}
 			}
 			return true
 		})
+		if execErr != nil {
+			return execErr
+		}
 	}
 
 	// Package-level vars and consts
@@ -556,15 +621,21 @@ func extractDefs(db *sql.DB, fset *token.FileSet, rel string, f *ast.File) {
 			}
 			for _, name := range vs.Names {
 				line := fset.Position(name.Pos()).Line
-				stmt.Exec(nil, rel, line, name.Name, kind)
+				if _, err := stmt.Exec(nil, rel, line, name.Name, kind); err != nil {
+					return err
+				}
 			}
 		}
 	}
+	return nil
 }
 
-func extractChannels(db *sql.DB, fset *token.FileSet, rel string, f *ast.File, info *types.Info) {
-	stmt, _ := db.Prepare(
+func extractChannels(db *sql.DB, fset *token.FileSet, rel string, f *ast.File, info *types.Info) error {
+	stmt, err := db.Prepare(
 		"INSERT INTO channels (file, symbol, line_num, operation, var) VALUES (?, ?, ?, ?, ?)")
+	if err != nil {
+		return err
+	}
 	defer stmt.Close()
 
 	for _, decl := range f.Decls {
@@ -574,61 +645,65 @@ func extractChannels(db *sql.DB, fset *token.FileSet, rel string, f *ast.File, i
 		}
 		sym := funcDeclName(fn)
 
+		var execErr error
 		ast.Inspect(fn.Body, func(n ast.Node) bool {
+			if execErr != nil {
+				return false
+			}
 			switch node := n.(type) {
 			case *ast.SendStmt:
-				// ch <- v
 				line := fset.Position(node.Pos()).Line
 				varName := exprName(node.Chan)
-				stmt.Exec(rel, sym, line, "send", varName)
+				_, execErr = stmt.Exec(rel, sym, line, "send", varName)
 
 			case *ast.UnaryExpr:
-				// <-ch
 				if node.Op == token.ARROW {
 					line := fset.Position(node.Pos()).Line
 					varName := exprName(node.X)
-					stmt.Exec(rel, sym, line, "recv", varName)
+					_, execErr = stmt.Exec(rel, sym, line, "recv", varName)
 				}
 
 			case *ast.CallExpr:
 				if ident, ok := node.Fun.(*ast.Ident); ok {
 					switch ident.Name {
 					case "make":
-						// make(chan T) or make(chan T, n)
 						if len(node.Args) > 0 {
 							if _, ok := node.Args[0].(*ast.ChanType); ok {
 								line := fset.Position(node.Pos()).Line
-								stmt.Exec(rel, sym, line, "make", nil)
+								_, execErr = stmt.Exec(rel, sym, line, "make", nil)
 							}
 						}
 					case "close":
 						if len(node.Args) == 1 {
 							line := fset.Position(node.Pos()).Line
 							varName := exprName(node.Args[0])
-							stmt.Exec(rel, sym, line, "close", varName)
+							_, execErr = stmt.Exec(rel, sym, line, "close", varName)
 						}
 					}
 				}
 
 			case *ast.RangeStmt:
-				// Only record if ranging over a channel type
 				if node.X != nil && info != nil {
 					if tv, ok := info.Types[node.X]; ok {
 						if _, isChan := tv.Type.Underlying().(*types.Chan); isChan {
 							line := fset.Position(node.Pos()).Line
 							varName := exprName(node.X)
-							stmt.Exec(rel, sym, line, "range", varName)
+							_, execErr = stmt.Exec(rel, sym, line, "range", varName)
 						}
 					}
 				}
 
 			case *ast.SelectStmt:
 				line := fset.Position(node.Pos()).Line
-				stmt.Exec(rel, sym, line, "select", nil)
+				_, execErr = stmt.Exec(rel, sym, line, "select", nil)
 			}
 			return true
 		})
+		if execErr != nil {
+			return execErr
+		}
 	}
+	return nil
 }
 
 // Helpers
@@ -730,26 +805,31 @@ func exprName(expr ast.Expr) string {
 	return ""
 }
 
-func deleteFileRows(db *sql.DB, file string) {
+func deleteFileRows(db *sql.DB, file string) error {
 	for _, table := range []string{"lines", "symbols", "calls", "imports", "defs", "files", "channels"} {
 		col := "file"
 		if table == "calls" {
 			col = "caller_file"
 		}
-		db.Exec(fmt.Sprintf("DELETE FROM %s WHERE %s = ?", table, col), file)
+		if _, err := db.Exec(fmt.Sprintf("DELETE FROM %s WHERE %s = ?", table, col), file); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 func finalize(db *sql.DB) error {
-	populateDirectories(db)
+	if err := populateDirectories(db); err != nil {
+		return err
+	}
 	_, err := db.Exec("INSERT INTO lines_fts(file, line_num, content, symbol) SELECT file, line_num, content, symbol FROM lines")
 	return err
 }
 
-func populateDirectories(db *sql.DB) {
+func populateDirectories(db *sql.DB) error {
 	rows, err := db.Query("SELECT file, lines FROM files")
 	if err != nil {
-		return
+		return err
 	}
 	defer rows.Close()
 
@@ -758,7 +838,7 @@ func populateDirectories(db *sql.DB) {
 		var file string
 		var lines int64
 		if err := rows.Scan(&file, &lines); err != nil {
-			continue
+			return err
 		}
 		dir := filepath.Dir(file)
 		for {
@@ -776,9 +856,15 @@ func populateDirectories(db *sql.DB) {
 		}
 	}
 
-	stmt, _ := db.Prepare("INSERT INTO directories (path, file_count, total_lines) VALUES (?, ?, ?)")
+	stmt, err := db.Prepare("INSERT INTO directories (path, file_count, total_lines) VALUES (?, ?, ?)")
+	if err != nil {
+		return err
+	}
 	defer stmt.Close()
 	for path, counts := range dirs {
-		stmt.Exec(path, counts[0], counts[1])
+		if _, err := stmt.Exec(path, counts[0], counts[1]); err != nil {
+			return err
+		}
 	}
+	return nil
 }

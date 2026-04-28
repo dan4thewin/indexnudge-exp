@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -323,7 +324,9 @@ func TestFTSSearchWorks(t *testing.T) {
 func TestDirectoriesPopulated(t *testing.T) {
 	db := setupDB(t)
 	indexSample(t, db, sample, "example.go")
-	populateDirectories(db)
+	if err := populateDirectories(db); err != nil {
+		t.Fatal(err)
+	}
 
 	count := queryInt(t, db, "SELECT file_count FROM directories WHERE path = '.'")
 	if count != 1 {
@@ -474,6 +477,31 @@ func TestFreshenRemovesDeletedFile(t *testing.T) {
 	count = queryInt(t, db, "SELECT count(*) FROM symbols")
 	if count != 0 {
 		t.Errorf("symbols from deleted file should be gone, got %d", count)
+	}
+}
+
+func TestLineCountNoTrailingPhantom(t *testing.T) {
+	db := setupDB(t)
+	// sample ends with "\n" — should NOT produce a phantom empty line
+	indexSample(t, db, sample, "example.go")
+
+	// Count actual non-empty source lines (what the file really has)
+	srcLines := strings.Split(strings.TrimSuffix(sample, "\n"), "\n")
+
+	dbLineCount := queryInt(t, db, "SELECT lines FROM files WHERE file = 'example.go'")
+	if int(dbLineCount) != len(srcLines) {
+		t.Errorf("files.lines = %d, want %d (trailing newline phantom?)", dbLineCount, len(srcLines))
+	}
+
+	maxLine := queryInt(t, db, "SELECT MAX(line_num) FROM lines WHERE file = 'example.go'")
+	if int(maxLine) != len(srcLines) {
+		t.Errorf("max line_num = %d, want %d", maxLine, len(srcLines))
+	}
+
+	// The last line in the DB should not be empty
+	lastContent := queryStrings(t, db, "SELECT content FROM lines WHERE file = 'example.go' AND line_num = (SELECT MAX(line_num) FROM lines WHERE file = 'example.go')")
+	if len(lastContent) > 0 && lastContent[0] == "" {
+		t.Error("last line in DB is empty — phantom trailing line from strings.Split")
 	}
 }
 
