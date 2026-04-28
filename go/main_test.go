@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -479,6 +480,138 @@ func TestFreshenRemovesDeletedFile(t *testing.T) {
 	count = queryInt(t, db, "SELECT count(*) FROM symbols")
 	if count != 0 {
 		t.Errorf("symbols from deleted file should be gone, got %d", count)
+	}
+}
+
+
+func TestFreshenVerifiesAllTables(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, ".indexnudge.db")
+	os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module testmod\n\ngo 1.21\n"), 0644)
+	os.WriteFile(filepath.Join(dir, "lib.go"), []byte("package main\n\nimport \"fmt\"\n\nvar X = 1\n\nfunc Hello() {\n\tfmt.Println(X)\n}\n"), 0644)
+
+	if err := fullIndex(dir, dbPath); err != nil {
+		t.Fatal(err)
+	}
+
+	db, _ := sql.Open("sqlite", dbPath)
+	defer db.Close()
+
+	// files table
+	fc := queryInt(t, db, "SELECT count(*) FROM files")
+	if fc != 1 {
+		t.Errorf("files count = %d, want 1", fc)
+	}
+
+	// lines table
+	lc := queryInt(t, db, "SELECT count(*) FROM lines WHERE file = 'lib.go'")
+	if lc != 9 {
+		t.Errorf("lines count = %d, want 9", lc)
+	}
+
+	// lines_fts table
+	ftsc := queryInt(t, db, "SELECT count(*) FROM lines_fts WHERE file = 'lib.go'")
+	if ftsc != 9 {
+		t.Errorf("lines_fts count = %d, want 9", ftsc)
+	}
+
+	// symbols table
+	sc := queryInt(t, db, "SELECT count(*) FROM symbols WHERE file = 'lib.go' AND name = 'Hello'")
+	if sc != 1 {
+		t.Errorf("symbols Hello count = %d, want 1", sc)
+	}
+
+	// calls table
+	cc := queryInt(t, db, "SELECT count(*) FROM calls WHERE caller_file = 'lib.go'")
+	if cc < 1 {
+		t.Errorf("calls count = %d, want >= 1", cc)
+	}
+
+	// imports table
+	ic := queryInt(t, db, "SELECT count(*) FROM imports WHERE file = 'lib.go' AND module = 'fmt'")
+	if ic != 1 {
+		t.Errorf("imports fmt count = %d, want 1", ic)
+	}
+
+	// defs table
+	dc := queryInt(t, db, "SELECT count(*) FROM defs WHERE file = 'lib.go' AND var = 'X'")
+	if dc != 1 {
+		t.Errorf("defs X count = %d, want 1", dc)
+	}
+
+	// directories table
+	dirc := queryInt(t, db, "SELECT count(*) FROM directories")
+	if dirc < 1 {
+		t.Errorf("directories count = %d, want >= 1", dirc)
+	}
+
+	// FTS search works
+	fts := queryInt(t, db, "SELECT count(*) FROM lines_fts WHERE content MATCH '\"Hello\"'")
+	if fts < 1 {
+		t.Errorf("FTS match for Hello = %d, want >= 1", fts)
+	}
+}
+
+func TestFreshenCleansAllTablesOnDelete(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, ".indexnudge.db")
+	os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module testmod\n\ngo 1.21\n"), 0644)
+	os.WriteFile(filepath.Join(dir, "lib.go"), []byte("package main\n\nimport \"fmt\"\n\nvar X = 1\n\nfunc Hello() {\n\tfmt.Println(X)\n}\n"), 0644)
+
+	if err := fullIndex(dir, dbPath); err != nil {
+		t.Fatal(err)
+	}
+
+	os.Remove(filepath.Join(dir, "lib.go"))
+	time.Sleep(50 * time.Millisecond)
+
+	if err := doFreshen(dir, dbPath); err != nil {
+		t.Fatal(err)
+	}
+
+	db, _ := sql.Open("sqlite", dbPath)
+	defer db.Close()
+
+	for _, q := range []struct{ table, col string }{
+		{"files", "file"},
+		{"lines", "file"},
+		{"lines_fts", "file"},
+		{"symbols", "file"},
+		{"calls", "caller_file"},
+		{"imports", "file"},
+		{"defs", "file"},
+	} {
+		c := queryInt(t, db, fmt.Sprintf("SELECT count(*) FROM %s WHERE %s = 'lib.go'", q.table, q.col))
+		if c != 0 {
+			t.Errorf("%s still has %d rows for lib.go after delete", q.table, c)
+		}
+	}
+}
+
+func TestEmptyFileIndexed(t *testing.T) {
+	db := setupDB(t)
+
+	dir := t.TempDir()
+	emptyFile := filepath.Join(dir, "empty.go")
+	os.WriteFile(emptyFile, []byte("package main\n"), 0644)
+
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, emptyFile, nil, parser.ParseComments)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := indexFile(db, fset, "empty.go", emptyFile, f, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	lc := queryInt(t, db, "SELECT lines FROM files WHERE file = 'empty.go'")
+	if lc != 1 {
+		t.Errorf("lines = %d, want 1 for single-line file", lc)
+	}
+
+	ftsc := queryInt(t, db, "SELECT count(*) FROM lines_fts WHERE file = 'empty.go'")
+	if ftsc != 1 {
+		t.Errorf("lines_fts count = %d, want 1", ftsc)
 	}
 }
 
