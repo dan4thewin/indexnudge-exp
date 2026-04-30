@@ -1,18 +1,24 @@
-title: Grep shim detects regex and falls through
+title: Grep shim routes regex through SQLite REGEXP
 status: ready
-depends: []
+depends:
+  - grep-fallthrough
 gates:
   - tests
   - commit
 
-The grep shim routes non-alphanumeric patterns to LIKE, which treats
-regex metacharacters literally. `grep -r 'foo.*bar'` hits the LIKE
-path, which searches for the literal string `foo.*bar` — silently
-wrong results.
+Originally about detecting regex and falling through to real grep.
+SQLite has REGEXP support — use it instead.
 
-Fix: classify the pattern before querying. If it contains regex
-metacharacters (. * + ? [ ] ( ) { } ^ $ \), fall through to real
-grep immediately. Route only:
-- Simple alphanumeric tokens → FTS5 MATCH
-- Simple strings with spaces/punctuation but no regex → LIKE
-- Actual regex → real grep
+Three routing tiers:
+- Simple alphanumeric → FTS5 MATCH (fastest, ranked)
+- Regex patterns → WHERE content REGEXP 'pattern' on lines table
+- LIKE goes away entirely — it was the broken middle ground
+
+Fallthrough to real grep only for unsupported flags (-P for PCRE,
+or flags the shim doesn't parse).
+
+Perf: REGEXP is a full table scan on lines, but grep -r is also a
+full filesystem scan — not worse. Sub-second for typical codebases.
+
+This eliminates the false-result problem where LIKE treated regex
+metacharacters literally.
