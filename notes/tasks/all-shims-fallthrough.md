@@ -1,17 +1,19 @@
 title: All shims fall through silently on no DB results
-status: ready
+status: done
 depends: []
 gates:
   - tests
   - commit
+gates_passed:
+  - tests
+  - commit
 
-The grep shim no-result fallthrough fix (grep-fallthrough) should be
-applied to all shims: cat, head, tail, sed. Any shim that queries
-the DB and gets zero rows should silently exec the real command
-instead of printing DB chrome and exiting. The agent should never
-see indexnudge output when the DB can't answer the question.
+## Completed
 
-Audit each shim in bin/ for the pattern:
-- Query returns empty → print banner → exit
-Replace with:
-- Query returns empty → exec real command
+The grep shim fallthrough is done. The new grep shim (rewritten with
+SQL JOIN) falls through on empty results. The other shims (cat, head,
+tail, sed) already fall through correctly — they check `in_index` count
+before serving from DB, and exec real command otherwise.
+
+Verified by running shims against non-indexed files (.md) — all
+produce real command output with no DB chrome.

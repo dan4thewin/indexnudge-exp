@@ -26,7 +26,7 @@ shim-test:V: rust go
 	clean=$(echo $PATH | tr : \\n | grep -Fv "$PWD" | tr \\n :)
 	echo $clean
 	PATH=$PWD/bin-rust:$clean
-	pat='sqlite3 [^ ]*\.indexnudge\.db '
+	pat='sqlite3 [^ ]*\.indexnudge-[a-z]*\.db '
 	(cd rust && target/release/indexnudge)
 	echo 'PASS: rust full index'
 	(cd rust && target/release/indexnudge --freshen 2>&1) | grep -q 'up to date'
@@ -41,7 +41,7 @@ shim-test:V: rust go
 	echo 'PASS: cat shim (rust)'
 	env tail -5 rust/src/main.rs | grep -q "$pat"
 	echo 'PASS: tail shim (rust)'
-	env sqlite3 rust/.indexnudge.db 'SELECT count(*) FROM files;' | grep -qE '^[1-9]'
+	env sqlite3 rust/.indexnudge-rust.db 'SELECT count(*) FROM files;' | grep -qE '^[1-9]'
 	echo 'PASS: sqlite3 shim (rust)'
 	PATH=$PWD/bin-go:$clean
 	(cd go && ./indexnudge)
@@ -54,7 +54,7 @@ shim-test:V: rust go
 	echo 'PASS: sed shim (go)'
 	env grep extractSymbols go/main.go | grep -q "$pat"
 	echo 'PASS: grep shim (go)'
-	env sqlite3 go/.indexnudge.db 'SELECT count(*) FROM files;' | grep -qE '^[1-9]'
+	env sqlite3 go/.indexnudge-go.db 'SELECT count(*) FROM files;' | grep -qE '^[1-9]'
 	echo 'PASS: sqlite3 shim (go)'
 	echo 'SHIM TESTS PASSED'
 
@@ -71,4 +71,4 @@ goose:V: patch
 clean:V:
 	(cd rust && cargo clean)
 	(cd go && go clean)
-	rm -f rust/.indexnudge.db go/.indexnudge.db
+	rm -f rust/.indexnudge-rust.db go/.indexnudge-go.db

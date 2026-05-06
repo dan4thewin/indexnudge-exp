@@ -1,40 +1,47 @@
 title: Shim output uses symbol structure throughout
-status: ready
-depends: []
+status: active
+depends:
+  - shim-indexer-selection
 gates:
   - tests
   - commit
+  - benchmark
 
-All shims should make symbol context prominent when serving from the DB.
+## Goal
 
-**grep** — group matches by symbol with line ranges:
+Shim output (grep, cat, head, tail, sed) groups/divides results by symbol
+context from the DB. The agent sees function structure without querying
+the symbols table explicitly.
 
-  ── src/main.rs ──
+## grep — grouped by symbol
 
-    Extractor::visit_expr_call (L770-L782)
-      772 │ self.calls.push(CallRecord {
+Output format:
+```
+── file.rs ──
 
-    Extractor::visit_expr_method_call (L784-L793)
-      784 │ self.calls.push(CallRecord {
+  function_name (L100-L120)
+    105 │ matched line content
+    110 │ another match
 
-**cat/head/tail/sed** — insert symbol boundary dividers in the stream:
+  other_function (L200-L250)
+    220 │ match here
+```
 
-  ── struct CallRecord (L473-L479) ──
-    473 │ struct CallRecord {
-    474 │     caller_file: String,
-    ...
-    479 │ }
+Implementation: single SQL JOIN query, no shell loops or awk.
+
+## cat/head/tail/sed — symbol dividers
+
+Insert symbol boundary headers in sequential file output:
+```
   ── fn insert_calls (L1008-L1024) ──
     1008 │ fn insert_calls(conn: &Connection, ...
+```
 
-Content is the same, but symbol boundaries are visible inline. The
-agent sees a table of contents embedded in the code without needing
-to query the symbols table separately.
+## Status
 
-Implementation: join against symbols table to get name, start_line,
-end_line for the symbol containing each line. For grep, group and
-deduplicate. For cat/head/tail/sed, emit a divider when the symbol
-changes between consecutive lines. Lines with no symbol (top-level
-code, blank lines between functions) get no divider.
-
-Shared formatting logic in _indexnudge_common.bash.
+- [x] grep shim rewritten with SQL JOIN (pure SQL, no awk)
+- [x] Tested: produces grouped output correctly
+- [x] Fallthrough: non-indexed files fall through to real grep silently
+- [ ] Intermittent hang under investigation (see HANDOFF.md)
+- [ ] cat/head/tail/sed dividers not yet implemented
+- [ ] Benchmark re-run after shim changes

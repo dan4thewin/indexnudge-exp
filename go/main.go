@@ -34,7 +34,7 @@ func main() {
 
 	dbPath := *output
 	if dbPath == "" {
-		dbPath = filepath.Join(absDir, ".indexnudge.db")
+		dbPath = filepath.Join(absDir, ".indexnudge-go.db")
 	}
 
 	if *freshen {

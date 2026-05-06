@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# indexnudge shim for grep — search via FTS5 when possible, fall back to real grep.
+# indexnudge shim for grep — search via FTS5/LIKE, group output by symbol via SQL.
 set -euo pipefail
 SHIM_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SHIM_DIR/_indexnudge_common.bash"
@@ -11,7 +11,7 @@ if [[ ! -t 0 ]] && [[ $# -le 1 ]]; then
     exec "$REAL_GREP" "$@"
 fi
 
-# Parse args: collect pattern, files, and flags
+# Parse args
 pattern="" files=() flags=() recursive=false
 skip_next=false
 for arg; do
@@ -30,12 +30,10 @@ for arg; do
     esac
 done
 
-# We need a pattern and at least one file (or -r)
 if [[ -z "$pattern" ]]; then
     exec "$REAL_GREP" "$@"
 fi
 
-# For recursive grep or file args, try indexnudge
 target=""
 if $recursive; then
     target="${files[0]:-.}"
@@ -47,42 +45,56 @@ if [[ -n "$target" ]]; then
     abs=$(resolve_path "$target")
     if find_indexnudge_db "$abs"; then
         freshen_db
-        # Escape single quotes in pattern for SQL
         safe_pattern="${pattern//\'/\'\'}"
-        # Try FTS5 MATCH first (works for simple terms)
-        # FTS5 doesn't support regex, so for simple alphanumeric patterns use MATCH,
-        # otherwise fall back to LIKE
+
         if [[ "$pattern" =~ ^[a-zA-Z0-9_]+$ ]]; then
-            result=$(sqlite3 -cmd '.timeout 5000' -separator '|' "$CODEINDEX_DB" \
-                "SELECT file, line_num, content, symbol FROM lines_fts WHERE content MATCH '\"$safe_pattern\"' ORDER BY file, line_num;" 2>/dev/null)
-            query="SELECT file, line_num, content, symbol FROM lines_fts WHERE content MATCH '\"$safe_pattern\"';"
+            match_clause="l.content MATCH '\"$safe_pattern\"'"
+            source_table="lines_fts"
         else
-            result=$(sqlite3 -cmd '.timeout 5000' -separator '|' "$CODEINDEX_DB" \
-                "SELECT file, line_num, content, symbol FROM lines WHERE content LIKE '%$safe_pattern%' ORDER BY file, line_num;" 2>/dev/null)
-            query="SELECT file, line_num, content, symbol FROM lines WHERE content LIKE '%$safe_pattern%';"
+            match_clause="l.content LIKE '%$safe_pattern%'"
+            source_table="lines"
         fi
 
-        if [[ -n "$result" ]]; then
-            count=$(echo "$result" | wc -l)
-            nfiles=$(echo "$result" | cut -d'|' -f1 | sort -u | wc -l)
-            echo "── sqlite3 $CODEINDEX_DB ──"
-            echo "query: $query"
-            echo ""
-            echo "$result" | while IFS='|' read -r f num content sym; do
-                sym_tag=""
-                [[ -n "$sym" ]] && sym_tag="  # in: $sym"
-                printf '%s:%s │ %s%s\n' "$f" "$num" "$content" "$sym_tag"
-            done
-            echo ""
-            echo "── $count matches across $nfiles file(s) ──"
-            exit 0
-        else
-            echo "── sqlite3 $CODEINDEX_DB ──"
-            echo "query: $query"
-            echo ""
-            echo "(no matches)"
-            exit 1
+        query="SELECT
+    CASE WHEN l.file != LAG(l.file) OVER (ORDER BY l.file, COALESCE(s.start_line,0), l.line_num)
+              OR LAG(l.file) OVER (ORDER BY l.file, COALESCE(s.start_line,0), l.line_num) IS NULL
+         THEN char(10) || '── ' || l.file || ' ──' || char(10) ELSE '' END ||
+    CASE WHEN COALESCE(l.symbol,'') != COALESCE(LAG(l.symbol) OVER (ORDER BY l.file, COALESCE(s.start_line,0), l.line_num),'')
+              OR l.file != LAG(l.file) OVER (ORDER BY l.file, COALESCE(s.start_line,0), l.line_num)
+              OR LAG(l.file) OVER (ORDER BY l.file, COALESCE(s.start_line,0), l.line_num) IS NULL
+         THEN char(10) || '  ' || COALESCE(l.symbol, '(top-level)') ||
+              COALESCE(' (L' || s.start_line || '-L' || s.end_line || ')', '') || char(10)
+         ELSE '' END ||
+    '    ' || l.line_num || ' │ ' || l.content as output
+FROM $source_table l
+LEFT JOIN symbols s ON s.file = l.file AND s.name = l.symbol
+WHERE $match_clause
+ORDER BY l.file, COALESCE(s.start_line,0), l.line_num;"
+
+        result=$(timeout 5 sqlite3 -cmd '.timeout 5000' "$CODEINDEX_DB" "$query" 2>/dev/null)
+
+        # No results — fall through silently
+        if [[ -z "$result" ]]; then
+            exec "$REAL_GREP" "$@"
         fi
+
+        # Count stats
+        if [[ "$pattern" =~ ^[a-zA-Z0-9_]+$ ]]; then
+            stats=$(timeout 3 sqlite3 -cmd '.timeout 5000' "$CODEINDEX_DB" \
+                "SELECT COUNT(*), COUNT(DISTINCT file) FROM lines_fts WHERE content MATCH '\"$safe_pattern\"';" 2>/dev/null)
+        else
+            stats=$(timeout 3 sqlite3 -cmd '.timeout 5000' "$CODEINDEX_DB" \
+                "SELECT COUNT(*), COUNT(DISTINCT file) FROM lines WHERE content LIKE '%$safe_pattern%';" 2>/dev/null)
+        fi
+        count=$(echo "$stats" | cut -d'|' -f1)
+        nfiles=$(echo "$stats" | cut -d'|' -f2)
+
+        echo "── sqlite3 $CODEINDEX_DB ──"
+        echo ""
+        echo "$result"
+        echo ""
+        echo "── $count matches across $nfiles file(s) ──"
+        exit 0
     fi
 fi
 

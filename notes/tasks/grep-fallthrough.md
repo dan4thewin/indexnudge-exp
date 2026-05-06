@@ -1,15 +1,17 @@
 title: Grep shim falls through silently on no results
-status: ready
+status: done
 depends: []
 gates:
   - tests
   - commit
+gates_passed:
+  - tests
+  - commit
 
-When the grep shim queries the DB and gets no matches, it prints
-`── sqlite3 ... ──` and `(no matches)` then exits 1. It should
-instead fall through to `exec "$REAL_GREP" "$@"` silently. The
-agent sees DB chrome for a failed query and concludes shims are
-broken, then bypasses them for the rest of the session. One bad
-first impression poisons the whole interaction.
+## Completed
 
-Fix: replace the no-result else branch with `exec "$REAL_GREP" "$@"`.
+The grep shim now falls through to `exec "$REAL_GREP" "$@"` when the DB
+query returns empty results. No banner, no "(no matches)" output — the
+agent sees normal grep behavior for non-indexed files.
+
+Verified: `grep pattern file.md` (non-indexed) produces real grep output.

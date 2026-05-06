@@ -28,7 +28,7 @@ struct Cli {
 fn main() -> Result<()> {
     let cli = Cli::parse();
     let dir = cli.dir.canonicalize().context("cannot resolve directory")?;
-    let db_path = cli.output.unwrap_or_else(|| dir.join(".indexnudge.db"));
+    let db_path = cli.output.unwrap_or_else(|| dir.join(".indexnudge-rust.db"));
 
     if cli.freshen {
         freshen(&dir, &db_path)
@@ -1353,7 +1353,7 @@ fn main() {
     #[test]
     fn freshen_detects_stale_file() {
         let dir = tempfile::tempdir().unwrap();
-        let db_path = dir.path().join(".indexnudge.db");
+        let db_path = dir.path().join(".indexnudge-rust.db");
         let src_dir = dir.path().join("src");
         fs::create_dir_all(&src_dir).unwrap();
         let rs_file = src_dir.join("lib.rs");
@@ -1392,7 +1392,7 @@ fn main() {
     #[test]
     fn freshen_removes_deleted_file() {
         let dir = tempfile::tempdir().unwrap();
-        let db_path = dir.path().join(".indexnudge.db");
+        let db_path = dir.path().join(".indexnudge-rust.db");
         let rs_file = dir.path().join("gone.rs");
         fs::write(&rs_file, "fn ephemeral() {}\n").unwrap();
 
