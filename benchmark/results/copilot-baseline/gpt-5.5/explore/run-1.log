@@ -1,0 +1,370 @@
+I’ll trace the `iwe find --meta` path without editing anything, starting from CLI definitions and using the repository index plus targeted file reads to follow the call chain.
+
+● Search (grep)
+  │ "--meta|meta|find" in *.rs
+  └ 8 lines found
+
+● Query indexed symbols (shell)
+  │ sqlite3 .indexnudge.db "SELECT name, qualified_name, kind, file, start_line,
+  │ end_line FROM symbols WHERE name LIKE '%find%' OR name LIKE '%meta%' ORDER
+  │ BY file, start_line LIMIT 200"
+  └ 10 lines...
+
+I found the CLI entry point in `crates/iwe/src/main.rs`; next I’m narrowing the search to the command handler and metadata query/filtering code so the final trace is complete.
+
+● Read main.rs
+  │ crates/iwe/src/main.rs
+  └ L1:260 (260 lines read)
+
+● Search (grep)
+  │ "--meta|meta|Find|FindDoc|FindMeta|find_docs|run_find|filter" in *.rs
+  │ (crates)
+  └ 10 lines found
+
+● Query main find symbols (shell)
+  │ sqlite3 .indexnudge.db "SELECT name, qualified_name, kind, file, start_line,
+  │ end_line FROM symbols WHERE file='crates/iwe/src/main.rs' AND (name LIKE
+  │ '%Find%' OR name LIKE '%find%' OR name LIKE '%Meta%' OR name LIKE '%meta%')
+  │ ORDER BY start_line"
+  └ 10 lines...
+
+● Search (grep)
+  │ "pub struct SelectorArgs|build_selector|selector" in *.rs (crates/iwe/src)
+  └ 26 lines found
+
+● Read main.rs
+  │ crates/iwe/src/main.rs
+  └ L620:725 (106 lines read)
+
+● Search (grep)
+  │ "metadata|front matter|front_matter|meta_filter|matches_meta|FindOptions|fin
+  │ d_documents|find\(" in *.rs (crates)
+  └ 9 lines found
+
+● Read find.rs
+  │ crates/liwe/src/find.rs
+  └ L1:240 (240 lines read)
+
+● Read selector.rs
+  │ crates/iwe/src/selector.rs
+  └ L1:220 (56 lines read)
+
+● Read find.rs
+  │ crates/liwe/src/find.rs
+  └ L240:380 (39 lines read)
+
+● Search (grep)
+  │ "fn metadata_matches|metadata_matches|metadata\(|front_matter|front
+  │ matter|metadata_filters|matter" in *.rs (crates)
+  └ 9 lines found
+
+● Query metadata symbols (shell)
+  │ sqlite3 .indexnudge.db "SELECT name, qualified_name, kind, file, start_line,
+  │ end_line FROM symbols WHERE (name LIKE '%metadata%' OR name LIKE '%front%'
+  │ OR name LIKE '%matter%') ORDER BY file,start_line LIMIT 200"
+  └ 10 lines...
+
+● Search (grep)
+  │ "get_metadata|metadata\)|metadata:|struct Metadata|metadata:
+  │ Option|metadata:" in *.rs (crates/liwe/src)
+  └ 14 lines found
+
+● Search (grep)
+  │ "frontmatter|front_matter|YAML|serde_yaml|---" in *.rs (crates/liwe/src)
+  └ 47 lines found
+
+● Find get_metadata symbol (shell)
+  │ sqlite3 .indexnudge.db "SELECT name, qualified_name, kind, file, start_line,
+  │ end_line FROM symbols WHERE name='get_metadata' OR name LIKE '%metadata%'
+  │ ORDER BY file,start_line"
+  └ 20 lines...
+
+● Read graph.rs
+  │ crates/liwe/src/graph.rs
+  └ L1:120 (120 lines read)
+
+● Read graph.rs
+  │ crates/liwe/src/graph.rs
+  └ L210:275 (66 lines read)
+
+● Read graph.rs
+  │ crates/liwe/src/graph.rs
+  └ L340:430 (91 lines read)
+
+● Read markdown.rs
+  │ crates/liwe/src/markdown.rs
+  └ L1:95 (73 lines read)
+
+● Read reader.rs
+  │ crates/liwe/src/markdown/reader.rs
+  └ L1:115 (115 lines read)
+
+● Read graph_node.rs
+  │ crates/liwe/src/graph/graph_node.rs
+  └ L1:70 (70 lines read)
+
+● Read main.rs
+  │ crates/iwe/src/main.rs
+  └ L430:530 (100 lines read)
+
+● Read graph_node.rs
+  │ crates/liwe/src/graph/graph_node.rs
+  └ L580:610 (31 lines read)
+
+● Read main.rs
+  │ crates/iwe/src/main.rs
+  └ L527:623 (96 lines read)
+
+● Read reader.rs
+  │ crates/liwe/src/markdown/reader.rs
+  └ L115:230 (116 lines read)
+
+● Read find_metadata_test.rs
+  │ crates/liwe/tests/find_metadata_test.rs
+  └ L1:180 (160 lines read)
+
+● Read reader.rs
+  │ crates/liwe/src/markdown/reader.rs
+  └ L215:330 (116 lines read)
+
+● Reader symbols (shell)
+  │ sqlite3 .indexnudge.db "SELECT name, qualified_name, kind, file, start_line,
+  │ end_line FROM symbols WHERE file='crates/liwe/src/markdown/reader.rs' AND
+  │ start_line BETWEEN 1 AND 360 ORDER BY start_line"
+  └ 39 lines...
+
+● Query call metadata (shell)
+  │ sqlite3 .indexnudge.db "SELECT caller_file, callee, callee_qname, kind
+  │ FROM calls WHERE caller_file IN
+  │ ('crates/iwe/src/main.rs','crates/liwe/src/find.rs','crates/liwe/src/graph
+  │ .rs','crates/liwe/src/markdown.rs','crates/liwe/src/markdown/reader.rs')
+  │ AND (callee LIKE '%metadata%' OR callee LIKE '%find%' OR callee LIKE …
+  └ 13 lines...
+
+● Read reader.rs
+  │ crates/liwe/src/markdown/reader.rs
+  └ L330:445 (116 lines read)
+
+● Read document.rs
+  │ crates/liwe/src/model/document.rs
+  └ L1:40 (40 lines read)
+
+● Find symbols (shell)
+  │ sqlite3 .indexnudge.db "SELECT name, qualified_name, kind, file, start_line,
+  │ end_line FROM symbols WHERE file='crates/liwe/src/find.rs' ORDER BY
+  │ start_line"
+  └ 21 lines...
+
+● Graph symbols (shell)
+  │ sqlite3 .indexnudge.db "SELECT name, qualified_name, kind, file, start_line,
+  │ end_line FROM symbols WHERE file='crates/liwe/src/graph.rs' AND (name IN
+  │ ('import','from_state','get_metadata','extract_frontmatter_title','get_key_t
+  │ itle','keys') OR name LIKE '%key%') ORDER BY start_line"
+  └ 10 lines...
+
+● Search (grep)
+  │ "fn get_configuration|fn load_graph|new_for_path_with_options|Graph::import|
+  │ load_config|frontmatter_document_title|bare_frontmatter"
+  │ (crates/iwe/src/main.rs)
+  └ 8 lines found
+
+● Search (grep)
+  │ "pub fn new_for_path_with_options|struct.*File|fn
+  │ load|impl.*State|State|from_path" in *.rs (crates/liwe/src)
+  └ 19 lines found
+
+● Read main.rs
+  │ crates/iwe/src/main.rs
+  └ L1160:1265 (106 lines read)
+
+● Main helper symbols (shell)
+  │ sqlite3 .indexnudge.db "SELECT name, qualified_name, kind, file, start_line,
+  │ end_line FROM symbols WHERE file='crates/iwe/src/main.rs' AND name IN
+  │ ('get_configuration','load_graph','get_config_path','find_command','parse_me
+  │ ta_filter','main') ORDER BY start_line"
+  └ 10 lines...
+
+● Read fs.rs
+  │ crates/liwe/src/fs.rs
+  └ L1:70 (70 lines read)
+
+● Read config.rs
+  │ crates/liwe/src/model/config.rs
+  └ L520:565 (46 lines read)
+
+● Read config.rs
+  │ crates/liwe/src/model/config.rs
+  └ L130:190 (61 lines read)
+
+● Read main.rs
+  │ crates/iwe/src/main.rs
+  └ L1015:1060 (46 lines read)
+
+✗ Search (grep)
+  │ "frontmatter_document_title|bare_frontmatter|metadata_filters|--meta|find_me
+  │ tadata" (README.md /home/dangood/src/iwe/crates/iwe/src/help
+  │ /home/dangood/src/iwe/crates/liwe/tests
+  │ /home/dangood/src/iwe/crates/iwe/tests)
+  └ rg: /home/dangood/src/iwe/README.md
+    /home/dangood/src/iwe/crates/iwe/src/help
+    /home/dangood/src/iwe/crates/liwe/tests
+    /home/dangood/src/iwe/crates/iwe/tests: IO error for operation on
+    /home/dangood/src/iwe/README.md /home/dangood/src/iwe/crates/iwe/src/help
+    /home/dangood/src/iwe/crates/liwe/tests
+    /home/dangood/src/iwe/crates/iwe/tests: No such file or directory (os error
+    2)
+
+● Read selector.rs
+  │ crates/liwe/src/selector.rs
+  └ L1:260 (260 lines read)
+
+● Selector symbols (shell)
+  │ sqlite3 .indexnudge.db "SELECT name, qualified_name, kind, file, start_line,
+  │ end_line FROM symbols WHERE file='crates/liwe/src/selector.rs' ORDER BY
+  │ start_line"
+  └ 10 lines...
+
+The core path is now clear: CLI parses `--meta` into `(key, value)` pairs, graph loading stores raw YAML front matter per document, and `DocumentFinder::find` applies those filters before scoring/sorting. I’m checking the help/tests for edge-case behavior so the explanation includes exact match semantics.
+
+✗ Search (grep)
+  │ "--meta|metadata_filters|find_metadata|frontmatter_document_title|bare_front
+  │ matter" (README.md, crates/iwe/src/help, crates/liwe/tests,
+  │ crates/iwe/tests)
+  └ rg: /home/dangood/src/iwe/crates/iwe/src/help: No such file or directory (os
+    error 2)
+
+● Run metadata find tests (shell)
+  │ cargo test -p liwe find_metadata --quiet
+  └ 84 lines...
+
+● Search (glob)
+  │ "**/help*" in crates/iwe/src
+  └ 1 file found
+
+● Search (grep)
+  │ "--meta|metadata_filters|frontmatter_document_title|bare_frontmatter"
+  │ (README.md, crates/liwe/tests, crates/iwe/tests)
+  └ 19 lines found
+
+● Run find metadata integration test (shell)
+  │ cargo test -p liwe --test find_metadata_test --quiet
+  └ 4 lines...
+
+● Read help.rs
+  │ crates/iwe/src/help.rs
+  └ L1:220 (89 lines read)
+
+● Read bare_frontmatter_test.rs
+  │ crates/liwe/tests/bare_frontmatter_test.rs
+  └ L1:80 (80 lines read)
+
+● Read long_about.txt
+  │ crates/iwe/help/find/long_about.txt
+  └ 6 lines read
+
+● Read after_help.txt
+  │ crates/iwe/help/find/after_help.txt
+  └ 50 lines read
+
+● Read about.txt
+  │ crates/iwe/help/find/about.txt
+  └ 1 line read
+
+● Search (grep)
+  │ "pub fn keys|fn keys\(" (crates/liwe/src/graph.rs)
+  └ 1 line found
+
+● Read graph.rs
+  │ crates/liwe/src/graph.rs
+  └ L120:180 (60 lines read)
+
+● Read fs.rs
+  │ crates/liwe/src/fs.rs
+  └ L69:120 (51 lines read)
+
+● FS symbols (shell)
+  │ sqlite3 .indexnudge.db "SELECT name, qualified_name, kind, file, start_line,
+  │ end_line FROM symbols WHERE file='crates/liwe/src/fs.rs' ORDER BY
+  │ start_line"
+  └ 12 lines...
+
+● Search (grep)
+  │ "pub fn build_key|fn build_key\(" (crates/liwe/src/graph.rs)
+  └ 3 lines found
+
+● Read graph.rs
+  │ crates/liwe/src/graph.rs
+  └ L180:215 (36 lines read)
+
+● Read builder.rs
+  │ crates/liwe/src/graph/builder.rs
+  └ L1:120 (120 lines read)
+
+● Read model.rs
+  │ crates/liwe/src/model.rs
+  └ L80:120 (41 lines read)
+
+● Key symbols (shell)
+  │ sqlite3 .indexnudge.db "SELECT name, qualified_name, kind, file, start_line,
+  │ end_line FROM symbols WHERE file='crates/liwe/src/model.rs' AND (name='Key'
+  │ OR name='name' OR name='from_path') ORDER BY start_line"
+  └ 12 lines...
+
+● Read model.rs
+  │ crates/liwe/src/model.rs
+  └ L33:78 (45 lines read)
+
+**`iwe find --meta` is an AND filter over top-level YAML front-matter fields.** Each `--meta key=value` is parsed into a `(String, String)` pair, and a document survives only if every supplied pair matches its parsed front matter exactly according to the supported YAML value rules.
+
+### Call/data flow
+
+| Stage | Function | Role |
+|---|---|---|
+| CLI parse | `main` → `App::parse()` in `crates/iwe/src/main.rs:527` | Clap parses the `find` subcommand. |
+| Meta arg parsing | `parse_meta_filter` in `main.rs:654` | Splits each `--meta` value on the first `=`, trims both sides, returns `(key, value)`. Missing `=` is a CLI error. |
+| Dispatch | `main` → `find_command` in `main.rs:557`, `661` | Handles `Command::Find`. |
+| Config/load | `get_configuration` → `load_config`; `load_graph` → `get_library_path` → `new_for_path_with_options` → `Graph::import` | Reads config, scans `.md` files into a `State`, then builds a graph. |
+| Markdown/front matter parse | `Graph::from_state` → `MarkdownReader::document` → `MarkdownEventsReader::read` | Parses each document. `pulldown_cmark` is run with `ENABLE_YAML_STYLE_METADATA_BLOCKS`; metadata block text is stored as raw YAML. |
+| Metadata storage | `Graph::from_state` in `crates/liwe/src/graph.rs:378` | If `document.metadata` is present, inserts it into `graph.metadata: HashMap<Key, String>`. |
+| Find options | `find_command` in `main.rs:666` | Builds `FindOptions { metadata_filters: args.meta, ... }`. |
+| Finder | `DocumentFinder::new` → `DocumentFinder::find` in `crates/liwe/src/find.rs:51`, `55` | Iterates document keys, applies filters, scores/sorts, and builds `FindOutput`. |
+| Meta filtering | `DocumentFinder::metadata_matches` → `Graph::get_metadata` in `find.rs:253`, `graph.rs:223` | Fetches raw metadata YAML for a key and checks all requested filters. |
+| Result set | `DocumentFinder::build_result` in `find.rs:137` | Converts surviving keys into `FindResult`s after sorting/limit. |
+
+### Filtering logic
+
+Inside `DocumentFinder::find`, each graph key is considered and filtered in this order:
+
+1. Selector filters, if any: `--in`, `--in-any`, `--not-in`, `--max-depth`.
+2. `--roots`, if set.
+3. `--refs-to`, if set.
+4. `--refs-from`, if set.
+5. `--meta`, if any metadata filters were supplied.
+6. Query fuzzy match, if a positional query was supplied.
+
+The `--meta` check is:
+
+```rust
+filters.iter().all(|(k, v)| { ... })
+```
+
+So repeated `--meta` flags are combined with **AND**, not OR.
+
+For each `(key, value)` filter:
+
+- Document has no front matter: **excluded**.
+- Front matter is not parseable YAML: **excluded**.
+- YAML field is missing: **excluded**.
+- YAML string matches only by exact string equality.
+- YAML bool matches against `b.to_string()`, so `true` / `false`.
+- YAML number matches against `n.to_string()`.
+- YAML sequence matches if **any string item** equals the requested value.
+- Other YAML value types, including maps/objects, do not match.
+- Only top-level fields are checked via `val.get(k.as_str())`; there is no dotted-path or nested lookup.
+
+After filtering, surviving documents are scored: fuzzy score when a query exists, otherwise `node_rank` based on incoming inline/block references. Results are sorted by descending score, then ascending key, `limit` is applied, and `FindResult`s are built. No files were modified.
+
+
+Changes   +0 -0
+Requests  7.5 Premium (2m 40s)
+Tokens    ↑ 1.0m • ↓ 8.0k • 939.0k (cached) • 3.1k (reasoning)

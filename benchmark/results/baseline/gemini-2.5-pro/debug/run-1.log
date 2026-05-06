@@ -1,0 +1,782 @@
+Okay, a bug report. `iwe find --meta depends=foo` fails on bare frontmatter documents. I'll need to dig in, reproduce it, find the cause, fix it, and make sure all tests still pass. First step: understand the project structure.
+  ────────────────────────────────────────
+  ▸ todo_write todo
+    content: - [ ] Investigate the project structure
+- [ ] Reproduce the bug
+- [ ] Find the root cause of the bug
+- [ ] Fix the bug
+- [ ] Verify the fix by running tests
+
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: ls -F
+
+AUDIT_FINDINGS.md
+BARE_FRONTMATTER_SPEC.md
+CONTRIBUTING.md
+Cargo.lock
+Cargo.toml
+ENHANCEMENTS_SPEC.md
+IMPLEMENTATION_PLAN.md
+LICENSE-APACHE
+README.md
+audit/
+crates/
+docs/
+run-enhancements.sh*
+run-merge-envelope.sh*
+target/Okay, project structure's clear. It's a Rust workspace with a `crates` directory. I'll list the crates to understand the components.
+  ────────────────────────────────────────
+  ▸ shell
+    command: ls -F crates
+
+iwe/
+iwec/
+iwes/
+liwe/Okay, I see the crates: `iwe` (the main binary), `iwec` (the client), `iwes` (the server), and `liwe` (the library). The core logic is likely in `liwe`.
+
+Now, I'll create a test case to reproduce the bug. I'll make a directory with two files, one with fenced YAML front matter and one with bare front matter. Then I'll run `iwe find --meta depends=foo` and see what it returns.
+
+I'll create a temporary directory for this.I understand the crate structure. The core logic is likely in `liwe`. I'll now create a test case to reproduce the bug by making a directory with two files, one with fenced YAML and one with bare front matter, then running `iwe find --meta depends=foo` to observe the output. A temporary directory will be used for this.
+  ────────────────────────────────────────
+  ▸ shell
+    command: mkdir -p /tmp/iwe-test/notes
+
+(no output)
+  ────────────────────────────────────────
+  ▸ write
+    path /tmp/iwe-test/notes/fenced.md
+    content: ---
+title: Fenced Frontmatter
+depends:
+  - foo
+---
+
+This file has fenced frontmatter.
+
+
+Created /tmp/iwe-test/notes/fenced.md (7 lines)
+  ────────────────────────────────────────
+  ▸ write
+    path /tmp/iwe-test/notes/bare.md
+    content: title: Bare Frontmatter
+depends:
+- foo
+
+This file has bare frontmatter.
+
+
+Created /tmp/iwe-test/notes/bare.md (5 lines)I've made two files: one with fenced frontmatter, one bare. I'll now `iwe` to reproduce the bug after building the latest executable.
+  ────────────────────────────────────────
+  ▸ shell
+    command: cargo build
+
+   Compiling liwe v0.0.70 (/home/dangood/src/iwe/crates/liwe)
+   Compiling iwes v0.0.70 (/home/dangood/src/iwe/crates/iwes)
+   Compiling iwe v0.0.70 (/home/dangood/src/iwe/crates/iwe)
+   Compiling iwec v0.0.70 (/home/dangood/src/iwe/crates/iwec)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.49s
+  ────────────────────────────────────────
+  ▸ shell
+    command: ./target/debug/iwe -d /tmp/iwe-test find --meta depends=foo
+
+error: unexpected argument '-d' found
+
+Usage: iwe [OPTIONS] <COMMAND>
+
+For more information, try '--help'.
+
+Command exited with code 2My apologies. It seems I used an incorrect flag. Let me check the correct usage.
+  ────────────────────────────────────────
+  ▸ shell
+    command: ./target/debug/iwe --help
+
+Usage: iwe [OPTIONS] <COMMAND>
+
+Commands:
+  init       Initialize the current directory as an IWE project
+  new        Create a new document from a template
+  retrieve   Retrieve document content with expansion and context
+  find       Search and discover documents
+  normalize  Normalize all markdown files in the project
+  tree       Display document hierarchy as a tree
+  squash     Consolidate linked documents into a single file
+  export     Export the graph structure in various formats
+  stats      Display graph statistics
+  rename     Rename a document and update all references to it
+  delete     Delete a document and clean up all references to it
+  extract    Extract a section to a new document with an inclusion link
+  inline     Replace an inclusion link with the referenced document content
+  update     Overwrite a document's full markdown content
+  attach     Attach a document as a block reference via configured attach actions
+  help       Print this message or the help of the given subcommand(s)
+
+Options:
+  -v, --verbose <VERBOSE>  [default: 0]
+  -h, --help               Print help
+  -V, --version            Print versionI see, the `-d` flag is not a global option. I need to check the `find` subcommand's help to see how to specify the directory.
+  ────────────────────────────────────────
+  ▸ shell
+    command: ./target/debug/iwe find --help
+
+Search and discover documents in your knowledge base.
+
+Uses fuzzy matching on document title and key. Without a query, documents are
+sorted by popularity (incoming references count). Supports filtering by root
+documents, reference relationships, and structural sub-document membership
+via the --in / --in-any / --not-in / --max-depth selector.
+
+
+Usage: iwe find [OPTIONS] [QUERY]
+
+Arguments:
+  [QUERY]
+          Search query (fuzzy match on title and key)
+
+Options:
+      --roots
+          Only root documents (no incoming block refs)
+
+  -v, --verbose <VERBOSE>
+          [default: 0]
+
+      --refs-to <REFS_TO>
+          Documents that reference this key
+
+      --refs-from <REFS_FROM>
+          Documents referenced by this key
+
+  -l, --limit <LIMIT>
+          Maximum results
+
+  -f, --format <FORMAT>
+          [default: markdown]
+          [possible values: markdown, keys, json]
+
+      --meta <META>
+          Filter by front matter field (key=value); repeatable
+
+      --in <IN>
+          Restrict to sub-documents of EVERY listed key (AND). Use KEY or KEY:DEPTH. Repeat for multiple.
+
+      --in-any <IN_ANY>
+          Restrict to sub-documents of AT LEAST ONE listed key (OR). Use KEY or KEY:DEPTH.
+
+      --not-in <NOT_IN>
+          Exclude sub-documents of any listed key (NOT). Use KEY or KEY:DEPTH.
+
+      --max-depth <MAX_DEPTH>
+          Default depth applied to in / in-any / not-in entries without their own depth. Omit for unbounded.
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+OUTPUT FORMATS:
+
+MARKDOWN (default, -f markdown):
+  ## Documents
+
+  Found 3 results:
+
+  - [Document A](doc-a) (root)
+  - [Document B](doc-b) <- [Document A](doc-a)
+
+  Each result shows:
+  - Document link
+  - (root) indicator if no parents
+  - Parent documents with <- notation (where this doc is embedded)
+
+KEYS (-f keys):
+  One key per line, suitable for piping:
+
+    doc-a
+    doc-b
+    doc-c
+
+JSON (-f json):
+  Structured output with metadata:
+
+    {"query": "...", "total": 3, "results": [
+      {"key": "...", "title": "...", "is_root": true,
+       "incoming_refs": 5, "outgoing_refs": 2, "parent_documents": [...]}]}
+
+STRUCTURAL SET SELECTOR (--in family):
+
+  --in KEY[:DEPTH]      Sub-documents of EVERY listed key (AND). Repeatable.
+                        KEY:DEPTH overrides --max-depth per entry.
+  --in-any KEY[:DEPTH]  Sub-documents of AT LEAST ONE listed key (OR).
+  --not-in KEY[:DEPTH]  Exclude sub-documents of any listed key (NOT).
+  --max-depth N         Default depth for entries without :DEPTH. Unbounded if omitted.
+
+EXAMPLES:
+
+  # Sub-documents of A AND B (intersection, unbounded)
+  iwe find --in projects/alpha --in people/dmytro
+
+  # Per-parent depth: A within 3 hops, Dmytro within 1
+  iwe find --in projects/alpha:3 --in people/dmytro:1
+
+  # Sub-documents of A OR B (union)
+  iwe find --in-any projects/alpha --in-any projects/beta
+
+  # Sub-documents of A but NOT in archive
+  iwe find --in projects/alpha --not-in archiveI see, `iwe find` operates on the current directory. I need to initialize an IWE project in my test directory first, then run the command from there.
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /tmp/iwe-test && ../../target/debug/iwe init
+
+bash: line 1: ../../target/debug/iwe: No such file or directory
+
+Command exited with code 127I need to use the absolute path to the `iwe` binary. I made a mistake in the relative path.
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /tmp/iwe-test && /home/dangood/src/iwe/target/debug/iwe init
+
+(no output)I have initialized an IWE project in `/tmp/iwe-test`. Now I will run the `find` command from within that directory.
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /tmp/iwe-test && /home/dangood/src/iwe/target/debug/iwe find --meta depends=foo
+
+Found 1 results:
+
+   #notes/fencedI've confirmed the bug: `iwe find --meta` only works for documents with fenced frontmatter. Now I'll start debugging by searching for the `"--meta"` flag within the `iwe` crate to locate the relevant code.
+  ────────────────────────────────────────
+  ▸ shell
+    command: grep -r -- "--meta" crates/iwe
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge.db ──
+query: SELECT file, line_num, content, symbol FROM lines WHERE content LIKE '%crates/iwe%';
+
+(no matches)
+
+Command exited with code 1I see, I was trying to `grep` the code index instead of the filesystem. I'll correct that and search for `"--meta"` in the `crates/iwe` directory.
+  ────────────────────────────────────────
+  ▸ shell
+    command: grep -r -- "--meta" crates/iwe/src
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge.db ──
+query: SELECT file, line_num, content, symbol FROM lines WHERE content LIKE '%crates/iwe/src%';
+
+(no matches)
+
+Command exited with code 1I see, my `grep` is still not working as expected. I will use the system's `grep` to ensure I am searching the files directly. I'll look for where the `--meta` argument is handled in the `iwe` crate.
+  ────────────────────────────────────────
+  ▸ shell
+    command: /bin/grep -r "meta" crates/iwe/src
+
+crates/iwe/src/main.rs:    #[clap(long, help = "Exclude document content from results (metadata only)")]
+crates/iwe/src/main.rs:    #[clap(long = "meta", value_parser = parse_meta_filter,
+crates/iwe/src/main.rs:    meta: Vec<(String, String)>,
+crates/iwe/src/main.rs:fn parse_meta_filter(s: &str) -> Result<(String, String), String> {
+crates/iwe/src/main.rs:        metadata_filters: args.meta,
+crates/iwe/src/render.rs:        // Build extra fields from parsed front matter metadata.
+crates/iwe/src/render.rs:        if let Some(metadata_str) = self.graph.get_metadata(&key) {
+crates/iwe/src/render.rs:            if let Ok(serde_yaml::Value::Mapping(map)) = serde_yaml::from_str(metadata_str) {Okay, I've reproduced the bug where `iwe find --meta` fails for documents with bare frontmatter. The `grep` output gives me a starting point in `crates/iwe/src/main.rs` and `crates/iwe/src/render.rs`, but I suspect the core logic is in the `liwe` crate. I'll trace the `--meta` filter from the `find` command in `iwe` down to the `liwe` library, probably starting with `liwe::find::find`. The problem likely lies in how bare frontmatter is parsed, so I'll also check `BARE_FRONTMATTER_SPEC.md` for clues. I'll begin by analyzing the find command's implementation in `crates/iwe/src/main.rs`.
+  ────────────────────────────────────────
+  ▸ shell
+    command: /bin/grep -A 20 "find" crates/iwe/src/main.rs | /bin/grep -B 20 "liwe::find::find"
+
+(no output)
+
+Command exited with code 1I was trying to trace the `find` command in `crates/iwe/src/main.rs`, but my `grep` command was too restrictive and returned nothing. I'll broaden my search to find the `find` subcommand's handler, giving me an entry point to its logic.
+  ────────────────────────────────────────
+  ▸ shell
+    command: /bin/grep -A 10 "Subcommand::Find" crates/iwe/src/main.rs
+
+(no output)
+
+Command exited with code 1Okay, I've reproduced the bug: `iwe find --meta` fails on bare frontmatter. My previous attempts to locate the `find` command's implementation via `grep` were unsuccessful due to incorrect assumptions about the code's structure. I'll now examine `main.rs` to find the `find` subcommand handler and trace the execution from there.
+  ────────────────────────────────────────
+  ▸ shell
+    command: grep -A 10 "find(args)" crates/iwe/src/main.rs
+
+(no output)
+
+Command exited with code 1My `grep` attempts are failing because I'm making incorrect assumptions about the code structure. I need a better way to locate the `find` subcommand's implementation.
+
+From my previous `grep`, I know that `clap` is used for command-line parsing and that a `meta` field exists. I'll search for the struct definition that contains this `meta` field, which should lead me to the `find` command's handler.
+  ────────────────────────────────────────
+  ▸ shell
+    command: grep -B 10 "meta: Vec<" crates/iwe/src/main.rs
+
+    refs_from: Option<String>,
+
+    #[clap(long, short = 'l', help = "Maximum results")]
+    limit: Option<usize>,
+
+    #[clap(long, short = 'f', value_enum, default_value = "markdown")]
+    format: FindFormat,
+
+    #[clap(long = "meta", value_parser = parse_meta_filter,
+           help = "Filter by front matter field (key=value); repeatable")]
+    meta: Vec<(String, String)>,Okay, I've reproduced the bug. `iwe find --meta depends=foo` only returns the file with fenced frontmatter, not the one with bare frontmatter.
+
+The `grep` output shows the `meta` argument is parsed in `crates/iwe/src/main.rs`. I need to find the `Find` command struct that uses this `meta` field to understand how the filtering is applied. I'll start by looking for the definition of the `Find` struct.
+  ────────────────────────────────────────
+  ▸ shell
+    command: grep -B 20 "struct Find" crates/iwe/src/main.rs
+
+
+#[derive(Debug, Clone, clap::ValueEnum)]
+enum RetrieveFormat {
+    Markdown,
+    Keys,
+    Json,
+}
+
+#[derive(Debug, Args)]
+struct Search {
+    #[clap(long, short = 'p')]
+    prompt: String,
+}
+
+#[derive(Debug, Args)]
+#[clap(
+    about = help::find::ABOUT,
+    long_about = help::find::LONG_ABOUT,
+    after_help = help::find::AFTER_HELP
+)]
+struct Find {I was using the wrong struct name. It's `Find`, not `find`. Let me find where `Find` is used.
+  ────────────────────────────────────────
+  ▸ shell
+    command: grep -A 10 "fn find(args: Find)" crates/iwe/src/main.rs
+
+(no output)
+
+Command exited with code 1Okay, `find` is elusive. Checking `main` for subcommand dispatch.
+  ────────────────────────────────────────
+  ▸ shell
+    command: grep -A 20 "fn main()" crates/iwe/src/main.rs
+
+fn main() {
+    debug!("parsing arguments");
+    let app = App::parse();
+
+    if app.global_opts.verbose > 1 {
+        tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::DEBUG)
+            .with_writer(std::io::stderr)
+            .init();
+    } else if app.global_opts.verbose > 0 {
+        tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::INFO)
+            .with_writer(std::io::stderr)
+            .init();
+    }
+
+    debug!("starting command processing");
+    match app.command {
+        Command::Normalize(normalize) => {
+            normalize_command(normalize);
+        }
+  ────────────────────────────────────────
+  ▸ shell
+    command: grep -A 20 "Command::Find" crates/iwe/src/main.rs
+
+        Command::Find(find) => find_command(find),
+        Command::Export(export) => export_command(export),
+        Command::Stats(stats) => stats_command(stats),
+        Command::Rename(rename) => rename_command(rename),
+        Command::Delete(delete) => delete_command(delete),
+        Command::Extract(extract) => extract_command(extract),
+        Command::Inline(inline) => inline_command(inline),
+        Command::Update(update) => update_command(update),
+        Command::Attach(attach) => attach_command(attach),
+    }
+}
+
+#[tracing::instrument(level = "debug")]
+fn retrieve_command(args: Retrieve) {
+    let config = get_configuration();
+    let graph = load_graph(&config);
+
+    let selector_args = args.selector.clone();
+    let selector_provided = !selector_args.in_.is_empty()
+        || !selector_args.in_any.is_empty()
+        || !selector_args.not_in.is_empty()
+  ────────────────────────────────────────
+  ▸ shell
+    command: grep -A 20 "fn find_command" crates/iwe/src/main.rs
+
+fn find_command(args: Find) {
+    let config = get_configuration();
+    let graph = load_graph(&config);
+
+    let finder = DocumentFinder::new(&graph);
+    let options = FindOptions {
+        query: args.query,
+        roots: args.roots,
+        refs_to: args.refs_to.map(|s| Key::name(&s)),
+        refs_from: args.refs_from.map(|s| Key::name(&s)),
+        selector: args.selector.into(),
+        limit: args.limit,
+        metadata_filters: args.meta,
+    };
+
+    let output = finder.find(&options);
+
+    match args.format {
+        FindFormat::Json => {
+            let json = serde_json::to_string_pretty(&output).expect("Failed to serialize to JSON");
+            println!("{}", json);Okay, bug hunt in `iwe` continues. `--meta` queries fail on bare frontmatter. I've confirmed the bug with test files and traced the entry point to `iwe/src/main.rs`. The `find_command` there builds `metadata_filters` and passes them to a `DocumentFinder`. That `DocumentFinder` lives in the `liwe` crate, so that's where I'll look for the filtering logic. Time to dive into `liwe`.
+  ────────────────────────────────────────
+  ▸ shell
+    command: ls -F crates/liwe/src
+
+file.rs
+find.rs
+fs.rs
+graph/
+graph.rs
+lib.rs
+locale.rs
+markdown/
+markdown.rs
+model/
+model.rs
+operations/
+operations.rs
+parser.rs
+retrieve.rs
+selector.rs
+state.rs
+stats.rsOkay, I've reproduced the bug where `iwe find --meta` fails on bare frontmatter. The issue isn't in the `iwe` crate, which just passes arguments along. The real work happens in the `liwe` crate, where `DocumentFinder` in `find.rs` performs the actual search. The problem is likely in how `liwe` parses frontmatter, which I'll investigate now, probably in `parser.rs` or the `markdown/` directory.
+  ────────────────────────────────────────
+  ▸ shell
+    command: grep -A 10 "DocumentFinder" crates/liwe/src/find.rs
+
+pub struct DocumentFinder<'a> {
+    graph: &'a Graph,
+}
+
+impl<'a> DocumentFinder<'a> {
+    pub fn new(graph: &'a Graph) -> Self {
+        Self { graph }
+    }
+
+    pub fn find(&self, options: &FindOptions) -> FindOutput {
+        let matcher = SkimMatcherV2::default();
+
+        let candidate_set = if options.selector.is_empty() {
+            None
+        } else {Okay, I've confirmed the bug and traced the problem to the `liwe` crate, where the `find` command's logic lives. The issue seems to be in how metadata is handled, specifically in the `DocumentFinder::find` method within `crates/liwe/src/find.rs`. I'll start there to see how the metadata filters are applied and why they might be failing for bare frontmatter.
+  ────────────────────────────────────────
+  ▸ shell
+    command: grep -A 30 "fn find" crates/liwe/src/find.rs
+
+    pub fn find(&self, options: &FindOptions) -> FindOutput {
+        let matcher = SkimMatcherV2::default();
+
+        let candidate_set = if options.selector.is_empty() {
+            None
+        } else {
+            Some(options.selector.resolve(self.graph))
+        };
+
+        let mut results: Vec<(Key, i64)> = self
+            .graph
+            .keys()
+            .into_iter()
+            .filter_map(|key| {
+                if let Some(set) = &candidate_set {
+                    if !set.contains(&key) {
+                        return None;
+                    }
+                }
+                if options.roots && !self.is_root(&key) {
+                    return None;
+                }
+                if let Some(ref target) = options.refs_to {
+                    if !self.references(&key, target) {
+                        return None;
+                    }
+                }
+                if let Some(ref source) = options.refs_from {
+                    if !self.references(source, &key) {
+                        return None;
+                    }
+  ────────────────────────────────────────
+  ▸ shell
+    command: ed -pP crates/liwe/src/find.rs <<< $'1,$p'
+
+8835
+Puse fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
+use itertools::Itertools;
+use serde::Serialize;
+use crate::graph::{Graph, GraphContext};
+use crate::model::node::{NodeIter, NodePointer};
+use crate::model::{Key, NodeId};
+use crate::selector::Selector;
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ParentDocumentInfo {
+    pub key: String,
+    pub title: String,
+    pub section_path: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FindResult {
+    pub key: String,
+    pub title: String,
+    pub display_title: String,
+    pub is_root: bool,
+    pub incoming_refs: usize,
+    pub outgoing_refs: usize,
+    pub parent_documents: Vec<ParentDocumentInfo>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FindOutput {
+    pub query: Option<String>,
+    pub limit: Option<usize>,
+    pub total: usize,
+    pub results: Vec<FindResult>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct FindOptions {
+    pub query: Option<String>,
+    pub roots: bool,
+    pub refs_to: Option<Key>,
+    pub refs_from: Option<Key>,
+    pub selector: Selector,
+    pub limit: Option<usize>,
+    pub metadata_filters: Vec<(String, String)>,
+}
+
+pub struct DocumentFinder<'a> {
+    graph: &'a Graph,
+}
+
+impl<'a> DocumentFinder<'a> {
+    pub fn new(graph: &'a Graph) -> Self {
+        Self { graph }
+    }
+
+    pub fn find(&self, options: &FindOptions) -> FindOutput {
+        let matcher = SkimMatcherV2::default();
+
+        let candidate_set = if options.selector.is_empty() {
+            None
+        } else {
+            Some(options.selector.resolve(self.graph))
+        };
+
+        let mut results: Vec<(Key, i64)> = self
+            .graph
+            .keys()
+            .into_iter()
+            .filter_map(|key| {
+                if let Some(set) = &candidate_set {
+                    if !set.contains(&key) {
+                        return None;
+                    }
+                }
+                if options.roots && !self.is_root(&key) {
+                    return None;
+                }
+                if let Some(ref target) = options.refs_to {
+                    if !self.references(&key, target) {
+                        return None;
+                    }
+                }
+                if let Some(ref source) = options.refs_from {
+                    if !self.references(source, &key) {
+                        return None;
+                    }
+                }
+
+                if !options.metadata_filters.is_empty()
+                    && !self.metadata_matches(&key, &options.metadata_filters)
+                {
+                    return None;
+                }
+
+                let title = self.graph.get_key_title(&key).unwrap_or_default();
+                let search_text = format!("{} {}", key, title);
+
+                let score = options
+                    .query
+                    .as_ref()
+                    .map(|q| matcher.fuzzy_match(&search_text, q).unwrap_or(0))
+                    .unwrap_or(self.node_rank(&key) as i64);
+
+                if options.query.is_some() && score == 0 {
+                    return None;
+                }
+
+                Some((key, score))
+            })
+            .collect();
+
+        results.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+
+        let total = results.len();
+        let results: Vec<FindResult> = if let Some(limit) = options.limit {
+            results
+                .into_iter()
+                .take(limit)
+                .map(|(key, _)| self.build_result(&key))
+                .collect()
+        } else {
+            results
+                .into_iter()
+                .map(|(key, _)| self.build_result(&key))
+                .collect()
+        };
+
+        let limit = options.limit.filter(|&l| l < total);
+
+        FindOutput {
+            query: options.query.clone(),
+            limit,
+            total,
+            results,
+        }
+    }
+
+    fn build_result(&self, key: &Key) -> FindResult {
+        let title = self.graph.get_key_title(key).unwrap_or_default();
+        let parent_documents = self.get_parent_documents(key);
+        let display_title = Self::render_display_title(&title, &parent_documents);
+
+        FindResult {
+            key: key.to_string(),
+            title,
+            display_title,
+            is_root: self.is_root(key),
+            incoming_refs: self.graph.get_block_references_to(key).len()
+                + self.graph.get_inline_references_to(key).len(),
+            outgoing_refs: self.graph.get_block_references_in(key).len(),
+            parent_documents,
+        }
+    }
+
+    fn render_display_title(title: &str, parent_documents: &[ParentDocumentInfo]) -> String {
+        if parent_documents.is_empty() {
+            title.to_string()
+        } else {
+            let parents = parent_documents
+                .iter()
+                .map(|p| format!("↖{}", p.title))
+                .collect::<Vec<_>>()
+                .join(" ");
+            format!("{} {}", title, parents)
+        }
+    }
+
+    fn is_root(&self, key: &Key) -> bool {
+        self.graph.get_block_references_to(key).is_empty()
+    }
+
+    fn node_rank(&self, key: &Key) -> usize {
+        self.graph.get_inline_references_to(key).len()
+            + self.graph.get_block_references_to(key).len()
+    }
+
+    fn references(&self, source: &Key, target: &Key) -> bool {
+        let block_refs = self.graph.get_block_references_in(source);
+        for ref_id in block_refs {
+            if let Some(ref_key) = self.graph.graph_node(ref_id).ref_key() {
+                if &ref_key == target {
+                    return true;
+                }
+            }
+        }
+
+        if let Some(node_id) = self.graph.get_node_id(source) {
+            let sub_nodes = self.graph.node(node_id).get_all_sub_nodes();
+            for sub_node_id in sub_nodes {
+                if let Some(line_id) = self.graph.graph_node(sub_node_id).line_id() {
+                    let line = self.graph.get_line(line_id);
+                    for ref_key in line.ref_keys() {
+                        if &ref_key == target {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+
+        false
+    }
+
+    fn get_parent_documents(&self, key: &Key) -> Vec<ParentDocumentInfo> {
+        let refs = self.graph.get_block_references_to(key);
+        let mut parents = Vec::new();
+
+        for ref_id in refs {
+            let node = self.graph.node(ref_id);
+
+            if let Some(doc_node) = node.to_document() {
+                if let Some(doc_key) = doc_node.document_key() {
+                    let title = self
+                        .graph
+                        .get_key_title(&doc_key)
+                        .unwrap_or_else(|| doc_key.to_string());
+
+                    let section_path = self.get_section_path(ref_id);
+
+                    parents.push(ParentDocumentInfo {
+                        key: doc_key.to_string(),
+                        title,
+                        section_path,
+                    });
+                }
+            }
+        }
+
+        parents.into_iter().unique_by(|p| p.key.clone()).collect()
+    }
+
+    fn get_section_path(&self, node_id: NodeId) -> Vec<String> {
+        let mut path = Vec::new();
+        let mut current = self.graph.node(node_id);
+
+        while let Some(parent) = current.to_parent() {
+            if parent.is_section()
+                && parent
+                    .to_parent()
+                    .map(|p| p.is_document())
+                    .unwrap_or(true)
+            {
+                let text = parent.plain_text().trim().to_string();
+                path.push(text);
+            }
+            if parent.is_document() {
+                break;
+            }
+            current = parent;
+        }
+        path
+    }
+
+    fn metadata_matches(&self, key: &Key, filters: &[(String, String)]) -> bool {
+        let raw = match self.graph.get_metadata(key) {
+            Some(s) => s,
+            None => return false,
+        };
+        let val: serde_yaml::Value = match serde_yaml::from_str(raw) {
+            Ok(v) => v,
+            _ => return false,
+        };
+        filters.iter().all(|(k, v)| {
+            val.get(k.as_str())
+                .and_then(|node| match node {
+                    serde_yaml::Value::String(s) => Some(s.as_str() == v.as_str()),
+                    serde_yaml::Value::Bool(b) => Some(b.to_string() == *v),
+                    serde_yaml::Value::Number(n) => Some(n.to_string() == *v),
+                    serde_yaml::Value::Sequence(items) => Some(
+                        items
+                            .iter()
+                            .any(|i| i.as_str().map(|s| s == v.as_str()).unwrap_or(false)),
+                    ),
+                    _ => Some(false),
+                })
+                .unwrap_or(false)
+        })
+    }
+}
+PI've reviewed `crates/liwe/src/find.rs` and the `metadata_matches` function, which seems to be the source of the bug. I've already reproduced the issue: `iwe find --meta depends=foo` fails for bare frontmatter documents. The problem is likely that `self.graph.get_metadata(key)` isn't correctly extracting metadata from bare frontmatter. I need to investigate the `get_metadata` function and the parsing logic it relies on.

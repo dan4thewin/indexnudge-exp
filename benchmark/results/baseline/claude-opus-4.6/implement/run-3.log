@@ -1,0 +1,409 @@
+
+  ────────────────────────────────────────
+  ▸ todo_write todo
+    content: - [ ] Add `--count` flag to `iwe find` command
+- [ ] Flag prints only number of matching documents
+- [ ] Works with all existing filters
+- [ ] cargo build passes
+- [ ] cargo test passes
+
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: grep -rn "find" /home/dangood/src/iwe/.codeindex.db 2>/dev/null | head -5; sqlite3 /home/dangood/src/iwe/.codeindex.db "SELECT path, line_start, line_end, name FROM symbols WHERE name LIKE '%Find%' OR name LIKE '%find%' LIMIT 20"
+
+Parse error in 2nd command line argument: no such table: symbols
+
+Command exited with code 1
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 /home/dangood/src/iwe/.codeindex.db .tables
+
+(no output)
+  ────────────────────────────────────────
+  ▸ shell
+    command: ls /home/dangood/src/iwe/.indexnudge.db 2>/dev/null; sqlite3 /home/dangood/src/iwe/.indexnudge.db .tables 2>/dev/null
+
+/home/dangood/src/iwe/.indexnudge.db
+calls           files       lines_fts             lines_fts_data        symbols
+defs            imports     lines_fts_config      lines_fts_docsize
+directories     lines       lines_fts_content     lines_fts_idx
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT path, line_start, line_end, name FROM symbols WHERE name LIKE '%Find%' LIMIT 20"
+
+Parse error in 2nd command line argument: no such column: path
+  SELECT path, line_start, line_end, name FROM symbols WHERE name LIKE '%Find%' 
+         ^--- error here
+
+Command exited with code 1
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 /home/dangood/src/iwe/.indexnudge.db ".schema symbols" 2>/dev/null; sqlite3 /home/dangood/src/iwe/.indexnudge.db ".schema files" 2>/dev/null
+
+CREATE TABLE symbols (
+            id             INTEGER PRIMARY KEY,
+            name           TEXT,
+            qualified_name TEXT,
+            kind           TEXT,
+            file           TEXT,
+            start_line     INTEGER,
+            end_line       INTEGER,
+            parent         TEXT,
+            signature      TEXT
+        );
+CREATE INDEX idx_symbols_name ON symbols(name);
+CREATE INDEX idx_symbols_qualified ON symbols(qualified_name);
+CREATE INDEX idx_symbols_file ON symbols(file);
+CREATE TABLE files (
+            file           TEXT PRIMARY KEY,
+            lines          INTEGER,
+            language       TEXT,
+            indexed_mtime  REAL,
+            parse_error    INTEGER DEFAULT 0
+        );
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT file, start_line, end_line, name FROM symbols WHERE name LIKE '%Find%' OR name LIKE '%find%' LIMIT 30"
+
+crates/iwec/tests/find_test.rs|7|19|find_all_documents
+crates/iwec/tests/find_test.rs|22|41|find_by_query
+crates/iwec/tests/find_test.rs|44|56|find_root_documents
+crates/iwec/tests/find_test.rs|59|72|find_with_limit
+crates/iwec/tests/find_test.rs|86|100|find_selector_in_intersects_two_parents
+crates/iwec/tests/find_test.rs|103|118|find_selector_in_any_unions_parents
+crates/iwec/tests/find_test.rs|121|138|find_selector_not_in_subtracts
+crates/iwec/tests/find_test.rs|141|158|find_selector_per_key_depth
+crates/iwec/tests/find_test.rs|161|174|find_selector_max_depth
+crates/iwec/tests/find_test.rs|177|195|find_selector_combines_with_query
+crates/iwec/src/lib.rs|103|103|FindParams
+crates/iwec/src/lib.rs|121|133|FindOptions
+crates/iwec/src/lib.rs|426|434|iwe_find
+crates/iwe/tests/extract_test.rs|367|380|find_extracted_file
+crates/iwe/tests/find_test.rs|52|86|test_find_lists_all_documents
+crates/iwe/tests/find_test.rs|89|105|test_find_fuzzy_search
+crates/iwe/tests/find_test.rs|108|136|test_find_roots_only
+crates/iwe/tests/find_test.rs|139|178|test_find_refs_to
+crates/iwe/tests/find_test.rs|181|213|test_find_refs_from
+crates/iwe/tests/find_test.rs|216|234|test_find_limit
+crates/iwe/tests/find_test.rs|237|254|test_find_limit_shown_in_markdown
+crates/iwe/tests/find_test.rs|257|270|test_find_keys_format
+crates/iwe/tests/find_test.rs|273|290|test_find_markdown_format
+crates/iwe/tests/find_test.rs|293|326|test_find_with_parent_documents
+crates/iwe/tests/find_test.rs|329|356|test_find_is_root_flag
+crates/iwe/tests/find_test.rs|359|398|test_find_incoming_outgoing_refs
+crates/iwe/tests/find_test.rs|401|411|test_find_empty_workspace
+crates/iwe/tests/find_test.rs|414|426|test_find_query_with_no_match
+crates/iwe/tests/find_test.rs|429|440|test_find_search_query_in_output
+crates/iwe/tests/find_test.rs|443|454|test_find_no_query_null_in_output
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT file, start_line, end_line, name FROM symbols WHERE file LIKE '%iwe/src%' AND (name LIKE '%find%' OR name LIKE '%Find%')" 2>/dev/null; echo "---"; grep -n "find" crates/iwe/src/main.rs | head -20
+
+crates/iwe/src/main.rs|134|134|Find
+crates/iwe/src/main.rs|162|166|FindFormat
+crates/iwe/src/main.rs|661|693|find_command
+crates/iwe/src/main.rs|695|712|render_find_output
+crates/iwe/src/new.rs|52|63|find_available_key
+crates/liwe/src/graph/index.rs|8|8|RefIndex
+crates/liwe/src/graph/index.rs|13|153|RefIndex
+crates/liwe/src/model/tree.rs|193|201|find_first_section
+crates/liwe/src/model/tree.rs|438|444|find_id
+crates/liwe/src/model/tree.rs|450|454|find_reference_key
+crates/liwe/src/model/tree.rs|829|843|test_find
+crates/liwe/src/find.rs|17|17|FindResult
+crates/liwe/src/find.rs|28|28|FindOutput
+crates/liwe/src/find.rs|36|36|FindOptions
+crates/liwe/src/find.rs|46|46|DocumentFinder
+crates/liwe/src/find.rs|50|278|DocumentFinder
+crates/liwe/src/find.rs|55|135|find
+crates/liwe/src/parser.rs|49|71|find_url_at_position
+---
+── sqlite3 /home/dangood/src/iwe/.indexnudge.db ──
+query: SELECT file, line_num, content, symbol FROM lines_fts WHERE content MATCH '"find"';
+
+crates/iwe/src/help.rs:19 │ pub mod find {
+crates/iwe/src/help.rs:20 │     pub const ABOUT: &str = include_str!("../help/find/about.txt");
+crates/iwe/src/help.rs:21 │     pub const LONG_ABOUT: &str = include_str!("../help/find/long_about.txt");
+crates/iwe/src/help.rs:22 │     pub const AFTER_HELP: &str = include_str!("../help/find/after_help.txt");
+crates/iwe/src/lib.rs:7 │ pub use liwe::find;
+crates/iwe/src/main.rs:12 │ use iwe::find::{DocumentFinder, FindOptions};
+crates/iwe/src/main.rs:53 │     Find(Find),
+crates/iwe/src/main.rs:130 │     about = help::find::ABOUT,
+crates/iwe/src/main.rs:131 │     long_about = help::find::LONG_ABOUT,
+crates/iwe/src/main.rs:132 │     after_help = help::find::AFTER_HELP
+crates/iwe/src/main.rs:134 │ struct Find {
+crates/iwe/src/main.rs:557 │         Command::Find(find) => find_command(find),  # in: main
+crates/iwe/src/main.rs:661 │ fn find_command(args: Find) {  # in: find_command
+crates/iwe/src/main.rs:676 │     let output = finder.find(&options);  # in: find_command
+crates/iwe/src/main.rs:689 │             let rendered = render_find_output(&output);  # in: find_command
+crates/iwe/src/main.rs:695 │ fn render_find_output(output: &iwe::find::FindOutput) -> String {  # in: render_find_output
+crates/iwe/src/main.rs:1067 │             .find(  # in: s| s.key == key_str);|stats_command
+  ────────────────────────────────────────
+  ▸ shell
+    command: sed -n '130,170p' crates/iwe/src/main.rs
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge.db ──
+query: SELECT line_num, content FROM lines WHERE file='crates/iwe/src/main.rs' AND line_num BETWEEN 130 AND 170;
+** STOP USING sed. Query the DB directly: sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/iwe/src/main.rs' AND line_num BETWEEN START AND END ORDER BY line_num;" **
+
+ 130 │     about = help::find::ABOUT,
+ 131 │     long_about = help::find::LONG_ABOUT,
+ 132 │     after_help = help::find::AFTER_HELP
+ 133 │ )]
+ 134 │ struct Find {
+ 135 │     #[clap(help = "Search query (fuzzy match on title and key)")]
+ 136 │     query: Option<String>,
+ 137 │ 
+ 138 │     #[clap(long, help = "Only root documents (no incoming block refs)")]
+ 139 │     roots: bool,
+ 140 │ 
+ 141 │     #[clap(long, help = "Documents that reference this key")]
+ 142 │     refs_to: Option<String>,
+ 143 │ 
+ 144 │     #[clap(long, help = "Documents referenced by this key")]
+ 145 │     refs_from: Option<String>,
+ 146 │ 
+ 147 │     #[clap(long, short = 'l', help = "Maximum results")]
+ 148 │     limit: Option<usize>,
+ 149 │ 
+ 150 │     #[clap(long, short = 'f', value_enum, default_value = "markdown")]
+ 151 │     format: FindFormat,
+ 152 │ 
+ 153 │     #[clap(long = "meta", value_parser = parse_meta_filter,
+ 154 │            help = "Filter by front matter field (key=value); repeatable")]
+ 155 │     meta: Vec<(String, String)>,
+ 156 │ 
+ 157 │     #[clap(flatten)]
+ 158 │     selector: SelectorArgs,
+ 159 │ }
+ 160 │ 
+ 161 │ #[derive(Debug, Clone, clap::ValueEnum)]
+ 162 │ enum FindFormat {
+ 163 │     Markdown,
+ 164 │     Keys,
+ 165 │     Json,
+ 166 │ }
+ 167 │ 
+ 168 │ #[derive(Debug, Args)]
+ 169 │ #[clap(
+ 170 │     about = help::normalize::ABOUT,
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/iwe/src/main.rs' AND line_num BETWEEN 661 AND 712 ORDER BY line_num;"
+
+fn find_command(args: Find) {
+    let config = get_configuration();
+    let graph = load_graph(&config);
+
+    let finder = DocumentFinder::new(&graph);
+    let options = FindOptions {
+        query: args.query,
+        roots: args.roots,
+        refs_to: args.refs_to.map(|s| Key::name(&s)),
+        refs_from: args.refs_from.map(|s| Key::name(&s)),
+        selector: args.selector.into(),
+        limit: args.limit,
+        metadata_filters: args.meta,
+    };
+
+    let output = finder.find(&options);
+
+    match args.format {
+        FindFormat::Json => {
+            let json = serde_json::to_string_pretty(&output).expect("Failed to serialize to JSON");
+            println!("{}", json);
+        }
+        FindFormat::Keys => {
+            for result in &output.results {
+                println!("{}", result.key);
+            }
+        }
+        FindFormat::Markdown => {
+            let rendered = render_find_output(&output);
+            print!("{}", rendered);
+        }
+    }
+}
+
+fn render_find_output(output: &iwe::find::FindOutput) -> String {
+    let mut result = String::new();
+
+    result.push_str(&format!("Found {} results", output.total));
+    if let Some(ref query) = output.query {
+        result.push_str(&format!(" for \"{}\"", query));
+    }
+    if let Some(limit) = output.limit {
+        result.push_str(&format!(" (showing {})", limit));
+    }
+    result.push_str(":\n\n");
+
+    for r in &output.results {
+        result.push_str(&format!("{}   #{}\n", r.display_title, r.key));
+    }
+
+    result
+}
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && ed crates/iwe/src/main.rs <<'EOF'
+158a
+    #[clap(long, help = "Print only the number of matching documents")]
+    count: bool,
+.
+w
+q
+EOF
+
+49464
+49553
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && ed crates/iwe/src/main.rs <<'EOF'
+/let output = finder.find(&options);/
+a
+
+    if args.count {
+        println!("{}", output.total);
+        return;
+    }
+.
+w
+q
+EOF
+
+49553
+    let output = finder.find(&options);
+49634
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && cargo build 2>&1 | tail -5
+
+   Compiling iwe v0.0.70 (/home/dangood/src/iwe/crates/iwe)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.13s
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && cargo test 2>&1 | tail -20
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests iwec
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests iwes
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests liwe
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && cargo test 2>&1 | grep -E "(test result|FAILED|running \d+ test)"
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+test result: ok. 46 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.31s
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 25 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 88 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00sAll green — build and all tests pass. Here's a summary of the changes:
+
+**`crates/iwe/src/main.rs`** — two edits:
+
+1. **Added `count` field** to the `Find` struct (after the `selector` field):
+   ```rust
+   #[clap(long, help = "Print only the number of matching documents")]
+   count: bool,
+   ```
+
+2. **Early return in `find_command`** right after `finder.find()`:
+   ```rust
+   if args.count {
+       println!("{}", output.total);
+       return;
+   }
+   ```
+
+The `--count` flag works with all existing filters because it runs after `finder.find(&options)` applies them — it just changes the output from the full listing to the count. The `output.total` field already reflects the filtered result set.

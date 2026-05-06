@@ -27,13 +27,14 @@ source "$BENCHMARK_DIR/prompts.sh"
 # Map model shortname to provider + model
 case "$MODEL" in
     claude-opus-4.6)
-        PROVIDER="anthropic"
-        MODEL_NAME="claude-opus-4-20250514"
+        PROVIDER="github_copilot"
+        MODEL_NAME="claude-opus-4.6"
+        GOOSE_BIN="${GOOSE_BIN:-goose}"
         ;;
-    gemini-2.5-pro)
-        PROVIDER="google"
-        MODEL_NAME="gemini-2.5-pro-preview-05-06"
-        ;;
+    gpt-5.5)
+        PROVIDER="github_copilot"
+        MODEL_NAME="gpt-5.5"
+        GOOSE_BIN="$HOME/src/indexnudge/goose/target/release/goose"
         ;;
     *)
         PROVIDER="${GOOSE_PROVIDER:-anthropic}"
@@ -77,13 +78,19 @@ fi
 export PATH="$INDEXNUDGE_DIR/bin-rust:$HOME/src/indexnudge/bin:$PATH"
 "$INDEXNUDGE_DIR/bin-rust/indexnudge" "$IWE_DIR"
 
+START_TIME=$(date +%s)
 echo "Running goose..."
-goose run \
+${GOOSE_BIN:-goose} run \
     -t "$PROMPT" \
     --name "$SESSION_NAME" \
     --provider "$PROVIDER" \
     --model "$MODEL_NAME" \
     -q 2>&1 | tee "$RESULTS_DIR/run-${RUN}.log"
+END_TIME=$(date +%s)
+ELAPSED=$((END_TIME - START_TIME))
+echo ""
+echo "Wall clock: ${ELAPSED}s"
+
 # Export structured session
 goose session export \
     --name "$SESSION_NAME" \
@@ -93,6 +100,8 @@ goose session export \
 # Score
 echo ""
 echo "=== Score ==="
+echo "Wall clock: ${ELAPSED}s"
+echo "$ELAPSED" > "$RESULTS_DIR/run-${RUN}.time"
 python3 "$BENCHMARK_DIR/score.py" "$RESULTS_DIR/run-${RUN}.json" --verbose
 
 # Reset iwe repo after

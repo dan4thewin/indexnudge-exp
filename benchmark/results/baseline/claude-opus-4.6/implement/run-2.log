@@ -1,0 +1,472 @@
+
+  ────────────────────────────────────────
+  ▸ todo_write todo
+    content: - [ ] Add `--count` flag to `iwe find` command
+- [ ] Flag prints only number of matching documents
+- [ ] Works with all existing filters
+- [ ] cargo build passes
+- [ ] cargo test passes
+
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: grep -rn "find" /home/dangood/src/iwe/.codeindex.db 2>/dev/null | head -5; sqlite3 /home/dangood/src/iwe/.codeindex.db "SELECT file, line_number, content FROM lines WHERE content LIKE '%find%' AND (file LIKE '%cli%' OR file LIKE '%cmd%' OR file LIKE '%command%') LIMIT 30"
+
+Parse error in 2nd command line argument: no such table: lines
+
+Command exited with code 1
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 /home/dangood/src/iwe/.codeindex.db ".tables"
+
+(no output)
+  ────────────────────────────────────────
+  ▸ shell
+    command: ls /home/dangood/src/iwe/.*.db 2>/dev/null; grep -rn "find" /home/dangood/src/iwe/src/ --include="*.rs" -l 2>/dev/null; find /home/dangood/src/iwe -name "*.rs" | head -30
+
+/home/dangood/src/iwe/.codeindex.db
+/home/dangood/src/iwe/.indexnudge.db
+/home/dangood/src/iwe/target/release/build/serde-41e97f31a0c20611/out/private.rs
+/home/dangood/src/iwe/target/release/build/serde_core-4f3f8e01536c2bc5/out/private.rs
+/home/dangood/src/iwe/target/debug/build/typenum-c6f19d3ab8ecbcbc/out/tests.rs
+/home/dangood/src/iwe/target/debug/build/serde_core-571133d9e43ac08c/out/private.rs
+/home/dangood/src/iwe/target/debug/build/serde_core-acaa0810c5e72652/out/private.rs
+/home/dangood/src/iwe/target/debug/build/serde_core-c91d46c6c48ba9e3/out/private.rs
+/home/dangood/src/iwe/target/debug/build/thiserror-7399ea59ce3845b2/out/private.rs
+/home/dangood/src/iwe/target/debug/build/ref-cast-9138240838b6151b/out/private.rs
+/home/dangood/src/iwe/target/debug/build/serde-210023597896b101/out/private.rs
+/home/dangood/src/iwe/target/debug/build/serde-30dfd4c93d7ae6f7/out/private.rs
+/home/dangood/src/iwe/crates/iwec/tests/stats_test.rs
+/home/dangood/src/iwe/crates/iwec/tests/resource_test.rs
+/home/dangood/src/iwe/crates/iwec/tests/retrieve_test.rs
+/home/dangood/src/iwe/crates/iwec/tests/write_test.rs
+/home/dangood/src/iwe/crates/iwec/tests/extract_test.rs
+/home/dangood/src/iwe/crates/iwec/tests/prompt_test.rs
+/home/dangood/src/iwe/crates/iwec/tests/squash_test.rs
+/home/dangood/src/iwe/crates/iwec/tests/watcher_test.rs
+/home/dangood/src/iwe/crates/iwec/tests/attach_test.rs
+/home/dangood/src/iwe/crates/iwec/tests/normalize_test.rs
+/home/dangood/src/iwe/crates/iwec/tests/tree_test.rs
+/home/dangood/src/iwe/crates/iwec/tests/fixture.rs
+/home/dangood/src/iwe/crates/iwec/tests/inline_test.rs
+/home/dangood/src/iwe/crates/iwec/tests/find_test.rs
+/home/dangood/src/iwe/crates/iwec/src/main.rs
+/home/dangood/src/iwe/crates/iwec/src/lib.rs
+/home/dangood/src/iwe/crates/iwec/src/watcher.rs
+/home/dangood/src/iwe/crates/iwes/tests/rename_test.rs
+/home/dangood/src/iwe/crates/iwes/tests/change_list_type_test.rs
+/home/dangood/src/iwe/crates/iwes/tests/did_change_test.rs
+  ────────────────────────────────────────
+  ▸ shell
+    command: grep -n "find\|Find" /home/dangood/src/iwe/crates/iwec/src/lib.rs | head -20
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge.db ──
+query: SELECT file, line_num, content, symbol FROM lines WHERE content LIKE '%find\|Find%';
+
+(no matches)
+  ────────────────────────────────────────
+  ▸ shell
+    command: command grep -rn "Find\|find" /home/dangood/src/iwe/crates/iwec/src/lib.rs | head -30
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge.db ──
+query: SELECT file, line_num, content, symbol FROM lines WHERE content LIKE '%Find\|find%';
+
+(no matches)
+  ────────────────────────────────────────
+  ▸ shell
+    command: cat /home/dangood/src/iwe/crates/iwec/src/lib.rs
+
+  impl | ConfigResource | lines 355-396
+  method | from_config | lines 356-395
+  function | op_error_to_mcp | lines 398-400
+  struct | ReviewPromptArgs | lines 403-403
+  struct | RefactorPromptArgs | lines 409-409
+  struct | IweServer | lines 415-415
+  impl | IweServer | lines 424-976
+  method | iwe_find | lines 426-434
+  method | iwe_retrieve | lines 437-447
+  method | iwe_tree | lines 450-499
+  method | iwe_stats | lines 502-520
+  method | iwe_squash | lines 523-543
+  method | iwe_create | lines 546-588
+  struct | CreateResult | lines 582-582
+  method | iwe_update | lines 591-627
+  struct | UpdateResult | lines 617-617
+  method | iwe_delete | lines 630-644
+  method | iwe_rename | lines 647-662
+  method | iwe_extract | lines 665-739
+  method | iwe_inline | lines 742-827
+  method | iwe_normalize | lines 830-855
+  struct | NormalizeResult | lines 847-847
+  method | iwe_attach | lines 858-975
+  function | build_tree_node | lines 978-1017
+  function | collect_sections | lines 1022-1026
+  function | collect_sections_rec | lines 1028-1039
+  function | collect_section_ids | lines 1041-1052
+  function | collect_block_refs | lines 1054-1058
+  function | collect_block_refs_rec | lines 1060-1071
+  function | collect_ref_ids | lines 1073-1084
+  impl | IweServer | lines 1087-1186
+  method | explore | lines 1092-1117
+  method | review | lines 1123-1151
+  method | refactor | lines 1157-1185
+  trait_impl | IweServer | lines 1190-1338
+  method | get_info | lines 1191-1204
+  method | list_resources | lines 1206-1243
+  method | read_resource | lines 1245-1320
+  method | list_resource_templates | lines 1322-1337
+  impl | IweServer | lines 1340-1468
+  method | new | lines 1341-1357
+  method | from_documents | lines 1359-1361
+  method | from_documents_with_config | lines 1363-1378
+  method | apply_changes | lines 1380-1390
+  method | write_file | lines 1392-1400
+  method | write_changes | lines 1402-1422
+  method | start_watching | lines 1424-1428
+  method | render_key_template | lines 1430-1447
+  method | render_document_template | lines 1449-1467
+── For focused exploration: SELECT * FROM symbols WHERE file='crates/iwec/src/lib.rs'; ──[Output exceeded 50000 byte limit (56811 bytes total). Full output saved to /tmp/.tmpqk0ptv/stdout-5. Read it with shell commands like `head`, `tail`, or `sed -n '100,200p'` up to 2000 lines at a time.]
+[Output exceeded 50000 byte limit (56811 bytes total). Full output saved to /tmp/.tmpqk0ptv/output-5. Read it with shell commands like `head`, `tail`, or `sed -n '100,200p'` up to 2000 lines at a time.]
+  ────────────────────────────────────────
+  ▸ shell
+    command: cat /home/dangood/src/iwe/crates/iwec/src/main.rs
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge.db ──
+query: SELECT content FROM lines WHERE file='crates/iwec/src/main.rs' ORDER BY line_num;
+
+use std::env;
+
+use anyhow::Result;
+use iwec::IweServer;
+use liwe::model::config::load_config;
+use rmcp::transport::stdio;
+use rmcp::ServiceExt;
+use tracing_subscriber::EnvFilter;
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    if env::var("IWE_DEBUG").is_ok() {
+        tracing_subscriber::fmt()
+            .with_env_filter(
+                EnvFilter::from_default_env().add_directive(tracing::Level::DEBUG.into()),
+            )
+            .with_writer(std::io::stderr)
+            .with_ansi(false)
+            .init();
+    } else {
+        tracing_subscriber::fmt()
+            .with_env_filter(
+                EnvFilter::from_default_env().add_directive(tracing::Level::INFO.into()),
+            )
+            .with_writer(std::io::stderr)
+            .with_ansi(false)
+            .init();
+    }
+
+    tracing::info!("starting IWE MCP server");
+
+    let configuration = load_config();
+
+    let current_dir = env::current_dir().expect("current dir");
+    let mut library_path = current_dir.clone();
+    if !configuration.library.path.is_empty() {
+        library_path.push(configuration.library.path.clone());
+    }
+
+    let server = IweServer::new(&library_path.to_string_lossy(), &configuration);
+    server.start_watching();
+
+    let service = server.serve(stdio()).await.inspect_err(|e| {
+        tracing::error!("serving error: {:?}", e);
+    })?;
+
+    service.waiting().await?;
+    Ok(())
+}
+
+── crates/iwec/src/main.rs: 49 lines ──
+symbols:
+  function | main | lines 11-49
+── For focused exploration: SELECT * FROM symbols WHERE file='crates/iwec/src/main.rs'; ──
+  ────────────────────────────────────────
+  ▸ shell
+    command: find /home/dangood/src/iwe/crates -name "*.rs" -path "*/src/*" | xargs grep -l "clap\|structopt\|Find\|find" 2>/dev/null | grep -v target | head -20
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge.db ──
+query: SELECT file, line_num, content, symbol FROM lines WHERE content LIKE '%clap\|structopt\|Find\|find%';
+
+(no matches)
+  ────────────────────────────────────────
+  ▸ shell
+    command: /usr/bin/grep -rn "find" /home/dangood/src/iwe/crates/iwec/src/lib.rs | head -20
+
+8:use liwe::find::{DocumentFinder, FindOptions, FindOutput};
+426:    async fn iwe_find(
+431:        let finder = DocumentFinder::new(&graph);
+432:        let output: FindOutput = finder.find(&params.into());
+511:                .find(|s| s.key == key)
+1098:        let finder = DocumentFinder::new(&graph);
+1099:        let roots = finder.find(&FindOptions {
+1110:                "Here is an overview of the IWE knowledge graph.\n\n## Statistics\n\n```json\n{}\n```\n\n## Root documents\n\n```json\n{}\n```\n\nExplore the graph using iwe_retrieve to read documents, iwe_find to search, and iwe_tree to navigate the structure.",
+1201:            "IWE knowledge graph server. Tools: iwe_find, iwe_retrieve, iwe_tree, iwe_stats, iwe_squash, iwe_create, iwe_update, iwe_delete, iwe_rename, iwe_extract, iwe_inline, iwe_normalize, iwe_attach. Prompts: explore, review, refactor. Resources: iwe://documents/{key}, iwe://tree, iwe://stats, iwe://config."
+  ────────────────────────────────────────
+  ▸ shell
+    command: sed -n '426,434p' /home/dangood/src/iwe/crates/iwec/src/lib.rs
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge.db ──
+query: SELECT line_num, content FROM lines WHERE file='crates/iwec/src/lib.rs' AND line_num BETWEEN 426 AND 434;
+** STOP USING sed. Query the DB directly: sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/iwec/src/lib.rs' AND line_num BETWEEN START AND END ORDER BY line_num;" **
+
+ 426 │     async fn iwe_find(
+ 427 │         &self,
+ 428 │         Parameters(params): Parameters<FindParams>,
+ 429 │     ) -> Result<CallToolResult, McpError> {
+ 430 │         let graph = self.graph.lock().await;
+ 431 │         let finder = DocumentFinder::new(&graph);
+ 432 │         let output: FindOutput = finder.find(&params.into());
+ 433 │         to_json_result(&output)
+ 434 │     }
+
+── enclosing: IweServer | impl | lines 424-976
+iwe_find | method | lines 426-434 ──
+── full  impl : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/iwec/src/lib.rs' AND line_num BETWEEN 424 AND 976 ORDER BY line_num;" ──
+── full  method : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/iwec/src/lib.rs' AND line_num BETWEEN 426 AND 434 ORDER BY line_num;" ──
+  ────────────────────────────────────────
+  ▸ shell
+    command: /usr/bin/grep -rn "FindParams\|FindOptions\|FindOutput\|DocumentFinder" /home/dangood/src/iwe/crates/ --include="*.rs" | grep -v target | grep -v test
+
+/home/dangood/src/iwe/crates/iwec/src/lib.rs:8:use liwe::find::{DocumentFinder, FindOptions, FindOutput};
+/home/dangood/src/iwe/crates/iwec/src/lib.rs:103:pub struct FindParams {
+/home/dangood/src/iwe/crates/iwec/src/lib.rs:121:impl From<FindParams> for FindOptions {
+/home/dangood/src/iwe/crates/iwec/src/lib.rs:122:    fn from(p: FindParams) -> Self {
+/home/dangood/src/iwe/crates/iwec/src/lib.rs:123:        FindOptions {
+/home/dangood/src/iwe/crates/iwec/src/lib.rs:428:        Parameters(params): Parameters<FindParams>,
+/home/dangood/src/iwe/crates/iwec/src/lib.rs:431:        let finder = DocumentFinder::new(&graph);
+/home/dangood/src/iwe/crates/iwec/src/lib.rs:432:        let output: FindOutput = finder.find(&params.into());
+/home/dangood/src/iwe/crates/iwec/src/lib.rs:1098:        let finder = DocumentFinder::new(&graph);
+/home/dangood/src/iwe/crates/iwec/src/lib.rs:1099:        let roots = finder.find(&FindOptions {
+/home/dangood/src/iwe/crates/iwe/src/main.rs:12:use iwe::find::{DocumentFinder, FindOptions};
+/home/dangood/src/iwe/crates/iwe/src/main.rs:665:    let finder = DocumentFinder::new(&graph);
+/home/dangood/src/iwe/crates/iwe/src/main.rs:666:    let options = FindOptions {
+/home/dangood/src/iwe/crates/iwe/src/main.rs:695:fn render_find_output(output: &iwe::find::FindOutput) -> String {
+/home/dangood/src/iwe/crates/liwe/src/find.rs:28:pub struct FindOutput {
+/home/dangood/src/iwe/crates/liwe/src/find.rs:36:pub struct FindOptions {
+/home/dangood/src/iwe/crates/liwe/src/find.rs:46:pub struct DocumentFinder<'a> {
+/home/dangood/src/iwe/crates/liwe/src/find.rs:50:impl<'a> DocumentFinder<'a> {
+/home/dangood/src/iwe/crates/liwe/src/find.rs:55:    pub fn find(&self, options: &FindOptions) -> FindOutput {
+/home/dangood/src/iwe/crates/liwe/src/find.rs:129:        FindOutput {
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/iwe/src/main.rs' AND line_num BETWEEN 650 AND 710 ORDER BY line_num;"
+
+        }
+    }
+}
+
+fn parse_meta_filter(s: &str) -> Result<(String, String), String> {
+    s.split_once('=')
+        .map(|(k, v)| (k.trim().to_string(), v.trim().to_string()))
+        .ok_or_else(|| format!("expected key=value, got `{}`", s))
+}
+
+#[tracing::instrument(level = "debug")]
+fn find_command(args: Find) {
+    let config = get_configuration();
+    let graph = load_graph(&config);
+
+    let finder = DocumentFinder::new(&graph);
+    let options = FindOptions {
+        query: args.query,
+        roots: args.roots,
+        refs_to: args.refs_to.map(|s| Key::name(&s)),
+        refs_from: args.refs_from.map(|s| Key::name(&s)),
+        selector: args.selector.into(),
+        limit: args.limit,
+        metadata_filters: args.meta,
+    };
+
+    let output = finder.find(&options);
+
+    match args.format {
+        FindFormat::Json => {
+            let json = serde_json::to_string_pretty(&output).expect("Failed to serialize to JSON");
+            println!("{}", json);
+        }
+        FindFormat::Keys => {
+            for result in &output.results {
+                println!("{}", result.key);
+            }
+        }
+        FindFormat::Markdown => {
+            let rendered = render_find_output(&output);
+            print!("{}", rendered);
+        }
+    }
+}
+
+fn render_find_output(output: &iwe::find::FindOutput) -> String {
+    let mut result = String::new();
+
+    result.push_str(&format!("Found {} results", output.total));
+    if let Some(ref query) = output.query {
+        result.push_str(&format!(" for \"{}\"", query));
+    }
+    if let Some(limit) = output.limit {
+        result.push_str(&format!(" (showing {})", limit));
+    }
+    result.push_str(":\n\n");
+
+    for r in &output.results {
+        result.push_str(&format!("{}   #{}\n", r.display_title, r.key));
+    }
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: /usr/bin/grep -n "struct Find" /home/dangood/src/iwe/crates/iwe/src/main.rs
+
+134:struct Find {
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/iwe/src/main.rs' AND line_num BETWEEN 134 AND 200 ORDER BY line_num;"
+
+struct Find {
+    #[clap(help = "Search query (fuzzy match on title and key)")]
+    query: Option<String>,
+
+    #[clap(long, help = "Only root documents (no incoming block refs)")]
+    roots: bool,
+
+    #[clap(long, help = "Documents that reference this key")]
+    refs_to: Option<String>,
+
+    #[clap(long, help = "Documents referenced by this key")]
+    refs_from: Option<String>,
+
+    #[clap(long, short = 'l', help = "Maximum results")]
+    limit: Option<usize>,
+
+    #[clap(long, short = 'f', value_enum, default_value = "markdown")]
+    format: FindFormat,
+
+    #[clap(long = "meta", value_parser = parse_meta_filter,
+           help = "Filter by front matter field (key=value); repeatable")]
+    meta: Vec<(String, String)>,
+
+    #[clap(flatten)]
+    selector: SelectorArgs,
+}
+
+#[derive(Debug, Clone, clap::ValueEnum)]
+enum FindFormat {
+    Markdown,
+    Keys,
+    Json,
+}
+
+#[derive(Debug, Args)]
+#[clap(
+    about = help::normalize::ABOUT,
+    long_about = help::normalize::LONG_ABOUT,
+    after_help = help::normalize::AFTER_HELP
+)]
+struct Normalize {}
+
+#[derive(Debug, Args)]
+#[clap(
+    about = help::init::ABOUT,
+    long_about = help::init::LONG_ABOUT,
+    after_help = help::init::AFTER_HELP
+)]
+struct Init {}
+
+#[derive(Debug, Args)]
+#[clap(
+    about = help::new::ABOUT,
+    long_about = help::new::LONG_ABOUT,
+    after_help = help::new::AFTER_HELP
+)]
+struct New {
+    #[clap(help = "Title for the new document")]
+    title: String,
+
+    #[clap(long, short = 't', help = "Template name from config")]
+    template: Option<String>,
+
+    #[clap(long, short = 'c', help = "Content for the new document")]
+    content: Option<String>,
+
+    #[clap(
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && ed crates/iwe/src/main.rs <<'EOF'
+/meta: Vec
+a
+
+    #[clap(long, help = "Print only the count of matching documents")]
+    count: bool,
+.
+w
+q
+EOF
+
+49464
+    meta: Vec<(String, String)>,
+49553
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && ed crates/iwe/src/main.rs <<'EOF'
+/let output = finder.find(&options);
+a
+
+    if args.count {
+        println!("{}", output.total);
+        return;
+    }
+
+.
+w
+q
+EOF
+
+49553
+    let output = finder.find(&options);
+49635
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && cargo build 2>&1 | tail -5
+
+   Compiling iwe v0.0.70 (/home/dangood/src/iwe/crates/iwe)
+   Compiling iwec v0.0.70 (/home/dangood/src/iwe/crates/iwec)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.28s
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && cargo test 2>&1 | tail -10
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests liwe
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+All tests pass. Here's a summary of the change:
+
+**Two edits to `crates/iwe/src/main.rs`:**
+
+1. **Added `--count` field** to the `Find` struct (after the `meta` field):
+   ```rust
+   #[clap(long, help = "Print only the count of matching documents")]
+   count: bool,
+   ```
+
+2. **Added early return** in `find_command` right after `finder.find(&options)`:
+   ```rust
+   if args.count {
+       println!("{}", output.total);
+       return;
+   }
+   ```
+
+The flag works with all existing filters because the filtering happens in `finder.find(&options)` — the `--count` flag simply changes how the result is displayed, printing `output.total` instead of the full list. The `--format` flag is ignored when `--count` is used.

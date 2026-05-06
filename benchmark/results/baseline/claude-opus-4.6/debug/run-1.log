@@ -1,0 +1,1028 @@
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && sqlite3 .codeindex.db "SELECT DISTINCT file FROM lines WHERE content LIKE '%bare%front%' OR content LIKE '%bare_front%' OR content LIKE '%BareFront%' OR content LIKE '%bare front%' LIMIT 20"
+
+Parse error in 2nd command line argument: no such table: lines
+
+Command exited with code 1
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && sqlite3 .codeindex.db ".tables"
+
+(no output)
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && ls .*.db 2>/dev/null; ls *.db 2>/dev/null
+
+.codeindex.db
+.indexnudge.db
+
+Command exited with code 2
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && sqlite3 .indexnudge.db ".tables"
+
+calls           files       lines_fts             lines_fts_data        symbols
+defs            imports     lines_fts_config      lines_fts_docsize
+directories     lines       lines_fts_content     lines_fts_idx
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && grep -rn "bare" liwe/src/ --include='*.rs' -l
+
+grep: liwe/src/: No such file or directory
+
+Command exited with code 2
+  ────────────────────────────────────────
+  ▸ tree
+    path: /home/dangood/src/iwe
+    depth: 2
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge.db ──
+query: SELECT path, file_count, total_lines FROM directories ORDER BY path;
+
+path             | files | lines
+-----------------+-------+------
+.                |   142 | 38462
+crates           |   142 | 38462
+crates/iwe       |    26 |  9580
+crates/iwe/src   |    12 |  2944
+crates/iwe/src/export |     4 |   640
+crates/iwe/tests |    14 |  6636
+crates/iwec      |    17 |  3452
+crates/iwec/src  |     3 |  1630
+crates/iwec/tests |    14 |  1822
+crates/iwes      |    44 | 10427
+crates/iwes/src  |    19 |  3544
+crates/iwes/src/router |    16 |  3047
+crates/iwes/src/router/server |    15 |  2191
+crates/iwes/src/router/server/actions |    11 |  1121
+crates/iwes/tests |    25 |  6883
+crates/liwe      |    55 | 15003
+crates/liwe/src  |    39 | 11350
+crates/liwe/src/graph |     9 |  2713
+crates/liwe/src/markdown |     2 |  1074
+crates/liwe/src/model |     7 |  3977
+crates/liwe/src/operations |     7 |   641
+crates/liwe/tests |    16 |  3653
+
+query: SELECT file, lines, language FROM files ORDER BY file;
+
+file                          | lines | language
+------------------------------+-------+---------
+crates/iwe/src/export.rs      |     4 | rust
+crates/iwe/src/export/dot_details_exporter.rs |   142 | rust
+crates/iwe/src/export/dot_exporter.rs |    67 | rust
+crates/iwe/src/export/graph_colors.rs |   101 | rust
+crates/iwe/src/export/graph_data.rs |   330 | rust
+crates/iwe/src/help.rs        |    89 | rust
+crates/iwe/src/lib.rs         |     8 | rust
+crates/iwe/src/main.rs        |  1734 | rust
+crates/iwe/src/new.rs         |   234 | rust
+crates/iwe/src/render.rs      |   165 | rust
+crates/iwe/src/selector.rs    |    56 | rust
+crates/iwe/src/stats.rs       |    14 | rust
+crates/iwe/tests/common.rs    |    20 | rust
+crates/iwe/tests/delete_test.rs |   261 | rust
+crates/iwe/tests/export_dot_test.rs |    98 | rust
+crates/iwe/tests/extract_test.rs |   380 | rust
+crates/iwe/tests/find_test.rs |   495 | rust
+crates/iwe/tests/init_test.rs |   220 | rust
+crates/iwe/tests/inline_test.rs |   392 | rust
+crates/iwe/tests/new_test.rs  |   483 | rust
+crates/iwe/tests/normalize_test.rs |   411 | rust
+crates/iwe/tests/rename_test.rs |   246 | rust
+crates/iwe/tests/retrieve_test.rs |  2249 | rust
+crates/iwe/tests/squash_test.rs |   512 | rust
+crates/iwe/tests/stats_test.rs |   394 | rust
+crates/iwe/tests/tree_test.rs |   475 | rust
+crates/iwec/src/lib.rs        |  1468 | rust
+crates/iwec/src/main.rs       |    49 | rust
+crates/iwec/src/watcher.rs    |   113 | rust
+crates/iwec/tests/attach_test.rs |   230 | rust
+crates/iwec/tests/extract_test.rs |   103 | rust
+crates/iwec/tests/find_test.rs |   195 | rust
+crates/iwec/tests/fixture.rs  |   161 | rust
+crates/iwec/tests/inline_test.rs |   133 | rust
+crates/iwec/tests/normalize_test.rs |    30 | rust
+crates/iwec/tests/prompt_test.rs |    65 | rust
+crates/iwec/tests/resource_test.rs |   114 | rust
+crates/iwec/tests/retrieve_test.rs |   174 | rust
+crates/iwec/tests/squash_test.rs |    42 | rust
+crates/iwec/tests/stats_test.rs |    59 | rust
+crates/iwec/tests/tree_test.rs |   110 | rust
+crates/iwec/tests/watcher_test.rs |   143 | rust
+crates/iwec/tests/write_test.rs |   263 | rust
+crates/iwes/src/lib.rs        |    61 | rust
+crates/iwes/src/main.rs       |   141 | rust
+crates/iwes/src/router.rs     |   295 | rust
+crates/iwes/src/router/server.rs |   856 | rust
+crates/iwes/src/router/server/actions.rs |   396 | rust
+crates/iwes/src/router/server/actions/attach.rs |   196 | rust
+crates/iwes/src/router/server/actions/delete.rs |    63 | rust
+crates/iwes/src/router/server/actions/extract.rs |    66 | rust
+crates/iwes/src/router/server/actions/extract_all.rs |    67 | rust
+crates/iwes/src/router/server/actions/inline.rs |    57 | rust
+crates/iwes/src/router/server/actions/link.rs |   222 | rust
+crates/iwes/src/router/server/actions/list.rs |   104 | rust
+crates/iwes/src/router/server/actions/section.rs |    54 | rust
+crates/iwes/src/router/server/actions/sort.rs |    60 | rust
+crates/iwes/src/router/server/actions/templates.rs |    26 | rust
+crates/iwes/src/router/server/actions/transform.rs |   206 | rust
+crates/iwes/src/router/server/base_path.rs |   120 | rust
+crates/iwes/src/router/server/extensions.rs |   389 | rust
+crates/iwes/src/router/server/search.rs |   165 | rust
+crates/iwes/tests/attach_test.rs |   457 | rust
+crates/iwes/tests/change_list_type_test.rs |    45 | rust
+crates/iwes/tests/completion_test.rs |   475 | rust
+crates/iwes/tests/custom_actions_test.rs |    43 | rust
+crates/iwes/tests/delete_test.rs |   244 | rust
+crates/iwes/tests/did_change_test.rs |    57 | rust
+crates/iwes/tests/did_save_test.rs |    54 | rust
+crates/iwes/tests/extract_all_test.rs |   397 | rust
+crates/iwes/tests/extract_test.rs |   691 | rust
+crates/iwes/tests/fixture.rs  |   891 | rust
+crates/iwes/tests/folding_range_test.rs |   205 | rust
+crates/iwes/tests/format_document_test.rs |   196 | rust
+crates/iwes/tests/go_to_definition_test.rs |   260 | rust
+crates/iwes/tests/hover_test.rs |    83 | rust
+crates/iwes/tests/inlay_hints_test.rs |   169 | rust
+crates/iwes/tests/inline_quote_test.rs |   182 | rust
+crates/iwes/tests/inline_section_test.rs |   393 | rust
+crates/iwes/tests/link_test.rs |   596 | rust
+crates/iwes/tests/list_to_sections_test.rs |   194 | rust
+crates/iwes/tests/references_test.rs |    58 | rust
+crates/iwes/tests/rename_test.rs |   182 | rust
+crates/iwes/tests/sections_to_list_test.rs |   138 | rust
+crates/iwes/tests/sort_test.rs |   179 | rust
+crates/iwes/tests/transform_test.rs |   472 | rust
+crates/iwes/tests/workspace_symbols_test.rs |   222 | rust
+crates/liwe/src/file.rs       |    22 | rust
+crates/liwe/src/find.rs       |   278 | rust
+crates/liwe/src/fs.rs         |   200 | rust
+crates/liwe/src/graph.rs      |   652 | rust
+crates/liwe/src/graph/arena.rs |    95 | rust
+crates/liwe/src/graph/basic_iter.rs |   129 | rust
+crates/liwe/src/graph/builder.rs |   553 | rust
+crates/liwe/src/graph/graph_line.rs |    36 | rust
+crates/liwe/src/graph/graph_node.rs |   670 | rust
+crates/liwe/src/graph/index.rs |   153 | rust
+crates/liwe/src/graph/path.rs |   356 | rust
+crates/liwe/src/graph/sections_builder.rs |   591 | rust
+crates/liwe/src/graph/squash_iter.rs |   130 | rust
+crates/liwe/src/lib.rs        |    13 | rust
+crates/liwe/src/locale.rs     |    76 | rust
+crates/liwe/src/markdown.rs   |    83 | rust
+crates/liwe/src/markdown/reader.rs |   703 | rust
+crates/liwe/src/markdown/writer.rs |   371 | rust
+crates/liwe/src/model.rs      |   168 | rust
+crates/liwe/src/model/config.rs |   800 | rust
+crates/liwe/src/model/document.rs |   947 | rust
+crates/liwe/src/model/graph.rs |   670 | rust
+crates/liwe/src/model/node.rs |   441 | rust
+crates/liwe/src/model/projector.rs |   193 | rust
+crates/liwe/src/model/reference.rs |    26 | rust
+crates/liwe/src/model/tree.rs |   900 | rust
+crates/liwe/src/operations.rs |    15 | rust
+crates/liwe/src/operations/changes.rs |    84 | rust
+crates/liwe/src/operations/config.rs |    37 | rust
+crates/liwe/src/operations/delete.rs |    40 | rust
+crates/liwe/src/operations/extract.rs |   260 | rust
+crates/liwe/src/operations/inline.rs |    92 | rust
+crates/liwe/src/operations/rename.rs |    46 | rust
+crates/liwe/src/operations/util.rs |    82 | rust
+crates/liwe/src/parser.rs     |   197 | rust
+crates/liwe/src/retrieve.rs   |   403 | rust
+crates/liwe/src/selector.rs   |   337 | rust
+crates/liwe/src/state.rs      |    72 | rust
+crates/liwe/src/stats.rs      |   429 | rust
+crates/liwe/tests/bare_frontmatter_test.rs |   208 | rust
+crates/liwe/tests/config_migration_test.rs |   326 | rust
+crates/liwe/tests/find_metadata_test.rs |   160 | rust
+crates/liwe/tests/formatting_test.rs |   425 | rust
+crates/liwe/tests/frontmatter_title_test.rs |   146 | rust
+crates/liwe/tests/gitignore_test.rs |    81 | rust
+crates/liwe/tests/links_test.rs |   332 | rust
+crates/liwe/tests/normalization_headers.rs |   370 | rust
+crates/liwe/tests/normalization_html.rs |    61 | rust
+crates/liwe/tests/normalization_lists.rs |   371 | rust
+crates/liwe/tests/normalization_metadata.rs |    52 | rust
+crates/liwe/tests/normalization_misc.rs |   344 | rust
+crates/liwe/tests/normalization_raw.rs |   163 | rust
+crates/liwe/tests/squash_test.rs |   313 | rust
+crates/liwe/tests/toc_test.rs |   133 | rust
+crates/liwe/tests/virtual_directories_test.rs |   168 | rust
+
+── .indexnudge.db has 7 tables: calls, defs, directories, files, imports, lines, symbols ──
+Every line of source is in `lines`. Every function call is in `calls`.
+Every symbol definition is in `symbols`. Full-text search via `lines_fts`.
+For deeper exploration: sqlite3 /home/dangood/src/iwe/.indexnudge.db .schema
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && sqlite3 .indexnudge.db "SELECT line_number, content FROM lines WHERE file='crates/liwe/src/find.rs' ORDER BY line_number"
+
+Parse error in 2nd command line argument: no such column: line_number
+  SELECT line_number, content FROM lines WHERE file='crates/liwe/src/find.rs' OR
+         ^--- error here
+
+Command exited with code 1
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && sqlite3 .indexnudge.db ".schema lines" | head -5
+
+CREATE TABLE lines (
+            file     TEXT,
+            line_num INTEGER,
+            content  TEXT,
+            symbol   TEXT,
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && sqlite3 .indexnudge.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/src/find.rs' AND content LIKE '%meta%' ORDER BY line_num"
+
+43|    pub metadata_filters: Vec<(String, String)>,
+88|                if !options.metadata_filters.is_empty()
+89|                    && !self.metadata_matches(&key, &options.metadata_filters)
+253|    fn metadata_matches(&self, key: &Key, filters: &[(String, String)]) -> bool {
+254|        let raw = match self.graph.get_metadata(key) {
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && sqlite3 .indexnudge.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN 253 AND 278 ORDER BY line_num"
+
+253|    fn metadata_matches(&self, key: &Key, filters: &[(String, String)]) -> bool {
+254|        let raw = match self.graph.get_metadata(key) {
+255|            Some(s) => s,
+256|            None => return false,
+257|        };
+258|        let val: serde_yaml::Value = match serde_yaml::from_str(raw) {
+259|            Ok(v) => v,
+260|            _ => return false,
+261|        };
+262|        filters.iter().all(|(k, v)| {
+263|            val.get(k.as_str())
+264|                .and_then(|node| match node {
+265|                    serde_yaml::Value::String(s) => Some(s.as_str() == v.as_str()),
+266|                    serde_yaml::Value::Bool(b) => Some(b.to_string() == *v),
+267|                    serde_yaml::Value::Number(n) => Some(n.to_string() == *v),
+268|                    serde_yaml::Value::Sequence(items) => Some(
+269|                        items
+270|                            .iter()
+271|                            .any(|i| i.as_str().map(|s| s == v.as_str()).unwrap_or(false)),
+272|                    ),
+273|                    _ => Some(false),
+274|                })
+275|                .unwrap_or(false)
+276|        })
+277|    }
+278|}
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && sqlite3 .indexnudge.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/src/model/document.rs' AND content LIKE '%get_metadata%' ORDER BY line_num"
+
+(no output)
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && grep -rn 'get_metadata' crates/liwe/src/ | head -20
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge.db ──
+query: SELECT file, line_num, content, symbol FROM lines_fts WHERE content MATCH '"get_metadata"';
+
+crates/iwe/src/render.rs:65 │         if let Some(metadata_str) = self.graph.get_metadata(&key) {  # in: RetrieveRenderer::render_document
+crates/liwe/src/find.rs:254 │         let raw = match self.graph.get_metadata(key) {  # in: DocumentFinder::metadata_matches
+crates/liwe/src/graph.rs:223 │     pub fn get_metadata(&self, key: &Key) -> Option<&str> {  # in: Graph::get_metadata
+
+── 3 matches across 3 file(s) ──
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && sed -n '220,250p' crates/liwe/src/graph.rs
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge.db ──
+query: SELECT line_num, content FROM lines WHERE file='crates/liwe/src/graph.rs' AND line_num BETWEEN 220 AND 250;
+** STOP USING sed. Query the DB directly: sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/graph.rs' AND line_num BETWEEN START AND END ORDER BY line_num;" **
+
+ 220 │         self.keys_to_ref_text.get(key).cloned()
+ 221 │     }
+ 222 │ 
+ 223 │     pub fn get_metadata(&self, key: &Key) -> Option<&str> {
+ 224 │         self.metadata.get(key).map(|s| s.as_str())
+ 225 │     }
+ 226 │ 
+ 227 │     pub fn build_key_and<F>(&mut self, key: &Key, f: F) -> &mut Self
+ 228 │     where
+ 229 │         F: FnOnce(&mut GraphBuilder),
+ 230 │     {
+ 231 │         let id = self.arena.new_node_id();
+ 232 │         self.keys.insert(key.clone(), id);
+ 233 │         self.arena
+ 234 │             .set_node(id, GraphNode::new_root(key.clone(), id, None));
+ 235 │         f(&mut GraphBuilder::new(self, id));
+ 236 │ 
+ 237 │         self.extract_ref_text(key)
+ 238 │             .map(|text| self.keys_to_ref_text.insert(key.clone(), text));
+ 239 │ 
+ 240 │         let mut index = RefIndex::new();
+ 241 │         index.index_node(self, id);
+ 242 │         self.index.merge(index);
+ 243 │ 
+ 244 │         self
+ 245 │     }
+ 246 │ 
+ 247 │     fn extract_ref_text(&self, key: &Key) -> Option<String> {
+ 248 │         if let Some(title) = self.extract_frontmatter_title(key) {
+ 249 │             return Some(title);
+ 250 │         }
+
+── enclosing: Graph | impl | lines 84-483
+get_key_title | method | lines 219-221
+get_metadata | method | lines 223-225
+build_key_and | method | lines 227-245
+extract_ref_text | method | lines 247-258 ──
+── full  impl : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/graph.rs' AND line_num BETWEEN 84 AND 483 ORDER BY line_num;" ──
+── full  method : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/graph.rs' AND line_num BETWEEN 219 AND 221 ORDER BY line_num;" ──
+── full  method : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/graph.rs' AND line_num BETWEEN 223 AND 225 ORDER BY line_num;" ──
+── full  method : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/graph.rs' AND line_num BETWEEN 227 AND 245 ORDER BY line_num;" ──
+── full  method : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/graph.rs' AND line_num BETWEEN 247 AND 258 ORDER BY line_num;" ──
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && grep -n 'metadata' crates/liwe/src/graph.rs | head -20
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge.db ──
+query: SELECT file, line_num, content, symbol FROM lines_fts WHERE content MATCH '"metadata"';
+
+crates/iwe/src/main.rs:108 │     #[clap(long, help = "Exclude document content from results (metadata only)")]
+crates/iwe/src/main.rs:673 │         metadata_filters: args.meta,  # in: find_command
+crates/iwe/src/render.rs:62 │         // Build extra fields from parsed front matter metadata.  # in: RetrieveRenderer::render_document
+crates/iwe/src/render.rs:65 │         if let Some(metadata_str) = self.graph.get_metadata(&key) {  # in: RetrieveRenderer::render_document
+crates/iwe/src/render.rs:66 │             if let Ok(serde_yaml::Value::Mapping(map)) = serde_yaml::from_str(metadata_str) {  # in: RetrieveRenderer::render_document
+crates/iwec/src/lib.rs:114 │     #[schemars(description = "Filter by front matter metadata (list of key=value strings)")]
+crates/iwec/src/lib.rs:130 │             metadata_filters: p.meta.unwrap_or_default(),  # in: FindOptions::from
+crates/iwec/src/lib.rs:150 │     #[schemars(description = "Return metadata only without document content. Default: false")]
+crates/iwes/tests/format_document_test.rs:24 │ fn metadata_format() {  # in: metadata_format
+crates/liwe/src/find.rs:43 │     pub metadata_filters: Vec<(String, String)>,
+crates/liwe/src/find.rs:88 │                 if !options.metadata_filters.is_empty()  # in: DocumentFinder::find
+crates/liwe/src/find.rs:89 │                     && !self.metadata_matches(&key, &options.metadata_filters)  # in: DocumentFinder::find
+crates/liwe/src/find.rs:253 │     fn metadata_matches(&self, key: &Key, filters: &[(String, String)]) -> bool {  # in: DocumentFinder::metadata_matches
+crates/liwe/src/find.rs:254 │         let raw = match self.graph.get_metadata(key) {  # in: DocumentFinder::metadata_matches
+crates/liwe/src/graph.rs:55 │     metadata: HashMap<Key, String>,
+crates/liwe/src/graph.rs:102 │             metadata: self.metadata.clone(),  # in: Graph::new_patch
+crates/liwe/src/graph.rs:141 │         self.metadata.remove(&key);  # in: Graph::remove_document
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && grep -n 'metadata\.insert\|set_metadata\|metadata\[' crates/liwe/src/ -r
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge.db ──
+query: SELECT file, line_num, content, symbol FROM lines WHERE content LIKE '%metadata\.insert\|set_metadata\|metadata\[%';
+
+(no matches)
+
+Command exited with code 1
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && sqlite3 .indexnudge.db "SELECT file, line_num, content FROM lines WHERE content LIKE '%metadata%insert%' OR content LIKE '%set_metadata%' ORDER BY file, line_num"
+
+crates/liwe/src/graph.rs|284|            self.metadata.insert(key.clone(), meta);
+crates/liwe/src/graph.rs|380|                graph.metadata.insert(key.clone(), meta);
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && sqlite3 .indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/graph.rs' AND line_num BETWEEN 270 AND 300 ORDER BY line_num"
+
+            .map(|id| GraphNodePointer::new(self, *id))
+    }
+
+    pub fn get_document_id(&self, key: &Key) -> NodeId {
+        *self
+            .keys
+            .get(key)
+            .unwrap_or_else(|| panic!("to have key, {}", key))
+    }
+
+    pub fn from_markdown(&mut self, key: Key, content: &str, reader: impl Reader) {
+        let document = reader.document(content, &self.markdown_options);
+
+        if let Some(meta) = document.metadata {
+            self.metadata.insert(key.clone(), meta);
+        } else {
+            self.metadata.remove(&key);
+        }
+
+        let mut build_key = self.build_key(&key);
+        let id = build_key.id();
+
+        let nodes_map = SectionsBuilder::new(&mut build_key, &document.blocks, &key).nodes_map();
+
+        self.nodes_map.insert(key.clone(), nodes_map.clone());
+        self.global_nodes_map.extend(nodes_map);
+
+        let mut index = RefIndex::new();
+        index.index_node(self, id);
+        self.index.merge(index);
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && sqlite3 .indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/markdown/reader.rs' AND line_num BETWEEN 1 AND 50 ORDER BY line_num"
+
+use std::iter::once;
+use std::ops::Range;
+
+use crate::model::config::MarkdownOptions;
+use crate::model::node::ColumnAlignment;
+use pulldown_cmark::{Alignment, CodeBlockKind, LinkType, Options, Tag, TagEnd};
+use pulldown_cmark::{Event::*, Parser};
+
+use crate::model::document::*;
+use crate::model::*;
+
+pub struct MarkdownEventsReader {
+    markdown_options: MarkdownOptions,
+    inlines_pos_stack: Vec<LineRange>,
+    inlines_stack: Vec<DocumentInline>,
+    blocks_stack: Vec<DocumentBlock>,
+    blocks: DocumentBlocks,
+    line_starts: Vec<usize>,
+    metadata_block: bool,
+    metadata: Option<String>,
+    content: Option<String>,
+}
+
+impl Default for MarkdownEventsReader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl MarkdownEventsReader {
+    pub fn new() -> MarkdownEventsReader {
+        MarkdownEventsReader {
+            markdown_options: MarkdownOptions::default(),
+            inlines_pos_stack: Vec::new(),
+            inlines_stack: Vec::new(),
+            blocks_stack: Vec::new(),
+            blocks: Vec::new(),
+            line_starts: Vec::new(),
+            metadata_block: false,
+            metadata: None,
+            content: None,
+        }
+    }
+
+    pub fn new_with_options(markdown_options: &MarkdownOptions) -> MarkdownEventsReader {
+        MarkdownEventsReader {
+            markdown_options: markdown_options.clone(),
+            inlines_pos_stack: Vec::new(),
+            inlines_stack: Vec::new(),
+            blocks_stack: Vec::new(),
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && sqlite3 .indexnudge.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/src/markdown/reader.rs' AND (content LIKE '%metadata%' OR content LIKE '%front%matter%' OR content LIKE '%bare%') ORDER BY line_num"
+
+19|    metadata_block: bool,
+20|    metadata: Option<String>,
+39|            metadata_block: false,
+40|            metadata: None,
+53|            metadata_block: false,
+54|            metadata: None,
+63|    pub fn metadata(&self) -> Option<String> {
+64|        self.metadata.clone()
+80|            Options::ENABLE_YAML_STYLE_METADATA_BLOCKS
+96|                    if !self.metadata_block {
+111|                        self.metadata = Some(text.to_string());
+356|            Tag::MetadataBlock(_) => self.metadata_block = true,
+386|            TagEnd::MetadataBlock(_) => self.metadata_block = false,
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && sqlite3 .indexnudge.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/src/markdown/reader.rs' AND line_num BETWEEN 75 AND 120 ORDER BY line_num"
+
+75|
+76|    pub fn read(&mut self, content: &str) -> DocumentBlocks {
+77|        self.content = Some(content.to_string());
+78|        let iter = Parser::new_ext(
+79|            content,
+80|            Options::ENABLE_YAML_STYLE_METADATA_BLOCKS
+81|                | Options::ENABLE_WIKILINKS
+82|                | Options::ENABLE_TABLES,
+83|        )
+84|        .into_offset_iter();
+85|        self.line_starts = line_starts(content);
+86|
+87|        for (event, range) in iter {
+88|            match event {
+89|                Start(tag) => {
+90|                    self.start_tag(tag, range);
+91|                }
+92|                End(tag) => {
+93|                    self.end_tag(tag, range);
+94|                }
+95|                Text(text) => {
+96|                    if !self.metadata_block {
+97|                        match self.top_block() {
+98|                            DocumentBlock::CodeBlock(code_block) => {
+99|                                code_block.text = format!("{}{}", code_block.text, text)
+100|                            }
+101|                            DocumentBlock::RawBlock(block) => block.text = text.to_string(),
+102|                            _ => {
+103|                                self.push_inline(
+104|                                    DocumentInline::Str(text.to_string()),
+105|                                    self.to_line_range(range),
+106|                                );
+107|                                self.pop_inline();
+108|                            }
+109|                        }
+110|                    } else {
+111|                        self.metadata = Some(text.to_string());
+112|                    }
+113|                }
+114|                Code(text) => {
+115|                    self.push_inline(
+116|                        DocumentInline::Code(document::Code {
+117|                            attr: Attributes::default(),
+118|                            text: text.to_string(),
+119|                            inline_range: self.to_inline_range(range.clone()),
+120|                        }),
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && sqlite3 .indexnudge.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/src/markdown/reader.rs' AND line_num BETWEEN 350 AND 390 ORDER BY line_num"
+
+350|                        attr: Default::default(),
+351|                        inline_range: self.to_inline_range(range.clone()),
+352|                    }),
+353|                    self.to_line_range(range),
+354|                );
+355|            }
+356|            Tag::MetadataBlock(_) => self.metadata_block = true,
+357|            Tag::Superscript => {}
+358|            Tag::Subscript => {}
+359|        }
+360|    }
+361|
+362|    fn end_tag(&mut self, tag: TagEnd, _: Range<usize>) {
+363|        match tag {
+364|            TagEnd::Paragraph => {
+365|                self.pop_block();
+366|            }
+367|            TagEnd::Heading(_) => self.pop_block(),
+368|            TagEnd::BlockQuote(_) => self.pop_block(),
+369|            TagEnd::CodeBlock => {
+370|                self.pop_block();
+371|            }
+372|            TagEnd::HtmlBlock => {}
+373|            TagEnd::List(_) => {
+374|                self.pop_block();
+375|            }
+376|            TagEnd::Item => {}
+377|            TagEnd::Emphasis => self.pop_inline(),
+378|            TagEnd::Strong => self.pop_inline(),
+379|            TagEnd::Strikethrough => self.pop_inline(),
+380|            TagEnd::Link => self.pop_inline(),
+381|            TagEnd::DefinitionList => {}
+382|            TagEnd::DefinitionListDefinition => {}
+383|            TagEnd::DefinitionListTitle => {}
+384|            TagEnd::FootnoteDefinition => {}
+385|            TagEnd::Image => self.pop_inline(),
+386|            TagEnd::MetadataBlock(_) => self.metadata_block = false,
+387|            TagEnd::Table => {
+388|                self.pop_block();
+389|            }
+390|            TagEnd::TableCell => {}
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && sqlite3 .indexnudge.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/tests/bare_frontmatter_test.rs' AND line_num BETWEEN 1 AND 50 ORDER BY line_num"
+
+1|use std::sync::Once;
+2|
+3|use indoc::indoc;
+4|use pretty_assertions::assert_str_eq;
+5|
+6|use liwe::model::config::MarkdownOptions;
+7|use liwe::{
+8|    graph::Graph,
+9|    state::{from_indoc, to_indoc},
+10|};
+11|
+12|static INIT: Once = Once::new();
+13|
+14|fn setup() {
+15|    INIT.call_once(|| {
+16|        env_logger::builder().init();
+17|    });
+18|}
+19|
+20|fn bare_options() -> MarkdownOptions {
+21|    MarkdownOptions {
+22|        bare_frontmatter: true,
+23|        ..Default::default()
+24|    }
+25|}
+26|
+27|#[test]
+28|fn reader_detects_bare_title_block() {
+29|    setup();
+30|
+31|    let graph = Graph::import(
+32|        &from_indoc(indoc! {"
+33|            title: Foo
+34|            status: ready
+35|
+36|            # Body
+37|            "}),
+38|        bare_options(),
+39|        None,
+40|    );
+41|
+42|    let state = graph.export();
+43|    let content = state.values().next().unwrap();
+44|    // The metadata should have been parsed — the output should have fenced front matter
+45|    // since we're exporting with bare_frontmatter=true, it should be bare again
+46|    assert!(content.starts_with("title: Foo"));
+47|}
+48|
+49|#[test]
+50|fn reader_skips_when_disabled() {
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && sqlite3 .indexnudge.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/src/markdown/reader.rs' AND content LIKE '%bare%' ORDER BY line_num"
+
+(no output)
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && sqlite3 .indexnudge.db "SELECT file, line_num, content FROM lines WHERE content LIKE '%bare_frontmatter%' ORDER BY file, line_num"
+
+crates/iwe/tests/retrieve_test.rs|2094|            bare_frontmatter: true,
+crates/iwe/tests/retrieve_test.rs|2196|fn test_retrieve_envelope_bare_frontmatter_merged() {
+crates/iwes/tests/completion_test.rs|47|            bare_frontmatter: false,
+crates/iwes/tests/completion_test.rs|117|        bare_frontmatter: false,
+crates/iwes/tests/completion_test.rs|299|            bare_frontmatter: false,
+crates/liwe/src/markdown.rs|26|/// If `bare_frontmatter` is enabled and content starts with `title: ` (but
+crates/liwe/src/markdown.rs|29|pub fn wrap_bare_frontmatter(content: &str) -> Cow<'_, str> {
+crates/liwe/src/markdown.rs|69|        let effective = if markdown_options.bare_frontmatter {
+crates/liwe/src/markdown.rs|70|            wrap_bare_frontmatter(content)
+crates/liwe/src/markdown/writer.rs|22|        if self.options.bare_frontmatter {
+crates/liwe/src/model/config.rs|28|    pub bare_frontmatter: bool,
+crates/liwe/src/model/config.rs|39|            bare_frontmatter: false,
+crates/liwe/src/model/graph.rs|95|                if options.bare_frontmatter {
+crates/liwe/tests/bare_frontmatter_test.rs|22|        bare_frontmatter: true,
+crates/liwe/tests/bare_frontmatter_test.rs|45|    // since we're exporting with bare_frontmatter=true, it should be bare again
+crates/liwe/tests/bare_frontmatter_test.rs|60|        MarkdownOptions::default(), // bare_frontmatter = false
+crates/liwe/tests/bare_frontmatter_test.rs|66|    // Without bare_frontmatter, "title: Foo" is just body text, no metadata parsed
+crates/liwe/tests/bare_frontmatter_test.rs|129|    // With bare_frontmatter enabled, writer should emit bare format
+crates/liwe/tests/config_migration_test.rs|282|    assert!(!parsed.markdown.bare_frontmatter);
+crates/liwe/tests/config_migration_test.rs|287|fn parses_bare_frontmatter_true() {
+crates/liwe/tests/config_migration_test.rs|296|        bare_frontmatter = true
+crates/liwe/tests/config_migration_test.rs|304|    assert!(parsed.markdown.bare_frontmatter);
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && sqlite3 .indexnudge.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/src/markdown.rs' ORDER BY line_num"
+
+1|use std::borrow::Cow;
+2|
+3|use crate::graph::Reader;
+4|use crate::model::config::MarkdownOptions;
+5|use crate::model::document::Document;
+6|
+7|pub mod reader;
+8|
+9|use reader::MarkdownEventsReader;
+10|pub struct MarkdownReader {}
+11|
+12|pub mod writer;
+13|
+14|impl Default for MarkdownReader {
+15|    fn default() -> Self {
+16|        Self::new()
+17|    }
+18|}
+19|
+20|impl MarkdownReader {
+21|    pub fn new() -> MarkdownReader {
+22|        MarkdownReader {}
+23|    }
+24|}
+25|
+26|/// If `bare_frontmatter` is enabled and content starts with `title: ` (but
+27|/// not `---`), wrap the leading header block in `---` fences so the
+28|/// downstream pulldown-cmark MetadataBlock machinery picks it up.
+29|pub fn wrap_bare_frontmatter(content: &str) -> Cow<'_, str> {
+30|    // Already fenced — leave alone.
+31|    if content.starts_with("---") {
+32|        return Cow::Borrowed(content);
+33|    }
+34|
+35|    // Must start with `title: `.
+36|    if !content.starts_with("title: ") {
+37|        return Cow::Borrowed(content);
+38|    }
+39|
+40|    // Find first true blank line (\n\n or \r\n\r\n).
+41|    let (header, rest) = if let Some(pos) = content.find("\n\n") {
+42|        (&content[..pos], &content[pos + 2..])
+43|    } else if let Some(pos) = content.find("\r\n\r\n") {
+44|        (&content[..pos], &content[pos + 4..])
+45|    } else {
+46|        // No blank line — entire content is header.
+47|        (content.trim_end(), "")
+48|    };
+49|
+50|    if rest.is_empty() {
+51|        let cleaned_header: String = header
+52|            .lines()
+53|            .filter(|l| !l.starts_with(' '))
+54|            .collect::<Vec<_>>()
+55|            .join("\n");
+56|        Cow::Owned(format!("---\n{}\n---\n", cleaned_header))
+57|    } else {
+58|        let cleaned_header: String = header
+59|            .lines()
+60|            .filter(|l| !l.starts_with(' '))
+61|            .collect::<Vec<_>>()
+62|            .join("\n");
+63|        Cow::Owned(format!("---\n{}\n---\n\n{}", cleaned_header, rest))
+64|    }
+65|}
+66|
+67|impl Reader for MarkdownReader {
+68|    fn document(&self, content: &str, markdown_options: &MarkdownOptions) -> Document {
+69|        let effective = if markdown_options.bare_frontmatter {
+70|            wrap_bare_frontmatter(content)
+71|        } else {
+72|            Cow::Borrowed(content)
+73|        };
+74|
+75|        let mut reader = MarkdownEventsReader::new_with_options(markdown_options);
+76|        reader.read(&effective);
+77|
+78|        Document {
+79|            blocks: reader.blocks(),
+80|            metadata: reader.metadata(),
+81|        }
+82|    }
+83|}
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && git log --oneline -5 -- crates/liwe/src/markdown.rs
+
+5607c85 Add bare frontmatter, --meta filtering, virtual dirs, merged envelope
+b5deb6f chore: Lint fixes (#182)
+65c07a8 fix: Do not remove extensions from local links (#132)
+b93e6c0 feat: tables support (#77)
+b6dfd0d Fix Zed code actions (#17)
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && cat <<'EOF' | cargo test -p liwe --test bare_frontmatter_test 2>&1 | tail -5
+EOF
+
+test reader_skips_when_disabled ... ok
+test frontmatter_title_works_with_bare ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && sqlite3 .indexnudge.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/src/model/graph.rs' AND line_num BETWEEN 90 AND 100 ORDER BY line_num"
+
+90|    }
+91|
+92|    pub fn to_markdown(&self, options: &MarkdownOptions) -> String {
+93|        match self {
+94|            GraphBlock::Frontmatter(content) => {
+95|                if options.bare_frontmatter {
+96|                    format!("{}\n", content.trim_end())
+97|                } else {
+98|                    format!("---\n{}---\n", content)
+99|                }
+100|            }
+  ────────────────────────────────────────
+  ▸ todo_write todo
+    content: - [ ] Fix: `wrap_bare_frontmatter` strips indented YAML lines (list items like `  - foo`)
+- [ ] Add test for bare frontmatter with list-valued metadata field
+- [ ] Verify cargo test passes
+
+
+  ────────────────────────────────────────
+  ▸ edit
+    path crates/liwe/src/markdown.rs
+    before:     if rest.is_empty() {
+        let cleaned_header: String = header
+            .lines()
+            .filter(|l| !l.starts_with(' '))
+            .collect::<Vec<_>>()
+            .join("\n");
+        Cow::Owned(format!("---\n{}\n---\n", cleaned_header))
+    } else {
+        let cleaned_header: String = header
+            .lines()
+            .filter(|l| !l.starts_with(' '))
+            .collect::<Vec<_>>()
+            .join("\n");
+        Cow::Owned(format!("---\n{}\n---\n\n{}", cleaned_header, rest))
+    }
+    after:     if rest.is_empty() {
+        Cow::Owned(format!("---\n{}\n---\n", header))
+    } else {
+        Cow::Owned(format!("---\n{}\n---\n\n{}", header, rest))
+    }
+
+Edited crates/liwe/src/markdown.rs (15 lines -> 5 lines)
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && cargo test 2>&1 | tail -20
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests iwec
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests iwes
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests liwe
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && cargo test 2>&1 | grep -E 'FAILED|test result'
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+test result: ok. 46 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.31s
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 25 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 88 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && sqlite3 .indexnudge.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/tests/bare_frontmatter_test.rs' AND line_num BETWEEN 195 AND 208 ORDER BY line_num"
+
+195|    let normalized = to_indoc(&graph.export());
+196|
+197|    assert_str_eq!(
+198|        indoc! {"
+199|            [Bare Title](2)
+200|            _
+201|            title: Bare Title
+202|            status: ready
+203|
+204|            # Header
+205|            "},
+206|        normalized
+207|    );
+208|}
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && cat >> crates/liwe/tests/bare_frontmatter_test.rs << 'TESTEOF'
+
+#[test]
+fn metadata_matches_list_values_in_bare_frontmatter() {
+    setup();
+
+    let graph = Graph::import(
+        &from_indoc(indoc! {"
+            title: Foo
+            depends:
+              - bar
+              - baz
+
+            # Body
+            "}),
+        bare_options(),
+        None,
+    );
+
+    // Verify the metadata was parsed and contains the list
+    let key = graph.keys().into_iter().next().unwrap();
+    let meta = graph.get_metadata(&key).expect("should have metadata");
+    let val: serde_yaml::Value = serde_yaml::from_str(meta).unwrap();
+    let deps = val.get("depends").expect("should have depends field");
+    assert!(deps.is_sequence(), "depends should be a sequence");
+    let items: Vec<&str> = deps
+        .as_sequence()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap())
+        .collect();
+    assert_eq!(items, vec!["bar", "baz"]);
+}
+TESTEOF
+
+(no output)
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && cargo test -p liwe --test bare_frontmatter_test metadata_matches_list 2>&1 | tail -10
+
+   Compiling liwe v0.0.70 (/home/dangood/src/iwe/crates/liwe)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.23s
+     Running tests/bare_frontmatter_test.rs (target/debug/deps/bare_frontmatter_test-5df928203c317901)
+
+running 1 test
+test metadata_matches_list_values_in_bare_frontmatter ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 8 filtered out; finished in 0.00s
+All done. Here's the summary:
+
+## Root Cause
+
+`wrap_bare_frontmatter()` in `crates/liwe/src/markdown.rs` was filtering out indented lines from the YAML header block before wrapping it in `---` fences:
+
+```rust
+// BUG: strips lines starting with spaces — kills YAML list items like "  - foo"
+header.lines().filter(|l| !l.starts_with(' ')).collect::<Vec<_>>().join("\n")
+```
+
+When a bare frontmatter document had a list-valued field like:
+
+```yaml
+title: Foo
+depends:
+  - bar
+  - baz
+```
+
+The `  - bar` and `  - baz` lines were stripped before being passed to pulldown-cmark's YAML metadata parser. The resulting metadata was just `title: Foo\ndepends:` — no list items — so `--meta depends=bar` found nothing.
+
+## Fix
+
+Removed the line-filtering logic entirely. The header text extracted between the start of the file and the first blank line is valid YAML and should be passed through verbatim to the `---` fences. The fix reduced 15 lines to 5.
+
+## Test
+
+Added `metadata_matches_list_values_in_bare_frontmatter` to `crates/liwe/tests/bare_frontmatter_test.rs` — verifies that list-valued metadata fields in bare frontmatter documents are parsed correctly. All tests pass (9/9 in that file, full suite green).

@@ -1,0 +1,220 @@
+Right, `iwe find --meta` data flow and filter logic. First, I'll map the project structure: list all directories and files.
+  ────────────────────────────────────────
+  ▸ shell
+    command: ls -F
+
+AUDIT_FINDINGS.md
+BARE_FRONTMATTER_SPEC.md
+CONTRIBUTING.md
+Cargo.lock
+Cargo.toml
+ENHANCEMENTS_SPEC.md
+IMPLEMENTATION_PLAN.md
+LICENSE-APACHE
+README.md
+audit/
+crates/
+docs/
+run-enhancements.sh*
+run-merge-envelope.sh*
+target/Right, directory's there. Now, `tree` on `crates` for the core logic.
+  ────────────────────────────────────────
+  ▸ tree
+    path: crates
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge.db ──
+query: SELECT path, file_count, total_lines FROM directories ORDER BY path;
+
+path             | files | lines
+-----------------+-------+------
+.                |   142 | 38452
+crates           |   142 | 38452
+crates/iwe       |    26 |  9580
+crates/iwe/src   |    12 |  2944
+crates/iwe/src/export |     4 |   640
+crates/iwe/tests |    14 |  6636
+crates/iwec      |    17 |  3452
+crates/iwec/src  |     3 |  1630
+crates/iwec/tests |    14 |  1822
+crates/iwes      |    44 | 10427
+crates/iwes/src  |    19 |  3544
+crates/iwes/src/router |    16 |  3047
+crates/iwes/src/router/server |    15 |  2191
+crates/iwes/src/router/server/actions |    11 |  1121
+crates/iwes/tests |    25 |  6883
+crates/liwe      |    55 | 14993
+crates/liwe/src  |    39 | 11340
+crates/liwe/src/graph |     9 |  2713
+crates/liwe/src/markdown |     2 |  1074
+crates/liwe/src/model |     7 |  3977
+crates/liwe/src/operations |     7 |   641
+crates/liwe/tests |    16 |  3653
+
+query: SELECT file, lines, language FROM files ORDER BY file;
+
+file                          | lines | language
+------------------------------+-------+---------
+crates/iwe/src/export.rs      |     4 | rust
+crates/iwe/src/export/dot_details_exporter.rs |   142 | rust
+crates/iwe/src/export/dot_exporter.rs |    67 | rust
+crates/iwe/src/export/graph_colors.rs |   101 | rust
+crates/iwe/src/export/graph_data.rs |   330 | rust
+crates/iwe/src/help.rs        |    89 | rust
+crates/iwe/src/lib.rs         |     8 | rust
+crates/iwe/src/main.rs        |  1734 | rust
+crates/iwe/src/new.rs         |   234 | rust
+crates/iwe/src/render.rs      |   165 | rust
+crates/iwe/src/selector.rs    |    56 | rust
+crates/iwe/src/stats.rs       |    14 | rust
+crates/iwe/tests/common.rs    |    20 | rust
+crates/iwe/tests/delete_test.rs |   261 | rust
+crates/iwe/tests/export_dot_test.rs |    98 | rust
+crates/iwe/tests/extract_test.rs |   380 | rust
+crates/iwe/tests/find_test.rs |   495 | rust
+crates/iwe/tests/init_test.rs |   220 | rust
+crates/iwe/tests/inline_test.rs |   392 | rust
+crates/iwe/tests/new_test.rs  |   483 | rust
+crates/iwe/tests/normalize_test.rs |   411 | rust
+crates/iwe/tests/rename_test.rs |   246 | rust
+crates/iwe/tests/retrieve_test.rs |  2249 | rust
+crates/iwe/tests/squash_test.rs |   512 | rust
+crates/iwe/tests/stats_test.rs |   394 | rust
+crates/iwe/tests/tree_test.rs |   475 | rust
+crates/iwec/src/lib.rs        |  1468 | rust
+crates/iwec/src/main.rs       |    49 | rust
+crates/iwec/src/watcher.rs    |   113 | rust
+crates/iwec/tests/attach_test.rs |   230 | rust
+crates/iwec/tests/extract_test.rs |   103 | rust
+crates/iwec/tests/find_test.rs |   195 | rust
+crates/iwec/tests/fixture.rs  |   161 | rust
+crates/iwec/tests/inline_test.rs |   133 | rust
+crates/iwec/tests/normalize_test.rs |    30 | rust
+crates/iwec/tests/prompt_test.rs |    65 | rust
+crates/iwec/tests/resource_test.rs |   114 | rust
+crates/iwec/tests/retrieve_test.rs |   174 | rust
+crates/iwec/tests/squash_test.rs |    42 | rust
+crates/iwec/tests/stats_test.rs |    59 | rust
+crates/iwec/tests/tree_test.rs |   110 | rust
+crates/iwec/tests/watcher_test.rs |   143 | rust
+crates/iwec/tests/write_test.rs |   263 | rust
+crates/iwes/src/lib.rs        |    61 | rust
+crates/iwes/src/main.rs       |   141 | rust
+crates/iwes/src/router.rs     |   295 | rust
+crates/iwes/src/router/server.rs |   856 | rust
+crates/iwes/src/router/server/actions.rs |   396 | rust
+crates/iwes/src/router/server/actions/attach.rs |   196 | rust
+crates/iwes/src/router/server/actions/delete.rs |    63 | rust
+crates/iwes/src/router/server/actions/extract.rs |    66 | rust
+crates/iwes/src/router/server/actions/extract_all.rs |    67 | rust
+crates/iwes/src/router/server/actions/inline.rs |    57 | rust
+crates/iwes/src/router/server/actions/link.rs |   222 | rust
+crates/iwes/src/router/server/actions/list.rs |   104 | rust
+crates/iwes/src/router/server/actions/section.rs |    54 | rust
+crates/iwes/src/router/server/actions/sort.rs |    60 | rust
+crates/iwes/src/router/server/actions/templates.rs |    26 | rust
+crates/iwes/src/router/server/actions/transform.rs |   206 | rust
+crates/iwes/src/router/server/base_path.rs |   120 | rust
+crates/iwes/src/router/server/extensions.rs |   389 | rust
+crates/iwes/src/router/server/search.rs |   165 | rust
+crates/iwes/tests/attach_test.rs |   457 | rust
+crates/iwes/tests/change_list_type_test.rs |    45 | rust
+crates/iwes/tests/completion_test.rs |   475 | rust
+crates/iwes/tests/custom_actions_test.rs |    43 | rust
+crates/iwes/tests/delete_test.rs |   244 | rust
+crates/iwes/tests/did_change_test.rs |    57 | rust
+crates/iwes/tests/did_save_test.rs |    54 | rust
+crates/iwes/tests/extract_all_test.rs |   397 | rust
+crates/iwes/tests/extract_test.rs |   691 | rust
+crates/iwes/tests/fixture.rs  |   891 | rust
+crates/iwes/tests/folding_range_test.rs |   205 | rust
+crates/iwes/tests/format_document_test.rs |   196 | rust
+crates/iwes/tests/go_to_definition_test.rs |   260 | rust
+crates/iwes/tests/hover_test.rs |    83 | rust
+crates/iwes/tests/inlay_hints_test.rs |   169 | rust
+crates/iwes/tests/inline_quote_test.rs |   182 | rust
+crates/iwes/tests/inline_section_test.rs |   393 | rust
+crates/iwes/tests/link_test.rs |   596 | rust
+crates/iwes/tests/list_to_sections_test.rs |   194 | rust
+crates/iwes/tests/references_test.rs |    58 | rust
+crates/iwes/tests/rename_test.rs |   182 | rust
+crates/iwes/tests/sections_to_list_test.rs |   138 | rust
+crates/iwes/tests/sort_test.rs |   179 | rust
+crates/iwes/tests/transform_test.rs |   472 | rust
+crates/iwes/tests/workspace_symbols_test.rs |   222 | rust
+crates/liwe/src/file.rs       |    22 | rust
+crates/liwe/src/find.rs       |   278 | rust
+crates/liwe/src/fs.rs         |   200 | rust
+crates/liwe/src/graph.rs      |   652 | rust
+crates/liwe/src/graph/arena.rs |    95 | rust
+crates/liwe/src/graph/basic_iter.rs |   129 | rust
+crates/liwe/src/graph/builder.rs |   553 | rust
+crates/liwe/src/graph/graph_line.rs |    36 | rust
+crates/liwe/src/graph/graph_node.rs |   670 | rust
+crates/liwe/src/graph/index.rs |   153 | rust
+crates/liwe/src/graph/path.rs |   356 | rust
+crates/liwe/src/graph/sections_builder.rs |   591 | rust
+crates/liwe/src/graph/squash_iter.rs |   130 | rust
+crates/liwe/src/lib.rs        |    13 | rust
+crates/liwe/src/locale.rs     |    76 | rust
+crates/liwe/src/markdown.rs   |    73 | rust
+crates/liwe/src/markdown/reader.rs |   703 | rust
+crates/liwe/src/markdown/writer.rs |   371 | rust
+crates/liwe/src/model.rs      |   168 | rust
+crates/liwe/src/model/config.rs |   800 | rust
+crates/liwe/src/model/document.rs |   947 | rust
+crates/liwe/src/model/graph.rs |   670 | rust
+crates/liwe/src/model/node.rs |   441 | rust
+crates/liwe/src/model/projector.rs |   193 | rust
+crates/liwe/src/model/reference.rs |    26 | rust
+crates/liwe/src/model/tree.rs |   900 | rust
+crates/liwe/src/operations.rs |    15 | rust
+crates/liwe/src/operations/changes.rs |    84 | rust
+crates/liwe/src/operations/config.rs |    37 | rust
+crates/liwe/src/operations/delete.rs |    40 | rust
+crates/liwe/src/operations/extract.rs |   260 | rust
+crates/liwe/src/operations/inline.rs |    92 | rust
+crates/liwe/src/operations/rename.rs |    46 | rust
+crates/liwe/src/operations/util.rs |    82 | rust
+crates/liwe/src/parser.rs     |   197 | rust
+crates/liwe/src/retrieve.rs   |   403 | rust
+crates/liwe/src/selector.rs   |   337 | rust
+crates/liwe/src/state.rs      |    72 | rust
+crates/liwe/src/stats.rs      |   429 | rust
+crates/liwe/tests/bare_frontmatter_test.rs |   208 | rust
+crates/liwe/tests/config_migration_test.rs |   326 | rust
+crates/liwe/tests/find_metadata_test.rs |   160 | rust
+crates/liwe/tests/formatting_test.rs |   425 | rust
+crates/liwe/tests/frontmatter_title_test.rs |   146 | rust
+crates/liwe/tests/gitignore_test.rs |    81 | rust
+crates/liwe/tests/links_test.rs |   332 | rust
+crates/liwe/tests/normalization_headers.rs |   370 | rust
+crates/liwe/tests/normalization_html.rs |    61 | rust
+crates/liwe/tests/normalization_lists.rs |   371 | rust
+crates/liwe/tests/normalization_metadata.rs |    52 | rust
+crates/liwe/tests/normalization_misc.rs |   344 | rust
+crates/liwe/tests/normalization_raw.rs |   163 | rust
+crates/liwe/tests/squash_test.rs |   313 | rust
+crates/liwe/tests/toc_test.rs |   133 | rust
+crates/liwe/tests/virtual_directories_test.rs |   168 | rust
+
+── .indexnudge.db has 7 tables: calls, defs, directories, files, imports, lines, symbols ──
+Every line of source is in `lines`. Every function call is in `calls`.
+Every symbol definition is in `symbols`. Full-text search via `lines_fts`.
+For deeper exploration: sqlite3 /home/dangood/src/iwe/.indexnudge.db .schema
+Okay, the file structure gives us a map. Based on the names, the core logic seems to be split between `iwe` (the command-line binary) and `liwe` (the library).
+
+- `crates/iwe/src/main.rs`: This is the entry point for the `iwe` command. It will handle parsing the command-line arguments.
+- `crates/iwe/src/find.rs`: The `find` subcommand seems to have its own module, which makes sense.
+- `crates/liwe/src/find.rs`: This is likely where the actual filtering logic resides, called by the `iwe` executable.
+- `crates/liwe/src/model/document.rs`: This probably defines the `Document` struct and how metadata is stored.
+
+I'll start by examining `crates/iwe/src/main.rs` to see how the `--meta` flag is parsed.
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge.db "SELECT DISTINCT sql FROM calls WHERE function = 'find' AND file = 'crates/iwe/src/main.rs'"
+
+Parse error in 2nd command line argument: no such column: sql
+  SELECT DISTINCT sql FROM calls WHERE function = 'find' AND file = 'crates/iwe/
+                  ^--- error here
+
+Command exited with code 1My apologies; I wrote a bad query. The `calls` table lacks an `sql` column, a fact I should have confirmed via the schema beforehand. I'll now retrieve the `line` and `file` to locate the `find` function call in `main.rs`.

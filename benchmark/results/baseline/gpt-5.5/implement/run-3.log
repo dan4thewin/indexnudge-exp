@@ -1,0 +1,2776 @@
+
+  ────────────────────────────────────────
+  ▸ todo_write todo
+    content: - [ ] Add `--count` flag to `iwe find`
+  - [ ] Inspect current `iwe find` CLI and execution path
+  - [ ] Implement flag so it prints only number of matching documents
+  - [ ] Ensure it composes with all existing filters (`--meta`, `--roots`, `--refs-to`, etc.)
+  - [ ] Add/update tests for count behavior with filters
+  - [ ] Run `cargo build`
+  - [ ] Run `cargo test`
+
+I’ll trace the existing `find` command path first, then add the flag and tests against the current behavior.
+  ────────────────────────────────────────
+  ▸ shell
+    command: pwd && ls
+
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge.db '.schema' | head -120
+    timeout_secs: 10
+
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge.db "select path from files where path regexp 'find|cli|command' order by path limit 80;"
+    timeout_secs: 10
+
+/home/dangood/src/iwe
+AUDIT_FINDINGS.md
+BARE_FRONTMATTER_SPEC.md
+CONTRIBUTING.md
+Cargo.lock
+Cargo.toml
+ENHANCEMENTS_SPEC.md
+IMPLEMENTATION_PLAN.md
+LICENSE-APACHE
+README.md
+audit
+crates
+docs
+run-enhancements.sh
+run-merge-envelope.sh
+targetCREATE TABLE lines (
+            file     TEXT,
+            line_num INTEGER,
+            content  TEXT,
+            symbol   TEXT,
+            PRIMARY KEY (file, line_num)
+        );
+CREATE VIRTUAL TABLE lines_fts USING fts5(file, line_num, content, symbol)
+/* lines_fts(file,line_num,content,symbol) */;
+CREATE TABLE 'lines_fts_data'(id INTEGER PRIMARY KEY, block BLOB);
+CREATE TABLE 'lines_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
+CREATE TABLE 'lines_fts_content'(id INTEGER PRIMARY KEY, c0, c1, c2, c3);
+CREATE TABLE 'lines_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
+CREATE TABLE 'lines_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID;
+CREATE TABLE symbols (
+            id             INTEGER PRIMARY KEY,
+            name           TEXT,
+            qualified_name TEXT,
+            kind           TEXT,
+            file           TEXT,
+            start_line     INTEGER,
+            end_line       INTEGER,
+            parent         TEXT,
+            signature      TEXT
+        );
+CREATE TABLE calls (
+            caller_file   TEXT,
+            caller_symbol TEXT,
+            callee        TEXT,
+            callee_qname  TEXT,
+            kind          TEXT,
+            line_num      INTEGER
+        );
+CREATE TABLE defs (
+            symbol TEXT,
+            file   TEXT,
+            line_num INTEGER,
+            var    TEXT,
+            kind   TEXT
+        );
+CREATE TABLE imports (
+            file   TEXT,
+            module TEXT,
+            line_num INTEGER
+        );
+CREATE INDEX idx_symbols_name ON symbols(name);
+CREATE INDEX idx_symbols_qualified ON symbols(qualified_name);
+CREATE INDEX idx_symbols_file ON symbols(file);
+CREATE INDEX idx_calls_callee ON calls(callee);
+CREATE INDEX idx_calls_caller ON calls(caller_symbol);
+CREATE INDEX idx_defs_var ON defs(var);
+CREATE INDEX idx_imports_module ON imports(module);
+CREATE TABLE files (
+            file           TEXT PRIMARY KEY,
+            lines          INTEGER,
+            language       TEXT,
+            indexed_mtime  REAL,
+            parse_error    INTEGER DEFAULT 0
+        );
+CREATE TABLE directories (
+            path        TEXT PRIMARY KEY,
+            file_count  INTEGER,
+            total_lines INTEGER
+        );Parse error in 2nd command line argument: no such column: path
+  select path from files where path regexp 'find|cli|command' order by path limi
+         ^--- error here
+
+Command exited with code 1
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge.db "select file from files where file regexp 'find|cli|command' order by file limit 120;"
+    timeout_secs: 10
+
+crates/iwe/tests/find_test.rs
+crates/iwec/tests/find_test.rs
+crates/liwe/src/find.rs
+crates/liwe/tests/find_metadata_test.rs
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge.db "select file,line_num,content from lines where file in ('crates/liwe/src/find.rs','crates/iwe/tests/find_test.rs','crates/iwec/tests/find_test.rs','crates/liwe/tests/find_metadata_test.rs') order by file,line_num;"
+    timeout_secs: 10
+
+crates/liwe/tests/find_metadata_test.rs|111|        ---
+crates/liwe/tests/find_metadata_test.rs|112|        title: Task A
+crates/liwe/tests/find_metadata_test.rs|113|        tags:
+crates/liwe/tests/find_metadata_test.rs|114|          - rust
+crates/liwe/tests/find_metadata_test.rs|115|          - iwe
+crates/liwe/tests/find_metadata_test.rs|116|        ---
+crates/liwe/tests/find_metadata_test.rs|117|
+crates/liwe/tests/find_metadata_test.rs|118|        # Task A
+crates/liwe/tests/find_metadata_test.rs|119|    "});
+crates/liwe/tests/find_metadata_test.rs|120|
+crates/liwe/tests/find_metadata_test.rs|121|    let finder = DocumentFinder::new(&graph);
+crates/liwe/tests/find_metadata_test.rs|122|    let options = FindOptions {
+crates/liwe/tests/find_metadata_test.rs|123|        metadata_filters: vec![("tags".to_string(), "rust".to_string())],
+crates/liwe/tests/find_metadata_test.rs|124|        ..Default::default()
+crates/liwe/tests/find_metadata_test.rs|125|    };
+crates/liwe/tests/find_metadata_test.rs|126|    let output = finder.find(&options);
+crates/liwe/tests/find_metadata_test.rs|127|    assert_eq!(output.results.len(), 1);
+crates/liwe/tests/find_metadata_test.rs|128|    assert_eq!(output.results[0].title, "Task A");
+crates/liwe/tests/find_metadata_test.rs|129|}
+crates/liwe/tests/find_metadata_test.rs|130|
+crates/liwe/tests/find_metadata_test.rs|131|#[test]
+crates/liwe/tests/find_metadata_test.rs|132|fn combines_with_roots_flag() {
+crates/liwe/tests/find_metadata_test.rs|133|    let graph = setup_graph(indoc! {"
+crates/liwe/tests/find_metadata_test.rs|134|        ---
+crates/liwe/tests/find_metadata_test.rs|135|        title: Root
+crates/liwe/tests/find_metadata_test.rs|136|        status: ready
+crates/liwe/tests/find_metadata_test.rs|137|        ---
+crates/liwe/tests/find_metadata_test.rs|138|
+crates/liwe/tests/find_metadata_test.rs|139|        # Root
+crates/liwe/tests/find_metadata_test.rs|140|
+crates/liwe/tests/find_metadata_test.rs|141|        [child](2)
+crates/liwe/tests/find_metadata_test.rs|142|        _
+crates/liwe/tests/find_metadata_test.rs|143|        ---
+crates/liwe/tests/find_metadata_test.rs|144|        title: Child
+crates/liwe/tests/find_metadata_test.rs|145|        status: ready
+crates/liwe/tests/find_metadata_test.rs|146|        ---
+crates/liwe/tests/find_metadata_test.rs|147|
+crates/liwe/tests/find_metadata_test.rs|148|        # Child
+crates/liwe/tests/find_metadata_test.rs|149|    "});
+crates/liwe/tests/find_metadata_test.rs|150|
+crates/liwe/tests/find_metadata_test.rs|151|    let finder = DocumentFinder::new(&graph);
+crates/liwe/tests/find_metadata_test.rs|152|    let options = FindOptions {
+crates/liwe/tests/find_metadata_test.rs|153|        roots: true,
+crates/liwe/tests/find_metadata_test.rs|154|        metadata_filters: vec![("status".to_string(), "ready".to_string())],
+crates/liwe/tests/find_metadata_test.rs|155|        ..Default::default()
+crates/liwe/tests/find_metadata_test.rs|156|    };
+crates/liwe/tests/find_metadata_test.rs|157|    let output = finder.find(&options);
+crates/liwe/tests/find_metadata_test.rs|158|    assert_eq!(output.results.len(), 1);
+crates/liwe/tests/find_metadata_test.rs|159|    assert_eq!(output.results[0].title, "Root");
+crates/liwe/tests/find_metadata_test.rs|160|}[Output exceeded 50000 byte limit (69629 bytes total). Full output saved to /tmp/.tmpXAzlZq/stdout-4. Read it with shell commands like `head`, `tail`, or `sed -n '100,200p'` up to 2000 lines at a time.]
+[Output exceeded 50000 byte limit (69629 bytes total). Full output saved to /tmp/.tmpXAzlZq/output-4. Read it with shell commands like `head`, `tail`, or `sed -n '100,200p'` up to 2000 lines at a time.]
+  ────────────────────────────────────────
+  ▸ shell
+    command: sed -n '1,260p' crates/liwe/src/find.rs && printf '\n--- iwe tests ---\n' && sed -n '1,220p' crates/iwe/tests/find_test.rs && printf '\n--- iwec tests ---\n' && sed -n '1,220p' crates/iwec/tests/find_test.rs
+    timeout_secs: 10
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge.db ──
+query: SELECT line_num, content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN 1 AND 260;
+** STOP USING sed. Query the DB directly: sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN START AND END ORDER BY line_num;" **
+
+   1 │ use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
+   2 │ use itertools::Itertools;
+   3 │ use serde::Serialize;
+   4 │ use crate::graph::{Graph, GraphContext};
+   5 │ use crate::model::node::{NodeIter, NodePointer};
+   6 │ use crate::model::{Key, NodeId};
+   7 │ use crate::selector::Selector;
+   8 │ 
+   9 │ #[derive(Debug, Clone, Serialize)]
+  10 │ pub struct ParentDocumentInfo {
+  11 │     pub key: String,
+  12 │     pub title: String,
+  13 │     pub section_path: Vec<String>,
+  14 │ }
+  15 │ 
+  16 │ #[derive(Debug, Clone, Serialize)]
+  17 │ pub struct FindResult {
+  18 │     pub key: String,
+  19 │     pub title: String,
+  20 │     pub display_title: String,
+  21 │     pub is_root: bool,
+  22 │     pub incoming_refs: usize,
+  23 │     pub outgoing_refs: usize,
+  24 │     pub parent_documents: Vec<ParentDocumentInfo>,
+  25 │ }
+  26 │ 
+  27 │ #[derive(Debug, Clone, Serialize)]
+  28 │ pub struct FindOutput {
+  29 │     pub query: Option<String>,
+  30 │     pub limit: Option<usize>,
+  31 │     pub total: usize,
+  32 │     pub results: Vec<FindResult>,
+  33 │ }
+  34 │ 
+  35 │ #[derive(Debug, Clone, Default)]
+  36 │ pub struct FindOptions {
+  37 │     pub query: Option<String>,
+  38 │     pub roots: bool,
+  39 │     pub refs_to: Option<Key>,
+  40 │     pub refs_from: Option<Key>,
+  41 │     pub selector: Selector,
+  42 │     pub limit: Option<usize>,
+  43 │     pub metadata_filters: Vec<(String, String)>,
+  44 │ }
+  45 │ 
+  46 │ pub struct DocumentFinder<'a> {
+  47 │     graph: &'a Graph,
+  48 │ }
+  49 │ 
+  50 │ impl<'a> DocumentFinder<'a> {
+  51 │     pub fn new(graph: &'a Graph) -> Self {
+  52 │         Self { graph }
+  53 │     }
+  54 │ 
+  55 │     pub fn find(&self, options: &FindOptions) -> FindOutput {
+  56 │         let matcher = SkimMatcherV2::default();
+  57 │ 
+  58 │         let candidate_set = if options.selector.is_empty() {
+  59 │             None
+  60 │         } else {
+  61 │             Some(options.selector.resolve(self.graph))
+  62 │         };
+  63 │ 
+  64 │         let mut results: Vec<(Key, i64)> = self
+  65 │             .graph
+  66 │             .keys()
+  67 │             .into_iter()
+  68 │             .filter_map(|key| {
+  69 │                 if let Some(set) = &candidate_set {
+  70 │                     if !set.contains(&key) {
+  71 │                         return None;
+  72 │                     }
+  73 │                 }
+  74 │                 if options.roots && !self.is_root(&key) {
+  75 │                     return None;
+  76 │                 }
+  77 │                 if let Some(ref target) = options.refs_to {
+  78 │                     if !self.references(&key, target) {
+  79 │                         return None;
+  80 │                     }
+  81 │                 }
+  82 │                 if let Some(ref source) = options.refs_from {
+  83 │                     if !self.references(source, &key) {
+  84 │                         return None;
+  85 │                     }
+  86 │                 }
+  87 │ 
+  88 │                 if !options.metadata_filters.is_empty()
+  89 │                     && !self.metadata_matches(&key, &options.metadata_filters)
+  90 │                 {
+  91 │                     return None;
+  92 │                 }
+  93 │ 
+  94 │                 let title = self.graph.get_key_title(&key).unwrap_or_default();
+  95 │                 let search_text = format!("{} {}", key, title);
+  96 │ 
+  97 │                 let score = options
+  98 │                     .query
+  99 │                     .as_ref()
+ 100 │                     .map(|q| matcher.fuzzy_match(&search_text, q).unwrap_or(0))
+ 101 │                     .unwrap_or(self.node_rank(&key) as i64);
+ 102 │ 
+ 103 │                 if options.query.is_some() && score == 0 {
+ 104 │                     return None;
+ 105 │                 }
+ 106 │ 
+ 107 │                 Some((key, score))
+ 108 │             })
+ 109 │             .collect();
+ 110 │ 
+ 111 │         results.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+ 112 │ 
+ 113 │         let total = results.len();
+ 114 │         let results: Vec<FindResult> = if let Some(limit) = options.limit {
+ 115 │             results
+ 116 │                 .into_iter()
+ 117 │                 .take(limit)
+ 118 │                 .map(|(key, _)| self.build_result(&key))
+ 119 │                 .collect()
+ 120 │         } else {
+ 121 │             results
+ 122 │                 .into_iter()
+ 123 │                 .map(|(key, _)| self.build_result(&key))
+ 124 │                 .collect()
+ 125 │         };
+ 126 │ 
+ 127 │         let limit = options.limit.filter(|&l| l < total);
+ 128 │ 
+ 129 │         FindOutput {
+ 130 │             query: options.query.clone(),
+ 131 │             limit,
+ 132 │             total,
+ 133 │             results,
+ 134 │         }
+ 135 │     }
+ 136 │ 
+ 137 │     fn build_result(&self, key: &Key) -> FindResult {
+ 138 │         let title = self.graph.get_key_title(key).unwrap_or_default();
+ 139 │         let parent_documents = self.get_parent_documents(key);
+ 140 │         let display_title = Self::render_display_title(&title, &parent_documents);
+ 141 │ 
+ 142 │         FindResult {
+ 143 │             key: key.to_string(),
+ 144 │             title,
+ 145 │             display_title,
+ 146 │             is_root: self.is_root(key),
+ 147 │             incoming_refs: self.graph.get_block_references_to(key).len()
+ 148 │                 + self.graph.get_inline_references_to(key).len(),
+ 149 │             outgoing_refs: self.graph.get_block_references_in(key).len(),
+ 150 │             parent_documents,
+ 151 │         }
+ 152 │     }
+ 153 │ 
+ 154 │     fn render_display_title(title: &str, parent_documents: &[ParentDocumentInfo]) -> String {
+ 155 │         if parent_documents.is_empty() {
+ 156 │             title.to_string()
+ 157 │         } else {
+ 158 │             let parents = parent_documents
+ 159 │                 .iter()
+ 160 │                 .map(|p| format!("↖{}", p.title))
+ 161 │                 .collect::<Vec<_>>()
+ 162 │                 .join(" ");
+ 163 │             format!("{} {}", title, parents)
+ 164 │         }
+ 165 │     }
+ 166 │ 
+ 167 │     fn is_root(&self, key: &Key) -> bool {
+ 168 │         self.graph.get_block_references_to(key).is_empty()
+ 169 │     }
+ 170 │ 
+ 171 │     fn node_rank(&self, key: &Key) -> usize {
+ 172 │         self.graph.get_inline_references_to(key).len()
+ 173 │             + self.graph.get_block_references_to(key).len()
+ 174 │     }
+ 175 │ 
+ 176 │     fn references(&self, source: &Key, target: &Key) -> bool {
+ 177 │         let block_refs = self.graph.get_block_references_in(source);
+ 178 │         for ref_id in block_refs {
+ 179 │             if let Some(ref_key) = self.graph.graph_node(ref_id).ref_key() {
+ 180 │                 if &ref_key == target {
+ 181 │                     return true;
+ 182 │                 }
+ 183 │             }
+ 184 │         }
+ 185 │ 
+ 186 │         if let Some(node_id) = self.graph.get_node_id(source) {
+ 187 │             let sub_nodes = self.graph.node(node_id).get_all_sub_nodes();
+ 188 │             for sub_node_id in sub_nodes {
+ 189 │                 if let Some(line_id) = self.graph.graph_node(sub_node_id).line_id() {
+ 190 │                     let line = self.graph.get_line(line_id);
+ 191 │                     for ref_key in line.ref_keys() {
+ 192 │                         if &ref_key == target {
+ 193 │                             return true;
+ 194 │                         }
+ 195 │                     }
+ 196 │                 }
+ 197 │             }
+ 198 │         }
+ 199 │ 
+ 200 │         false
+ 201 │     }
+ 202 │ 
+ 203 │     fn get_parent_documents(&self, key: &Key) -> Vec<ParentDocumentInfo> {
+ 204 │         let refs = self.graph.get_block_references_to(key);
+ 205 │         let mut parents = Vec::new();
+ 206 │ 
+ 207 │         for ref_id in refs {
+ 208 │             let node = self.graph.node(ref_id);
+ 209 │ 
+ 210 │             if let Some(doc_node) = node.to_document() {
+ 211 │                 if let Some(doc_key) = doc_node.document_key() {
+ 212 │                     let title = self
+ 213 │                         .graph
+ 214 │                         .get_key_title(&doc_key)
+ 215 │                         .unwrap_or_else(|| doc_key.to_string());
+ 216 │ 
+ 217 │                     let section_path = self.get_section_path(ref_id);
+ 218 │ 
+ 219 │                     parents.push(ParentDocumentInfo {
+ 220 │                         key: doc_key.to_string(),
+ 221 │                         title,
+ 222 │                         section_path,
+ 223 │                     });
+ 224 │                 }
+ 225 │             }
+ 226 │         }
+ 227 │ 
+ 228 │         parents.into_iter().unique_by(|p| p.key.clone()).collect()
+ 229 │     }
+ 230 │ 
+ 231 │     fn get_section_path(&self, node_id: NodeId) -> Vec<String> {
+ 232 │         let mut path = Vec::new();
+ 233 │         let mut current = self.graph.node(node_id);
+ 234 │ 
+ 235 │         while let Some(parent) = current.to_parent() {
+ 236 │             if parent.is_section()
+ 237 │                 && parent
+ 238 │                     .to_parent()
+ 239 │                     .map(|p| p.is_document())
+ 240 │                     .unwrap_or(true)
+ 241 │             {
+ 242 │                 let text = parent.plain_text().trim().to_string();
+ 243 │                 path.push(text);
+ 244 │             }
+ 245 │             if parent.is_document() {
+ 246 │                 break;
+ 247 │             }
+ 248 │             current = parent;
+ 249 │         }
+ 250 │         path
+ 251 │     }
+ 252 │ 
+ 253 │     fn metadata_matches(&self, key: &Key, filters: &[(String, String)]) -> bool {
+ 254 │         let raw = match self.graph.get_metadata(key) {
+ 255 │             Some(s) => s,
+ 256 │             None => return false,
+ 257 │         };
+ 258 │         let val: serde_yaml::Value = match serde_yaml::from_str(raw) {
+ 259 │             Ok(v) => v,
+ 260 │             _ => return false,
+
+── enclosing: ParentDocumentInfo | struct | lines 10-10
+FindResult | struct | lines 17-17
+FindOutput | struct | lines 28-28
+FindOptions | struct | lines 36-36
+DocumentFinder | struct | lines 46-46
+DocumentFinder | impl | lines 50-278
+new | method | lines 51-53
+find | method | lines 55-135
+build_result | method | lines 137-152
+render_display_title | method | lines 154-165
+is_root | method | lines 167-169
+node_rank | method | lines 171-174
+references | method | lines 176-201
+get_parent_documents | method | lines 203-229
+get_section_path | method | lines 231-251
+metadata_matches | method | lines 253-277 ──
+── full  struct : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN 10 AND 10 ORDER BY line_num;" ──
+── full  struct : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN 17 AND 17 ORDER BY line_num;" ──
+── full  struct : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN 28 AND 28 ORDER BY line_num;" ──
+── full  struct : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN 36 AND 36 ORDER BY line_num;" ──
+── full  struct : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN 46 AND 46 ORDER BY line_num;" ──
+── full  impl : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN 50 AND 278 ORDER BY line_num;" ──
+── full  method : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN 51 AND 53 ORDER BY line_num;" ──
+── full  method : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN 55 AND 135 ORDER BY line_num;" ──
+── full  method : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN 137 AND 152 ORDER BY line_num;" ──
+── full  method : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN 154 AND 165 ORDER BY line_num;" ──
+── full  method : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN 167 AND 169 ORDER BY line_num;" ──
+── full  method : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN 171 AND 174 ORDER BY line_num;" ──
+── full  method : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN 176 AND 201 ORDER BY line_num;" ──
+── full  method : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN 203 AND 229 ORDER BY line_num;" ──
+── full  method : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN 231 AND 251 ORDER BY line_num;" ──
+── full  method : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN 253 AND 277 ORDER BY line_num;" ──
+
+--- iwe tests ---
+── sqlite3 /home/dangood/src/iwe/.indexnudge.db ──
+query: SELECT line_num, content FROM lines WHERE file='crates/iwe/tests/find_test.rs' AND line_num BETWEEN 1 AND 220;
+** STOP USING sed. Query the DB directly: sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/iwe/tests/find_test.rs' AND line_num BETWEEN START AND END ORDER BY line_num;" **
+
+   1 │ use indoc::indoc;
+   2 │ use liwe::model::config::{Configuration, LibraryOptions, MarkdownOptions};
+   3 │ use std::fs::{create_dir_all, write};
+   4 │ use std::process::Command;
+   5 │ use tempfile::TempDir;
+   6 │ 
+   7 │ mod common;
+   8 │ 
+   9 │ fn setup_workspace() -> TempDir {
+  10 │     let temp_dir = TempDir::new().expect("Failed to create temp directory");
+  11 │     let temp_path = temp_dir.path();
+  12 │ 
+  13 │     create_dir_all(temp_path.join(".iwe")).expect("Failed to create .iwe directory");
+  14 │ 
+  15 │     let config = Configuration {
+  16 │         library: LibraryOptions {
+  17 │             path: "".to_string(),
+  18 │             ..Default::default()
+  19 │         },
+  20 │         markdown: MarkdownOptions {
+  21 │             refs_extension: "".to_string(),
+  22 │             ..Default::default()
+  23 │         },
+  24 │         ..Default::default()
+  25 │     };
+  26 │ 
+  27 │     let config_content = toml::to_string(&config).expect("Failed to serialize config to TOML");
+  28 │     write(temp_path.join(".iwe").join("config.toml"), config_content)
+  29 │         .expect("Should write config file");
+  30 │ 
+  31 │     temp_dir
+  32 │ }
+  33 │ 
+  34 │ fn run_iwe(dir: &std::path::Path, args: &[&str]) -> (String, String, bool) {
+  35 │     let mut command = Command::new(common::get_iwe_binary_path());
+  36 │     command.arg("find").current_dir(dir);
+  37 │ 
+  38 │     for arg in args {
+  39 │         command.arg(arg);
+  40 │     }
+  41 │ 
+  42 │     let output = command.output().expect("Failed to execute command");
+  43 │ 
+  44 │     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+  45 │     let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+  46 │     let success = output.status.success();
+  47 │ 
+  48 │     (stdout, stderr, success)
+  49 │ }
+  50 │ 
+  51 │ #[test]
+  52 │ fn test_find_lists_all_documents() {
+  53 │     let dir = setup_workspace();
+  54 │ 
+  55 │     write(
+  56 │         dir.path().join("doc1.md"),
+  57 │         indoc! {"
+  58 │             # Document One
+  59 │ 
+  60 │             Content one.
+  61 │         "},
+  62 │     )
+  63 │     .unwrap();
+  64 │ 
+  65 │     write(
+  66 │         dir.path().join("doc2.md"),
+  67 │         indoc! {"
+  68 │             # Document Two
+  69 │ 
+  70 │             Content two.
+  71 │         "},
+  72 │     )
+  73 │     .unwrap();
+  74 │ 
+  75 │     let (stdout, stderr, success) = run_iwe(dir.path(), &["-f", "json"]);
+  76 │ 
+  77 │     assert!(success, "stderr: {}", stderr);
+  78 │ 
+  79 │     let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+  80 │     assert_eq!(parsed["total"], 2);
+  81 │ 
+  82 │     let results = parsed["results"].as_array().unwrap();
+  83 │     let keys: Vec<&str> = results.iter().map(|r| r["key"].as_str().unwrap()).collect();
+  84 │     assert!(keys.contains(&"doc1"));
+  85 │     assert!(keys.contains(&"doc2"));
+  86 │ }
+  87 │ 
+  88 │ #[test]
+  89 │ fn test_find_fuzzy_search() {
+  90 │     let dir = setup_workspace();
+  91 │ 
+  92 │     write(dir.path().join("authentication.md"), "# User Authentication\n\nAuth content.").unwrap();
+  93 │     write(dir.path().join("database.md"), "# Database Config\n\nDB content.").unwrap();
+  94 │     write(dir.path().join("api.md"), "# API Endpoints\n\nAPI content.").unwrap();
+  95 │ 
+  96 │     let (stdout, stderr, success) = run_iwe(dir.path(), &["auth", "-f", "json"]);
+  97 │ 
+  98 │     assert!(success, "stderr: {}", stderr);
+  99 │ 
+ 100 │     let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+ 101 │     let results = parsed["results"].as_array().unwrap();
+ 102 │ 
+ 103 │     assert!(!results.is_empty(), "Should find at least one result");
+ 104 │     assert_eq!(results[0]["key"], "authentication");
+ 105 │ }
+ 106 │ 
+ 107 │ #[test]
+ 108 │ fn test_find_roots_only() {
+ 109 │     let dir = setup_workspace();
+ 110 │ 
+ 111 │     write(
+ 112 │         dir.path().join("parent.md"),
+ 113 │         indoc! {"
+ 114 │             # Parent
+ 115 │ 
+ 116 │             [child](child)
+ 117 │         "},
+ 118 │     )
+ 119 │     .unwrap();
+ 120 │ 
+ 121 │     write(dir.path().join("child.md"), "# Child\n\nChild content.").unwrap();
+ 122 │     write(dir.path().join("orphan.md"), "# Orphan\n\nNo references.").unwrap();
+ 123 │ 
+ 124 │     let (stdout, stderr, success) = run_iwe(dir.path(), &["--roots", "-f", "json"]);
+ 125 │ 
+ 126 │     assert!(success, "stderr: {}", stderr);
+ 127 │ 
+ 128 │     let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+ 129 │     let results = parsed["results"].as_array().unwrap();
+ 130 │ 
+ 131 │     let keys: Vec<&str> = results.iter().map(|r| r["key"].as_str().unwrap()).collect();
+ 132 │ 
+ 133 │     assert!(keys.contains(&"parent"), "parent should be a root");
+ 134 │     assert!(keys.contains(&"orphan"), "orphan should be a root");
+ 135 │     assert!(!keys.contains(&"child"), "child should NOT be a root");
+ 136 │ }
+ 137 │ 
+ 138 │ #[test]
+ 139 │ fn test_find_refs_to() {
+ 140 │     let dir = setup_workspace();
+ 141 │ 
+ 142 │     write(
+ 143 │         dir.path().join("doc1.md"),
+ 144 │         indoc! {"
+ 145 │             # Doc One
+ 146 │ 
+ 147 │             [target](target)
+ 148 │         "},
+ 149 │     )
+ 150 │     .unwrap();
+ 151 │ 
+ 152 │     write(
+ 153 │         dir.path().join("doc2.md"),
+ 154 │         indoc! {"
+ 155 │             # Doc Two
+ 156 │ 
+ 157 │             [target](target)
+ 158 │         "},
+ 159 │     )
+ 160 │     .unwrap();
+ 161 │ 
+ 162 │     write(dir.path().join("doc3.md"), "# Doc Three\n\nNo refs.").unwrap();
+ 163 │     write(dir.path().join("target.md"), "# Target\n\nTarget content.").unwrap();
+ 164 │ 
+ 165 │     let (stdout, stderr, success) = run_iwe(dir.path(), &["--refs-to", "target", "-f", "json"]);
+ 166 │ 
+ 167 │     assert!(success, "stderr: {}", stderr);
+ 168 │ 
+ 169 │     let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+ 170 │     let results = parsed["results"].as_array().unwrap();
+ 171 │ 
+ 172 │     let keys: Vec<&str> = results.iter().map(|r| r["key"].as_str().unwrap()).collect();
+ 173 │ 
+ 174 │     assert!(keys.contains(&"doc1"), "doc1 references target");
+ 175 │     assert!(keys.contains(&"doc2"), "doc2 references target");
+ 176 │     assert!(!keys.contains(&"doc3"), "doc3 does not reference target");
+ 177 │     assert!(!keys.contains(&"target"), "target does not reference itself");
+ 178 │ }
+ 179 │ 
+ 180 │ #[test]
+ 181 │ fn test_find_refs_from() {
+ 182 │     let dir = setup_workspace();
+ 183 │ 
+ 184 │     write(
+ 185 │         dir.path().join("source.md"),
+ 186 │         indoc! {"
+ 187 │             # Source
+ 188 │ 
+ 189 │             [child1](child1)
+ 190 │ 
+ 191 │             [child2](child2)
+ 192 │         "},
+ 193 │     )
+ 194 │     .unwrap();
+ 195 │ 
+ 196 │     write(dir.path().join("child1.md"), "# Child One\n\nContent.").unwrap();
+ 197 │     write(dir.path().join("child2.md"), "# Child Two\n\nContent.").unwrap();
+ 198 │     write(dir.path().join("other.md"), "# Other\n\nNot referenced by source.").unwrap();
+ 199 │ 
+ 200 │     let (stdout, stderr, success) = run_iwe(dir.path(), &["--refs-from", "source", "-f", "json"]);
+ 201 │ 
+ 202 │     assert!(success, "stderr: {}", stderr);
+ 203 │ 
+ 204 │     let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+ 205 │     let results = parsed["results"].as_array().unwrap();
+ 206 │ 
+ 207 │     let keys: Vec<&str> = results.iter().map(|r| r["key"].as_str().unwrap()).collect();
+ 208 │ 
+ 209 │     assert!(keys.contains(&"child1"), "child1 is referenced by source");
+ 210 │     assert!(keys.contains(&"child2"), "child2 is referenced by source");
+ 211 │     assert!(!keys.contains(&"other"), "other is not referenced by source");
+ 212 │     assert!(!keys.contains(&"source"), "source does not reference itself");
+ 213 │ }
+ 214 │ 
+ 215 │ #[test]
+ 216 │ fn test_find_limit() {
+ 217 │     let dir = setup_workspace();
+ 218 │ 
+ 219 │     for i in 1..=10 {
+ 220 │         write(
+
+── enclosing: setup_workspace | function | lines 9-32
+run_iwe | function | lines 34-49
+test_find_lists_all_documents | function | lines 52-86
+test_find_fuzzy_search | function | lines 89-105
+test_find_roots_only | function | lines 108-136
+test_find_refs_to | function | lines 139-178
+test_find_refs_from | function | lines 181-213
+test_find_limit | function | lines 216-234 ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/iwe/tests/find_test.rs' AND line_num BETWEEN 9 AND 32 ORDER BY line_num;" ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/iwe/tests/find_test.rs' AND line_num BETWEEN 34 AND 49 ORDER BY line_num;" ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/iwe/tests/find_test.rs' AND line_num BETWEEN 52 AND 86 ORDER BY line_num;" ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/iwe/tests/find_test.rs' AND line_num BETWEEN 89 AND 105 ORDER BY line_num;" ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/iwe/tests/find_test.rs' AND line_num BETWEEN 108 AND 136 ORDER BY line_num;" ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/iwe/tests/find_test.rs' AND line_num BETWEEN 139 AND 178 ORDER BY line_num;" ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/iwe/tests/find_test.rs' AND line_num BETWEEN 181 AND 213 ORDER BY line_num;" ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/iwe/tests/find_test.rs' AND line_num BETWEEN 216 AND 234 ORDER BY line_num;" ──
+
+--- iwec tests ---
+── sqlite3 /home/dangood/src/iwe/.indexnudge.db ──
+query: SELECT line_num, content FROM lines WHERE file='crates/iwec/tests/find_test.rs' AND line_num BETWEEN 1 AND 220;
+** STOP USING sed. Query the DB directly: sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/iwec/tests/find_test.rs' AND line_num BETWEEN START AND END ORDER BY line_num;" **
+
+   1 │ mod fixture;
+   2 │ 
+   3 │ use fixture::Fixture;
+   4 │ use serde_json::json;
+   5 │ 
+   6 │ #[tokio::test]
+   7 │ async fn find_all_documents() {
+   8 │     let f = Fixture::with_documents(vec![
+   9 │         ("1", "# First document\n"),
+  10 │         ("2", "# Second document\n"),
+  11 │     ])
+  12 │     .await;
+  13 │ 
+  14 │     let result = f.call_tool("iwe_find", json!({})).await;
+  15 │     let output = Fixture::result_json(&result);
+  16 │ 
+  17 │     assert_eq!(output["total"], 2);
+  18 │     assert_eq!(output["results"].as_array().unwrap().len(), 2);
+  19 │ }
+  20 │ 
+  21 │ #[tokio::test]
+  22 │ async fn find_by_query() {
+  23 │     let f = Fixture::with_documents(vec![
+  24 │         ("1", "# Rust programming\n"),
+  25 │         ("2", "# Python scripting\n"),
+  26 │         ("3", "# Rust macros\n"),
+  27 │     ])
+  28 │     .await;
+  29 │ 
+  30 │     let result = f.call_tool("iwe_find", json!({"query": "rust"})).await;
+  31 │     let output = Fixture::result_json(&result);
+  32 │ 
+  33 │     assert_eq!(output["total"], 2);
+  34 │     let titles: Vec<&str> = output["results"]
+  35 │         .as_array()
+  36 │         .unwrap()
+  37 │         .iter()
+  38 │         .map(|r| r["title"].as_str().unwrap())
+  39 │         .collect();
+  40 │     assert!(titles.iter().all(|t| t.to_lowercase().contains("rust")));
+  41 │ }
+  42 │ 
+  43 │ #[tokio::test]
+  44 │ async fn find_root_documents() {
+  45 │     let f = Fixture::with_documents(vec![
+  46 │         ("1", "# Root doc\n\n[child](2)\n"),
+  47 │         ("2", "# Child doc\n"),
+  48 │     ])
+  49 │     .await;
+  50 │ 
+  51 │     let result = f.call_tool("iwe_find", json!({"roots": true})).await;
+  52 │     let output = Fixture::result_json(&result);
+  53 │ 
+  54 │     assert_eq!(output["total"], 1);
+  55 │     assert_eq!(output["results"][0]["key"], "1");
+  56 │ }
+  57 │ 
+  58 │ #[tokio::test]
+  59 │ async fn find_with_limit() {
+  60 │     let f = Fixture::with_documents(vec![
+  61 │         ("1", "# Doc one\n"),
+  62 │         ("2", "# Doc two\n"),
+  63 │         ("3", "# Doc three\n"),
+  64 │     ])
+  65 │     .await;
+  66 │ 
+  67 │     let result = f.call_tool("iwe_find", json!({"limit": 2})).await;
+  68 │     let output = Fixture::result_json(&result);
+  69 │ 
+  70 │     assert_eq!(output["results"].as_array().unwrap().len(), 2);
+  71 │     assert_eq!(output["total"], 3);
+  72 │ }
+  73 │ 
+  74 │ fn keys(output: &serde_json::Value) -> Vec<String> {
+  75 │     let mut v: Vec<String> = output["results"]
+  76 │         .as_array()
+  77 │         .unwrap()
+  78 │         .iter()
+  79 │         .map(|r| r["key"].as_str().unwrap().to_string())
+  80 │         .collect();
+  81 │     v.sort();
+  82 │     v
+  83 │ }
+  84 │ 
+  85 │ #[tokio::test]
+  86 │ async fn find_selector_in_intersects_two_parents() {
+  87 │     let f = Fixture::with_documents(vec![
+  88 │         ("a", "# A\n\n[X](x)\n\n[Y](y)\n"),
+  89 │         ("b", "# B\n\n[X](x)\n"),
+  90 │         ("x", "# X\n"),
+  91 │         ("y", "# Y\n"),
+  92 │     ])
+  93 │     .await;
+  94 │ 
+  95 │     let result = f
+  96 │         .call_tool("iwe_find", json!({"in": ["a", "b"]}))
+  97 │         .await;
+  98 │     let output = Fixture::result_json(&result);
+  99 │     assert_eq!(keys(&output), vec!["x"]);
+ 100 │ }
+ 101 │ 
+ 102 │ #[tokio::test]
+ 103 │ async fn find_selector_in_any_unions_parents() {
+ 104 │     let f = Fixture::with_documents(vec![
+ 105 │         ("a", "# A\n\n[X](x)\n"),
+ 106 │         ("b", "# B\n\n[Y](y)\n"),
+ 107 │         ("x", "# X\n"),
+ 108 │         ("y", "# Y\n"),
+ 109 │         ("z", "# Z\n"),
+ 110 │     ])
+ 111 │     .await;
+ 112 │ 
+ 113 │     let result = f
+ 114 │         .call_tool("iwe_find", json!({"in_any": ["a", "b"]}))
+ 115 │         .await;
+ 116 │     let output = Fixture::result_json(&result);
+ 117 │     assert_eq!(keys(&output), vec!["x", "y"]);
+ 118 │ }
+ 119 │ 
+ 120 │ #[tokio::test]
+ 121 │ async fn find_selector_not_in_subtracts() {
+ 122 │     let f = Fixture::with_documents(vec![
+ 123 │         ("a", "# A\n\n[X](x)\n\n[Y](y)\n"),
+ 124 │         ("archive", "# Archive\n\n[Y](y)\n"),
+ 125 │         ("x", "# X\n"),
+ 126 │         ("y", "# Y\n"),
+ 127 │     ])
+ 128 │     .await;
+ 129 │ 
+ 130 │     let result = f
+ 131 │         .call_tool(
+ 132 │             "iwe_find",
+ 133 │             json!({"in": ["a"], "not_in": ["archive"]}),
+ 134 │         )
+ 135 │         .await;
+ 136 │     let output = Fixture::result_json(&result);
+ 137 │     assert_eq!(keys(&output), vec!["x"]);
+ 138 │ }
+ 139 │ 
+ 140 │ #[tokio::test]
+ 141 │ async fn find_selector_per_key_depth() {
+ 142 │     // a → b → c. Per-key depth `a:1` keeps only direct children → {b}.
+ 143 │     let f = Fixture::with_documents(vec![
+ 144 │         ("a", "# A\n\n[B](b)\n"),
+ 145 │         ("b", "# B\n\n[C](c)\n"),
+ 146 │         ("c", "# C\n"),
+ 147 │     ])
+ 148 │     .await;
+ 149 │ 
+ 150 │     let result = f
+ 151 │         .call_tool(
+ 152 │             "iwe_find",
+ 153 │             json!({"in": [{"key": "a", "depth": 1}]}),
+ 154 │         )
+ 155 │         .await;
+ 156 │     let output = Fixture::result_json(&result);
+ 157 │     assert_eq!(keys(&output), vec!["b"]);
+ 158 │ }
+ 159 │ 
+ 160 │ #[tokio::test]
+ 161 │ async fn find_selector_max_depth() {
+ 162 │     let f = Fixture::with_documents(vec![
+ 163 │         ("a", "# A\n\n[B](b)\n"),
+ 164 │         ("b", "# B\n\n[C](c)\n"),
+ 165 │         ("c", "# C\n"),
+ 166 │     ])
+ 167 │     .await;
+ 168 │ 
+ 169 │     let result = f
+ 170 │         .call_tool("iwe_find", json!({"in": ["a"], "max_depth": 1}))
+ 171 │         .await;
+ 172 │     let output = Fixture::result_json(&result);
+ 173 │     assert_eq!(keys(&output), vec!["b"]);
+ 174 │ }
+ 175 │ 
+ 176 │ #[tokio::test]
+ 177 │ async fn find_selector_combines_with_query() {
+ 178 │     let f = Fixture::with_documents(vec![
+ 179 │         ("a", "# A\n\n[Design notes](design)\n\n[Random](random)\n"),
+ 180 │         ("design", "# Design notes\n"),
+ 181 │         ("random", "# Random\n"),
+ 182 │         ("design2", "# Design 2\n"),
+ 183 │     ])
+ 184 │     .await;
+ 185 │ 
+ 186 │     // Selector limits to A's subtree; query further filters to "design".
+ 187 │     let result = f
+ 188 │         .call_tool(
+ 189 │             "iwe_find",
+ 190 │             json!({"in": ["a"], "query": "design"}),
+ 191 │         )
+ 192 │         .await;
+ 193 │     let output = Fixture::result_json(&result);
+ 194 │     assert_eq!(keys(&output), vec!["design"]);
+ 195 │ }
+
+── enclosing: find_all_documents | function | lines 7-19
+find_by_query | function | lines 22-41
+find_root_documents | function | lines 44-56
+find_with_limit | function | lines 59-72
+keys | function | lines 74-83
+find_selector_in_intersects_two_parents | function | lines 86-100
+find_selector_in_any_unions_parents | function | lines 103-118
+find_selector_not_in_subtracts | function | lines 121-138
+find_selector_per_key_depth | function | lines 141-158
+find_selector_max_depth | function | lines 161-174
+find_selector_combines_with_query | function | lines 177-195 ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/iwec/tests/find_test.rs' AND line_num BETWEEN 7 AND 19 ORDER BY line_num;" ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/iwec/tests/find_test.rs' AND line_num BETWEEN 22 AND 41 ORDER BY line_num;" ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/iwec/tests/find_test.rs' AND line_num BETWEEN 44 AND 56 ORDER BY line_num;" ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/iwec/tests/find_test.rs' AND line_num BETWEEN 59 AND 72 ORDER BY line_num;" ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/iwec/tests/find_test.rs' AND line_num BETWEEN 74 AND 83 ORDER BY line_num;" ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/iwec/tests/find_test.rs' AND line_num BETWEEN 86 AND 100 ORDER BY line_num;" ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/iwec/tests/find_test.rs' AND line_num BETWEEN 103 AND 118 ORDER BY line_num;" ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/iwec/tests/find_test.rs' AND line_num BETWEEN 121 AND 138 ORDER BY line_num;" ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/iwec/tests/find_test.rs' AND line_num BETWEEN 141 AND 158 ORDER BY line_num;" ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/iwec/tests/find_test.rs' AND line_num BETWEEN 161 AND 174 ORDER BY line_num;" ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/iwec/tests/find_test.rs' AND line_num BETWEEN 177 AND 195 ORDER BY line_num;" ──
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge.db "select file,line_num,content from lines where content like '%FindOptions%' or content like '%iwe_find%' or content like '%refs_to%' order by file,line_num;"
+    timeout_secs: 10
+
+crates/iwe/src/main.rs|12|use iwe::find::{DocumentFinder, FindOptions};
+crates/iwe/src/main.rs|142|    refs_to: Option<String>,
+crates/iwe/src/main.rs|666|    let options = FindOptions {
+crates/iwe/src/main.rs|669|        refs_to: args.refs_to.map(|s| Key::name(&s)),
+crates/iwe/tests/find_test.rs|139|fn test_find_refs_to() {
+crates/iwe/tests/find_test.rs|165|    let (stdout, stderr, success) = run_iwe(dir.path(), &["--refs-to", "target", "-f", "json"]);
+crates/iwe/tests/find_test.rs|470|fn test_find_refs_to_inline_link() {
+crates/iwe/tests/find_test.rs|485|    let (stdout, stderr, success) = run_iwe(dir.path(), &["--refs-to", "target", "-f", "json"]);
+crates/iwec/src/lib.rs|8|use liwe::find::{DocumentFinder, FindOptions, FindOutput};
+crates/iwec/src/lib.rs|109|    pub refs_to: Option<String>,
+crates/iwec/src/lib.rs|121|impl From<FindParams> for FindOptions {
+crates/iwec/src/lib.rs|123|        FindOptions {
+crates/iwec/src/lib.rs|126|            refs_to: p.refs_to.map(|k| Key::name(&k)),
+crates/iwec/src/lib.rs|425|    #[tool(description = "Search and discover documents in the knowledge graph. Supports fuzzy text query (`query`), root filter (`roots`), direct-reference filters (`refs_to`, `refs_from`), and the structural set selector (`in` / `in_any` / `not_in` / `max_depth`) for transitive sub-document AND/OR/NOT queries with configurable depth.")]
+crates/iwec/src/lib.rs|426|    async fn iwe_find(
+crates/iwec/src/lib.rs|1099|        let roots = finder.find(&FindOptions {
+crates/iwec/src/lib.rs|1110|                "Here is an overview of the IWE knowledge graph.\n\n## Statistics\n\n```json\n{}\n```\n\n## Root documents\n\n```json\n{}\n```\n\nExplore the graph using iwe_retrieve to read documents, iwe_find to search, and iwe_tree to navigate the structure.",
+crates/iwec/src/lib.rs|1201|            "IWE knowledge graph server. Tools: iwe_find, iwe_retrieve, iwe_tree, iwe_stats, iwe_squash, iwe_create, iwe_update, iwe_delete, iwe_rename, iwe_extract, iwe_inline, iwe_normalize, iwe_attach. Prompts: explore, review, refactor. Resources: iwe://documents/{key}, iwe://tree, iwe://stats, iwe://config."
+crates/iwec/tests/extract_test.rs|91|    let find = f.call_tool("iwe_find", json!({})).await;
+crates/iwec/tests/find_test.rs|14|    let result = f.call_tool("iwe_find", json!({})).await;
+crates/iwec/tests/find_test.rs|30|    let result = f.call_tool("iwe_find", json!({"query": "rust"})).await;
+crates/iwec/tests/find_test.rs|51|    let result = f.call_tool("iwe_find", json!({"roots": true})).await;
+crates/iwec/tests/find_test.rs|67|    let result = f.call_tool("iwe_find", json!({"limit": 2})).await;
+crates/iwec/tests/find_test.rs|96|        .call_tool("iwe_find", json!({"in": ["a", "b"]}))
+crates/iwec/tests/find_test.rs|114|        .call_tool("iwe_find", json!({"in_any": ["a", "b"]}))
+crates/iwec/tests/find_test.rs|132|            "iwe_find",
+crates/iwec/tests/find_test.rs|152|            "iwe_find",
+crates/iwec/tests/find_test.rs|170|        .call_tool("iwe_find", json!({"in": ["a"], "max_depth": 1}))
+crates/iwec/tests/find_test.rs|189|            "iwe_find",
+crates/iwec/tests/inline_test.rs|70|    let find = f.call_tool("iwe_find", json!({})).await;
+crates/iwec/tests/inline_test.rs|91|    let find = f.call_tool("iwe_find", json!({})).await;
+crates/iwec/tests/inline_test.rs|109|    let find = f.call_tool("iwe_find", json!({})).await;
+crates/iwec/tests/inline_test.rs|121|    let find2 = f.call_tool("iwe_find", json!({})).await;
+crates/iwec/tests/write_test.rs|113|    let find = f.call_tool("iwe_find", json!({})).await;
+crates/iwec/tests/write_test.rs|128|    let find = f.call_tool("iwe_find", json!({})).await;
+crates/iwec/tests/write_test.rs|162|        .call_tool("iwe_find", json!({"query": "child-renamed"}))
+crates/iwec/tests/write_test.rs|168|        .call_tool("iwe_find", json!({"query": "2"}))
+crates/iwec/tests/write_test.rs|192|    let find = f.call_tool("iwe_find", json!({})).await;
+crates/iwec/tests/write_test.rs|261|    let find = f.call_tool("iwe_find", json!({})).await;
+crates/liwe/src/find.rs|36|pub struct FindOptions {
+crates/liwe/src/find.rs|39|    pub refs_to: Option<Key>,
+crates/liwe/src/find.rs|55|    pub fn find(&self, options: &FindOptions) -> FindOutput {
+crates/liwe/src/find.rs|77|                if let Some(ref target) = options.refs_to {
+crates/liwe/tests/find_metadata_test.rs|3|use liwe::find::{DocumentFinder, FindOptions};
+crates/liwe/tests/find_metadata_test.rs|31|    let options = FindOptions {
+crates/liwe/tests/find_metadata_test.rs|61|    let options = FindOptions {
+crates/liwe/tests/find_metadata_test.rs|85|    let options = FindOptions {
+crates/liwe/tests/find_metadata_test.rs|100|    let options = FindOptions {
+crates/liwe/tests/find_metadata_test.rs|122|    let options = FindOptions {
+crates/liwe/tests/find_metadata_test.rs|152|    let options = FindOptions {
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge.db "select line_num,content from lines where file='crates/iwe/src/main.rs' and line_num between 110 and 170 order by line_num; select line_num,content from lines where file='crates/iwe/src/main.rs' and line_num between 630 and 720 order by line_num; select line_num,content from lines where file='crates/iwec/src/lib.rs' and line_num between 90 and 145 order by line_num; select line_num,content from lines where file='crates/iwec/src/lib.rs' and line_num between 420 and 445 order by line_num;"
+    timeout_secs: 10
+
+110|
+111|    #[clap(flatten)]
+112|    selector: SelectorArgs,
+113|}
+114|
+115|#[derive(Debug, Clone, clap::ValueEnum)]
+116|enum RetrieveFormat {
+117|    Markdown,
+118|    Keys,
+119|    Json,
+120|}
+121|
+122|#[derive(Debug, Args)]
+123|struct Search {
+124|    #[clap(long, short = 'p')]
+125|    prompt: String,
+126|}
+127|
+128|#[derive(Debug, Args)]
+129|#[clap(
+130|    about = help::find::ABOUT,
+131|    long_about = help::find::LONG_ABOUT,
+132|    after_help = help::find::AFTER_HELP
+133|)]
+134|struct Find {
+135|    #[clap(help = "Search query (fuzzy match on title and key)")]
+136|    query: Option<String>,
+137|
+138|    #[clap(long, help = "Only root documents (no incoming block refs)")]
+139|    roots: bool,
+140|
+141|    #[clap(long, help = "Documents that reference this key")]
+142|    refs_to: Option<String>,
+143|
+144|    #[clap(long, help = "Documents referenced by this key")]
+145|    refs_from: Option<String>,
+146|
+147|    #[clap(long, short = 'l', help = "Maximum results")]
+148|    limit: Option<usize>,
+149|
+150|    #[clap(long, short = 'f', value_enum, default_value = "markdown")]
+151|    format: FindFormat,
+152|
+153|    #[clap(long = "meta", value_parser = parse_meta_filter,
+154|           help = "Filter by front matter field (key=value); repeatable")]
+155|    meta: Vec<(String, String)>,
+156|
+157|    #[clap(flatten)]
+158|    selector: SelectorArgs,
+159|}
+160|
+161|#[derive(Debug, Clone, clap::ValueEnum)]
+162|enum FindFormat {
+163|    Markdown,
+164|    Keys,
+165|    Json,
+166|}
+167|
+168|#[derive(Debug, Args)]
+169|#[clap(
+170|    about = help::normalize::ABOUT,
+630|            .sum();
+631|        println!("documents: {}", doc_count);
+632|        println!("lines: {}", total_lines);
+633|        return;
+634|    }
+635|
+636|    match args.format {
+637|        RetrieveFormat::Json => {
+638|            let json = serde_json::to_string_pretty(&output).expect("Failed to serialize to JSON");
+639|            println!("{}", json);
+640|        }
+641|        RetrieveFormat::Keys => {
+642|            for doc in &output.documents {
+643|                println!("{}", doc.key);
+644|            }
+645|        }
+646|        RetrieveFormat::Markdown => {
+647|            let options = graph.markdown_options();
+648|            let renderer = RetrieveRenderer::new(&output, &options, &graph);
+649|            print!("{}", renderer.render());
+650|        }
+651|    }
+652|}
+653|
+654|fn parse_meta_filter(s: &str) -> Result<(String, String), String> {
+655|    s.split_once('=')
+656|        .map(|(k, v)| (k.trim().to_string(), v.trim().to_string()))
+657|        .ok_or_else(|| format!("expected key=value, got `{}`", s))
+658|}
+659|
+660|#[tracing::instrument(level = "debug")]
+661|fn find_command(args: Find) {
+662|    let config = get_configuration();
+663|    let graph = load_graph(&config);
+664|
+665|    let finder = DocumentFinder::new(&graph);
+666|    let options = FindOptions {
+667|        query: args.query,
+668|        roots: args.roots,
+669|        refs_to: args.refs_to.map(|s| Key::name(&s)),
+670|        refs_from: args.refs_from.map(|s| Key::name(&s)),
+671|        selector: args.selector.into(),
+672|        limit: args.limit,
+673|        metadata_filters: args.meta,
+674|    };
+675|
+676|    let output = finder.find(&options);
+677|
+678|    match args.format {
+679|        FindFormat::Json => {
+680|            let json = serde_json::to_string_pretty(&output).expect("Failed to serialize to JSON");
+681|            println!("{}", json);
+682|        }
+683|        FindFormat::Keys => {
+684|            for result in &output.results {
+685|                println!("{}", result.key);
+686|            }
+687|        }
+688|        FindFormat::Markdown => {
+689|            let rendered = render_find_output(&output);
+690|            print!("{}", rendered);
+691|        }
+692|    }
+693|}
+694|
+695|fn render_find_output(output: &iwe::find::FindOutput) -> String {
+696|    let mut result = String::new();
+697|
+698|    result.push_str(&format!("Found {} results", output.total));
+699|    if let Some(ref query) = output.query {
+700|        result.push_str(&format!(" for \"{}\"", query));
+701|    }
+702|    if let Some(limit) = output.limit {
+703|        result.push_str(&format!(" (showing {})", limit));
+704|    }
+705|    result.push_str(":\n\n");
+706|
+707|    for r in &output.results {
+708|        result.push_str(&format!("{}   #{}\n", r.display_title, r.key));
+709|    }
+710|
+711|    result
+712|}
+713|
+714|#[tracing::instrument(level = "debug")]
+715|fn init_command(init: Init) {
+716|    info!("initializing IWE");
+717|    let mut path = env::current_dir().expect("to get current dir");
+718|    path.push(IWE_MARKER);
+719|    if path.is_dir() {
+720|        error!("IWE is already initialized in the current location.");
+90|
+91|impl From<SelectorParams> for Selector {
+92|    fn from(p: SelectorParams) -> Self {
+93|        Selector {
+94|            in_: p.in_.into_iter().map(Into::into).collect(),
+95|            in_any: p.in_any.into_iter().map(Into::into).collect(),
+96|            not_in: p.not_in.into_iter().map(Into::into).collect(),
+97|            max_depth: p.max_depth,
+98|        }
+99|    }
+100|}
+101|
+102|#[derive(Debug, Deserialize, JsonSchema)]
+103|pub struct FindParams {
+104|    #[schemars(description = "Fuzzy search query matching against document title and key")]
+105|    pub query: Option<String>,
+106|    #[schemars(description = "Only return root documents (no incoming block references)")]
+107|    pub roots: Option<bool>,
+108|    #[schemars(description = "Only return documents that reference this key")]
+109|    pub refs_to: Option<String>,
+110|    #[schemars(description = "Only return documents referenced by this key")]
+111|    pub refs_from: Option<String>,
+112|    #[schemars(description = "Maximum number of results to return")]
+113|    pub limit: Option<usize>,
+114|    #[schemars(description = "Filter by front matter metadata (list of key=value strings)")]
+115|    #[serde(default)]
+116|    pub meta: Option<Vec<(String, String)>>,
+117|    #[serde(flatten)]
+118|    pub selector: SelectorParams,
+119|}
+120|
+121|impl From<FindParams> for FindOptions {
+122|    fn from(p: FindParams) -> Self {
+123|        FindOptions {
+124|            query: p.query,
+125|            roots: p.roots.unwrap_or(false),
+126|            refs_to: p.refs_to.map(|k| Key::name(&k)),
+127|            refs_from: p.refs_from.map(|k| Key::name(&k)),
+128|            selector: p.selector.into(),
+129|            limit: p.limit,
+130|            metadata_filters: p.meta.unwrap_or_default(),
+131|        }
+132|    }
+133|}
+134|
+135|#[derive(Debug, Deserialize, JsonSchema)]
+136|pub struct RetrieveParams {
+137|    #[schemars(description = "Document keys to retrieve. Can be empty when a structural selector is provided.")]
+138|    #[serde(default)]
+139|    pub keys: Vec<String>,
+140|    #[schemars(description = "Levels of block references to expand (0 = document only, 1 = include direct sub-documents). Default: 1")]
+141|    pub depth: Option<u8>,
+142|    #[schemars(description = "Levels of parent documents to include. Default: 1")]
+143|    pub context: Option<u8>,
+144|    #[schemars(description = "Include inline-linked documents. Default: false")]
+145|    pub links: Option<bool>,
+420|    prompt_router: PromptRouter<IweServer>,
+421|}
+422|
+423|#[tool_router]
+424|impl IweServer {
+425|    #[tool(description = "Search and discover documents in the knowledge graph. Supports fuzzy text query (`query`), root filter (`roots`), direct-reference filters (`refs_to`, `refs_from`), and the structural set selector (`in` / `in_any` / `not_in` / `max_depth`) for transitive sub-document AND/OR/NOT queries with configurable depth.")]
+426|    async fn iwe_find(
+427|        &self,
+428|        Parameters(params): Parameters<FindParams>,
+429|    ) -> Result<CallToolResult, McpError> {
+430|        let graph = self.graph.lock().await;
+431|        let finder = DocumentFinder::new(&graph);
+432|        let output: FindOutput = finder.find(&params.into());
+433|        to_json_result(&output)
+434|    }
+435|
+436|    #[tool(description = "Retrieve documents from the knowledge graph with configurable depth expansion, parent context, backlinks, and linked documents")]
+437|    async fn iwe_retrieve(
+438|        &self,
+439|        Parameters(params): Parameters<RetrieveParams>,
+440|    ) -> Result<CallToolResult, McpError> {
+441|        let graph = self.graph.lock().await;
+442|        let reader = DocumentReader::new(&graph);
+443|        let keys: Vec<Key> = params.keys.iter().map(|k| Key::name(k)).collect();
+444|        let options: RetrieveOptions = params.into();
+445|        let output: RetrieveOutput = reader.retrieve_many(&keys, &options);
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge.db "select line_num,content from lines where file='crates/iwe/tests/find_test.rs' and line_num between 216 and 540 order by line_num;"
+    timeout_secs: 10
+
+216|fn test_find_limit() {
+217|    let dir = setup_workspace();
+218|
+219|    for i in 1..=10 {
+220|        write(
+221|            dir.path().join(format!("doc{}.md", i)),
+222|            format!("# Document {}\n\nContent.", i),
+223|        )
+224|        .unwrap();
+225|    }
+226|
+227|    let (stdout, stderr, success) = run_iwe(dir.path(), &["--limit", "3", "-f", "json"]);
+228|
+229|    assert!(success, "stderr: {}", stderr);
+230|
+231|    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+232|    assert_eq!(parsed["total"], 10, "total should be 10");
+233|    assert_eq!(parsed["results"].as_array().unwrap().len(), 3, "should return only 3 results");
+234|}
+235|
+236|#[test]
+237|fn test_find_limit_shown_in_markdown() {
+238|    let dir = setup_workspace();
+239|
+240|    for i in 1..=10 {
+241|        write(
+242|            dir.path().join(format!("doc{}.md", i)),
+243|            format!("# Document {}\n\nContent.", i),
+244|        )
+245|        .unwrap();
+246|    }
+247|
+248|    let (stdout, stderr, success) = run_iwe(dir.path(), &["--limit", "3", "-f", "markdown"]);
+249|
+250|    assert!(success, "stderr: {}", stderr);
+251|
+252|    assert!(stdout.contains("Found 10 results"));
+253|    assert!(stdout.contains("(showing 3)"));
+254|}
+255|
+256|#[test]
+257|fn test_find_keys_format() {
+258|    let dir = setup_workspace();
+259|
+260|    write(dir.path().join("alpha.md"), "# Alpha\n\nContent.").unwrap();
+261|    write(dir.path().join("beta.md"), "# Beta\n\nContent.").unwrap();
+262|
+263|    let (stdout, stderr, success) = run_iwe(dir.path(), &["-f", "keys"]);
+264|
+265|    assert!(success, "stderr: {}", stderr);
+266|
+267|    let keys: Vec<&str> = stdout.lines().collect();
+268|    assert!(keys.contains(&"alpha"));
+269|    assert!(keys.contains(&"beta"));
+270|}
+271|
+272|#[test]
+273|fn test_find_markdown_format() {
+274|    let dir = setup_workspace();
+275|
+276|    write(dir.path().join("test-doc.md"), "# Test Document\n\nContent.").unwrap();
+277|
+278|    let (stdout, stderr, success) = run_iwe(dir.path(), &["-f", "markdown"]);
+279|
+280|    assert!(success, "stderr: {}", stderr);
+281|
+282|    assert_eq!(
+283|        stdout,
+284|        indoc! {"
+285|            Found 1 results:
+286|
+287|            Test Document   #test-doc
+288|        "}
+289|    );
+290|}
+291|
+292|#[test]
+293|fn test_find_with_parent_documents() {
+294|    let dir = setup_workspace();
+295|
+296|    write(
+297|        dir.path().join("parent.md"),
+298|        indoc! {"
+299|            # Parent
+300|
+301|            ## Section One
+302|
+303|            [child](child)
+304|        "},
+305|    )
+306|    .unwrap();
+307|
+308|    write(dir.path().join("child.md"), "# Child\n\nChild content.").unwrap();
+309|
+310|    let (stdout, stderr, success) = run_iwe(dir.path(), &["-f", "json"]);
+311|
+312|    assert!(success, "stderr: {}", stderr);
+313|
+314|    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+315|    let results = parsed["results"].as_array().unwrap();
+316|
+317|    let child = results.iter().find(|r| r["key"] == "child").unwrap();
+318|
+319|    assert_eq!(child["is_root"], false);
+320|    assert_eq!(child["display_title"], "Child ↖Parent");
+321|
+322|    let parents = child["parent_documents"].as_array().unwrap();
+323|    assert_eq!(parents.len(), 1);
+324|    assert_eq!(parents[0]["key"], "parent");
+325|    assert_eq!(parents[0]["title"], "Parent");
+326|}
+327|
+328|#[test]
+329|fn test_find_is_root_flag() {
+330|    let dir = setup_workspace();
+331|
+332|    write(
+333|        dir.path().join("parent.md"),
+334|        indoc! {"
+335|            # Parent
+336|
+337|            [child](child)
+338|        "},
+339|    )
+340|    .unwrap();
+341|
+342|    write(dir.path().join("child.md"), "# Child\n\nChild content.").unwrap();
+343|
+344|    let (stdout, stderr, success) = run_iwe(dir.path(), &["-f", "json"]);
+345|
+346|    assert!(success, "stderr: {}", stderr);
+347|
+348|    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+349|    let results = parsed["results"].as_array().unwrap();
+350|
+351|    let parent = results.iter().find(|r| r["key"] == "parent").unwrap();
+352|    let child = results.iter().find(|r| r["key"] == "child").unwrap();
+353|
+354|    assert_eq!(parent["is_root"], true, "parent should be root");
+355|    assert_eq!(child["is_root"], false, "child should not be root");
+356|}
+357|
+358|#[test]
+359|fn test_find_incoming_outgoing_refs() {
+360|    let dir = setup_workspace();
+361|
+362|    write(
+363|        dir.path().join("hub.md"),
+364|        indoc! {"
+365|            # Hub
+366|
+367|            [child1](child1)
+368|
+369|            [child2](child2)
+370|        "},
+371|    )
+372|    .unwrap();
+373|
+374|    write(
+375|        dir.path().join("referrer.md"),
+376|        indoc! {"
+377|            # Referrer
+378|
+379|            Check out [hub](hub) for more.
+380|        "},
+381|    )
+382|    .unwrap();
+383|
+384|    write(dir.path().join("child1.md"), "# Child One\n\nContent.").unwrap();
+385|    write(dir.path().join("child2.md"), "# Child Two\n\nContent.").unwrap();
+386|
+387|    let (stdout, stderr, success) = run_iwe(dir.path(), &["-f", "json"]);
+388|
+389|    assert!(success, "stderr: {}", stderr);
+390|
+391|    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+392|    let results = parsed["results"].as_array().unwrap();
+393|
+394|    let hub = results.iter().find(|r| r["key"] == "hub").unwrap();
+395|
+396|    assert_eq!(hub["outgoing_refs"], 2);
+397|    assert_eq!(hub["incoming_refs"], 1);
+398|}
+399|
+400|#[test]
+401|fn test_find_empty_workspace() {
+402|    let dir = setup_workspace();
+403|
+404|    let (stdout, stderr, success) = run_iwe(dir.path(), &["-f", "json"]);
+405|
+406|    assert!(success, "stderr: {}", stderr);
+407|
+408|    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+409|    assert_eq!(parsed["total"], 0);
+410|    assert_eq!(parsed["results"].as_array().unwrap().len(), 0);
+411|}
+412|
+413|#[test]
+414|fn test_find_query_with_no_match() {
+415|    let dir = setup_workspace();
+416|
+417|    write(dir.path().join("document.md"), "# My Document\n\nContent.").unwrap();
+418|
+419|    let (stdout, stderr, success) = run_iwe(dir.path(), &["zzzznonexistent", "-f", "json"]);
+420|
+421|    assert!(success, "stderr: {}", stderr);
+422|
+423|    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+424|    assert_eq!(parsed["total"], 0);
+425|    assert_eq!(parsed["results"].as_array().unwrap().len(), 0);
+426|}
+427|
+428|#[test]
+429|fn test_find_search_query_in_output() {
+430|    let dir = setup_workspace();
+431|
+432|    write(dir.path().join("test.md"), "# Test\n\nContent.").unwrap();
+433|
+434|    let (stdout, stderr, success) = run_iwe(dir.path(), &["myquery", "-f", "json"]);
+435|
+436|    assert!(success, "stderr: {}", stderr);
+437|
+438|    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+439|    assert_eq!(parsed["query"], "myquery");
+440|}
+441|
+442|#[test]
+443|fn test_find_no_query_null_in_output() {
+444|    let dir = setup_workspace();
+445|
+446|    write(dir.path().join("test.md"), "# Test\n\nContent.").unwrap();
+447|
+448|    let (stdout, stderr, success) = run_iwe(dir.path(), &["-f", "json"]);
+449|
+450|    assert!(success, "stderr: {}", stderr);
+451|
+452|    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+453|    assert!(parsed["query"].is_null());
+454|}
+455|
+456|#[test]
+457|fn test_find_markdown_with_query() {
+458|    let dir = setup_workspace();
+459|
+460|    write(dir.path().join("test.md"), "# Test Document\n\nContent.").unwrap();
+461|
+462|    let (stdout, stderr, success) = run_iwe(dir.path(), &["test", "-f", "markdown"]);
+463|
+464|    assert!(success, "stderr: {}", stderr);
+465|
+466|    assert!(stdout.contains("for \"test\""));
+467|}
+468|
+469|#[test]
+470|fn test_find_refs_to_inline_link() {
+471|    let dir = setup_workspace();
+472|
+473|    write(
+474|        dir.path().join("doc1.md"),
+475|        indoc! {"
+476|            # Doc One
+477|
+478|            See [target](target) for details.
+479|        "},
+480|    )
+481|    .unwrap();
+482|
+483|    write(dir.path().join("target.md"), "# Target\n\nTarget content.").unwrap();
+484|
+485|    let (stdout, stderr, success) = run_iwe(dir.path(), &["--refs-to", "target", "-f", "json"]);
+486|
+487|    assert!(success, "stderr: {}", stderr);
+488|
+489|    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+490|    let results = parsed["results"].as_array().unwrap();
+491|
+492|    let keys: Vec<&str> = results.iter().map(|r| r["key"].as_str().unwrap()).collect();
+493|
+494|    assert!(keys.contains(&"doc1"), "doc1 references target via inline link");
+495|}
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge.db "select file,line_num,content from lines where content like '%find::ABOUT%' or file like '%help%' and content like '%find%' order by file,line_num limit 100;"
+    timeout_secs: 10
+
+crates/iwe/src/help.rs|19|pub mod find {
+crates/iwe/src/help.rs|20|    pub const ABOUT: &str = include_str!("../help/find/about.txt");
+crates/iwe/src/help.rs|21|    pub const LONG_ABOUT: &str = include_str!("../help/find/long_about.txt");
+crates/iwe/src/help.rs|22|    pub const AFTER_HELP: &str = include_str!("../help/find/after_help.txt");
+crates/iwe/src/main.rs|130|    about = help::find::ABOUT,
+  ────────────────────────────────────────
+  ▸ shell
+    command: find crates/iwe/help/find -type f -maxdepth 1 -print -exec sh -c 'echo --- $1; cat "$1"' _ {} \;
+    timeout_secs: 10
+
+crates/iwe/help/find/about.txt
+--- crates/iwe/help/find/about.txt
+Search and discover documentscrates/iwe/help/find/long_about.txt
+--- crates/iwe/help/find/long_about.txt
+Search and discover documents in your knowledge base.
+
+Uses fuzzy matching on document title and key. Without a query, documents are
+sorted by popularity (incoming references count). Supports filtering by root
+documents, reference relationships, and structural sub-document membership
+via the --in / --in-any / --not-in / --max-depth selector.
+crates/iwe/help/find/after_help.txt
+--- crates/iwe/help/find/after_help.txt
+OUTPUT FORMATS:
+
+MARKDOWN (default, -f markdown):
+  ## Documents
+
+  Found 3 results:
+
+  - [Document A](doc-a) (root)
+  - [Document B](doc-b) <- [Document A](doc-a)
+
+  Each result shows:
+  - Document link
+  - (root) indicator if no parents
+  - Parent documents with <- notation (where this doc is embedded)
+
+KEYS (-f keys):
+  One key per line, suitable for piping:
+
+    doc-a
+    doc-b
+    doc-c
+
+JSON (-f json):
+  Structured output with metadata:
+
+    {"query": "...", "total": 3, "results": [
+      {"key": "...", "title": "...", "is_root": true,
+       "incoming_refs": 5, "outgoing_refs": 2, "parent_documents": [...]}]}
+
+STRUCTURAL SET SELECTOR (--in family):
+
+  --in KEY[:DEPTH]      Sub-documents of EVERY listed key (AND). Repeatable.
+                        KEY:DEPTH overrides --max-depth per entry.
+  --in-any KEY[:DEPTH]  Sub-documents of AT LEAST ONE listed key (OR).
+  --not-in KEY[:DEPTH]  Exclude sub-documents of any listed key (NOT).
+  --max-depth N         Default depth for entries without :DEPTH. Unbounded if omitted.
+
+EXAMPLES:
+
+  # Sub-documents of A AND B (intersection, unbounded)
+  iwe find --in projects/alpha --in people/dmytro
+
+  # Per-parent depth: A within 3 hops, Dmytro within 1
+  iwe find --in projects/alpha:3 --in people/dmytro:1
+
+  # Sub-documents of A OR B (union)
+  iwe find --in-any projects/alpha --in-any projects/beta
+
+  # Sub-documents of A but NOT in archive
+  iwe find --in projects/alpha --not-in archive
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge.db "select file,line_num,content from lines where content like '%--refs-to%' or content like '%iwe find%' or content like '%--meta%' order by file,line_num limit 200;"
+    timeout_secs: 10
+
+crates/iwe/tests/find_test.rs|165|    let (stdout, stderr, success) = run_iwe(dir.path(), &["--refs-to", "target", "-f", "json"]);
+crates/iwe/tests/find_test.rs|485|    let (stdout, stderr, success) = run_iwe(dir.path(), &["--refs-to", "target", "-f", "json"]);
+  ────────────────────────────────────────
+  ▸ shell
+    command: ed -s crates/iwe/src/main.rs <<'EOF'
+152a
+
+    #[clap(long, help = "Print only the number of matching documents")]
+    count: bool,
+.
+677a
+
+    if args.count {
+        println!("{}", output.total);
+        return;
+    }
+.
+w
+EOF
+cargo fmt
+    timeout_secs: 120
+
+(no output)
+  ────────────────────────────────────────
+  ▸ todo_write todo
+    content: - [x] Add `--count` flag to `iwe find`
+  - [x] Inspect current `iwe find` CLI and execution path
+  - [x] Implement flag so it prints only number of matching documents
+  - [ ] Ensure it composes with all existing filters (`--meta`, `--roots`, `--refs-to`, etc.)
+  - [ ] Add/update tests for count behavior with filters
+  - [ ] Run `cargo build`
+  - [ ] Run `cargo test`
+
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge.db "select file,line_num,content from lines where content like '%--meta%' or content like '%meta%' and file like '%tests%find%' order by file,line_num;"
+    timeout_secs: 10
+
+crates/liwe/tests/find_metadata_test.rs|32|        metadata_filters: vec![("status".to_string(), "ready".to_string())],
+crates/liwe/tests/find_metadata_test.rs|62|        metadata_filters: vec![
+crates/liwe/tests/find_metadata_test.rs|86|        metadata_filters: vec![("status".to_string(), "ready".to_string())],
+crates/liwe/tests/find_metadata_test.rs|94|fn note_without_metadata_excluded() {
+crates/liwe/tests/find_metadata_test.rs|96|        # No Metadata
+crates/liwe/tests/find_metadata_test.rs|101|        metadata_filters: vec![("status".to_string(), "ready".to_string())],
+crates/liwe/tests/find_metadata_test.rs|123|        metadata_filters: vec![("tags".to_string(), "rust".to_string())],
+crates/liwe/tests/find_metadata_test.rs|154|        metadata_filters: vec![("status".to_string(), "ready".to_string())],
+  ────────────────────────────────────────
+  ▸ shell
+    command: tail -40 crates/iwe/tests/find_test.rs
+    timeout_secs: 10
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge.db ──
+query: SELECT line_num, content FROM lines WHERE file='crates/iwe/tests/find_test.rs' AND line_num >= 456;
+
+ 456 │ #[test]
+ 457 │ fn test_find_markdown_with_query() {
+ 458 │     let dir = setup_workspace();
+ 459 │ 
+ 460 │     write(dir.path().join("test.md"), "# Test Document\n\nContent.").unwrap();
+ 461 │ 
+ 462 │     let (stdout, stderr, success) = run_iwe(dir.path(), &["test", "-f", "markdown"]);
+ 463 │ 
+ 464 │     assert!(success, "stderr: {}", stderr);
+ 465 │ 
+ 466 │     assert!(stdout.contains("for \"test\""));
+ 467 │ }
+ 468 │ 
+ 469 │ #[test]
+ 470 │ fn test_find_refs_to_inline_link() {
+ 471 │     let dir = setup_workspace();
+ 472 │ 
+ 473 │     write(
+ 474 │         dir.path().join("doc1.md"),
+ 475 │         indoc! {"
+ 476 │             # Doc One
+ 477 │ 
+ 478 │             See [target](target) for details.
+ 479 │         "},
+ 480 │     )
+ 481 │     .unwrap();
+ 482 │ 
+ 483 │     write(dir.path().join("target.md"), "# Target\n\nTarget content.").unwrap();
+ 484 │ 
+ 485 │     let (stdout, stderr, success) = run_iwe(dir.path(), &["--refs-to", "target", "-f", "json"]);
+ 486 │ 
+ 487 │     assert!(success, "stderr: {}", stderr);
+ 488 │ 
+ 489 │     let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+ 490 │     let results = parsed["results"].as_array().unwrap();
+ 491 │ 
+ 492 │     let keys: Vec<&str> = results.iter().map(|r| r["key"].as_str().unwrap()).collect();
+ 493 │ 
+ 494 │     assert!(keys.contains(&"doc1"), "doc1 references target via inline link");
+ 495 │ }
+
+── last 40 of 495 lines ──
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge.db "select line_num,content from lines where file='crates/iwe/src/main.rs' and line_num between 70 and 115 order by line_num;"
+    timeout_secs: 10
+
+70|    long_about = help::retrieve::LONG_ABOUT,
+71|    after_help = help::retrieve::AFTER_HELP
+72|)]
+73|struct Retrieve {
+74|    #[clap(long, short = 'k', help = "Document key(s) to retrieve (can be specified multiple times)")]
+75|    key: Vec<String>,
+76|
+77|    #[clap(
+78|        long,
+79|        short = 'd',
+80|        default_value = "1",
+81|        help = "Follow block refs down N levels"
+82|    )]
+83|    depth: u8,
+84|
+85|    #[clap(
+86|        long,
+87|        short = 'c',
+88|        default_value = "1",
+89|        help = "Include N levels of parent context"
+90|    )]
+91|    context: u8,
+92|
+93|    #[clap(long, short = 'l', help = "Include inline references")]
+94|    links: bool,
+95|
+96|    #[clap(long, short = 'e', help = "Exclude document key(s) from results (can be specified multiple times)")]
+97|    exclude: Vec<String>,
+98|
+99|    #[clap(long, short = 'b', default_value_t = true, help = "Include incoming references")]
+100|    backlinks: bool,
+101|
+102|    #[clap(long, short = 'f', value_enum, default_value = "markdown")]
+103|    format: RetrieveFormat,
+104|
+105|    #[clap(long, help = "Show document count and total lines without content")]
+106|    dry_run: bool,
+107|
+108|    #[clap(long, help = "Exclude document content from results (metadata only)")]
+109|    no_content: bool,
+110|
+111|    #[clap(flatten)]
+112|    selector: SelectorArgs,
+113|}
+114|
+115|#[derive(Debug, Clone, clap::ValueEnum)]
+  ────────────────────────────────────────
+  ▸ shell
+    command: grep -n "count\|fn find_command" crates/iwe/src/main.rs | head -30 && sed -n '128,164p' crates/iwe/src/main.rs && sed -n '660,690p' crates/iwe/src/main.rs
+    timeout_secs: 10
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge.db ──
+query: SELECT file, line_num, content, symbol FROM lines WHERE content LIKE '%count\|fn find_command%';
+
+(no matches)
+── sqlite3 /home/dangood/src/iwe/.indexnudge.db ──
+query: SELECT line_num, content FROM lines WHERE file='crates/iwe/src/main.rs' AND line_num BETWEEN 128 AND 164;
+** STOP USING sed. Query the DB directly: sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/iwe/src/main.rs' AND line_num BETWEEN START AND END ORDER BY line_num;" **
+
+ 128 │ #[derive(Debug, Args)]
+ 129 │ #[clap(
+ 130 │     about = help::find::ABOUT,
+ 131 │     long_about = help::find::LONG_ABOUT,
+ 132 │     after_help = help::find::AFTER_HELP
+ 133 │ )]
+ 134 │ struct Find {
+ 135 │     #[clap(help = "Search query (fuzzy match on title and key)")]
+ 136 │     query: Option<String>,
+ 137 │ 
+ 138 │     #[clap(long, help = "Only root documents (no incoming block refs)")]
+ 139 │     roots: bool,
+ 140 │ 
+ 141 │     #[clap(long, help = "Documents that reference this key")]
+ 142 │     refs_to: Option<String>,
+ 143 │ 
+ 144 │     #[clap(long, help = "Documents referenced by this key")]
+ 145 │     refs_from: Option<String>,
+ 146 │ 
+ 147 │     #[clap(long, short = 'l', help = "Maximum results")]
+ 148 │     limit: Option<usize>,
+ 149 │ 
+ 150 │     #[clap(long, short = 'f', value_enum, default_value = "markdown")]
+ 151 │     format: FindFormat,
+ 152 │ 
+ 153 │     #[clap(long = "meta", value_parser = parse_meta_filter,
+ 154 │            help = "Filter by front matter field (key=value); repeatable")]
+ 155 │     meta: Vec<(String, String)>,
+ 156 │ 
+ 157 │     #[clap(flatten)]
+ 158 │     selector: SelectorArgs,
+ 159 │ }
+ 160 │ 
+ 161 │ #[derive(Debug, Clone, clap::ValueEnum)]
+ 162 │ enum FindFormat {
+ 163 │     Markdown,
+ 164 │     Keys,
+── sqlite3 /home/dangood/src/iwe/.indexnudge.db ──
+query: SELECT line_num, content FROM lines WHERE file='crates/iwe/src/main.rs' AND line_num BETWEEN 660 AND 690;
+** STOP USING sed. Query the DB directly: sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/iwe/src/main.rs' AND line_num BETWEEN START AND END ORDER BY line_num;" **
+
+ 660 │ #[tracing::instrument(level = "debug")]
+ 661 │ fn find_command(args: Find) {
+ 662 │     let config = get_configuration();
+ 663 │     let graph = load_graph(&config);
+ 664 │ 
+ 665 │     let finder = DocumentFinder::new(&graph);
+ 666 │     let options = FindOptions {
+ 667 │         query: args.query,
+ 668 │         roots: args.roots,
+ 669 │         refs_to: args.refs_to.map(|s| Key::name(&s)),
+ 670 │         refs_from: args.refs_from.map(|s| Key::name(&s)),
+ 671 │         selector: args.selector.into(),
+ 672 │         limit: args.limit,
+ 673 │         metadata_filters: args.meta,
+ 674 │     };
+ 675 │ 
+ 676 │     let output = finder.find(&options);
+ 677 │ 
+ 678 │     match args.format {
+ 679 │         FindFormat::Json => {
+ 680 │             let json = serde_json::to_string_pretty(&output).expect("Failed to serialize to JSON");
+ 681 │             println!("{}", json);
+ 682 │         }
+ 683 │         FindFormat::Keys => {
+ 684 │             for result in &output.results {
+ 685 │                 println!("{}", result.key);
+ 686 │             }
+ 687 │         }
+ 688 │         FindFormat::Markdown => {
+ 689 │             let rendered = render_find_output(&output);
+ 690 │             print!("{}", rendered);
+
+── enclosing: find_command | function | lines 661-693 ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/iwe/src/main.rs' AND line_num BETWEEN 661 AND 693 ORDER BY line_num;" ──
+  ────────────────────────────────────────
+  ▸ shell
+    command: python3 - <<'PY'
+from pathlib import Path
+p=Path('crates/iwe/src/main.rs')
+for i,l in enumerate(p.read_text().splitlines(),1):
+    if 128<=i<=165 or 660<=i<=695:
+        print(f'{i}:{l}')
+PY
+    timeout_secs: 10
+
+128:    Markdown,
+129:    Keys,
+130:    Json,
+131:}
+132:
+133:#[derive(Debug, Args)]
+134:struct Search {
+135:    #[clap(long, short = 'p')]
+136:    prompt: String,
+137:}
+138:
+139:#[derive(Debug, Args)]
+140:#[clap(
+141:    about = help::find::ABOUT,
+142:    long_about = help::find::LONG_ABOUT,
+143:    after_help = help::find::AFTER_HELP
+144:)]
+145:struct Find {
+146:    #[clap(help = "Search query (fuzzy match on title and key)")]
+147:    query: Option<String>,
+148:
+149:    #[clap(long, help = "Only root documents (no incoming block refs)")]
+150:    roots: bool,
+151:
+152:    #[clap(long, help = "Documents that reference this key")]
+153:    refs_to: Option<String>,
+154:
+155:    #[clap(long, help = "Documents referenced by this key")]
+156:    refs_from: Option<String>,
+157:
+158:    #[clap(long, short = 'l', help = "Maximum results")]
+159:    limit: Option<usize>,
+160:
+161:    #[clap(long, short = 'f', value_enum, default_value = "markdown")]
+162:    format: FindFormat,
+163:
+164:    #[clap(long, help = "Print only the number of matching documents")]
+165:    count: bool,
+660:    }
+661:}
+662:
+663:fn parse_meta_filter(s: &str) -> Result<(String, String), String> {
+664:    s.split_once('=')
+665:        .map(|(k, v)| (k.trim().to_string(), v.trim().to_string()))
+666:        .ok_or_else(|| format!("expected key=value, got `{}`", s))
+667:}
+668:
+669:#[tracing::instrument(level = "debug")]
+670:fn find_command(args: Find) {
+671:    let config = get_configuration();
+672:    let graph = load_graph(&config);
+673:
+674:    let finder = DocumentFinder::new(&graph);
+675:    let options = FindOptions {
+676:        query: args.query,
+677:        roots: args.roots,
+678:        refs_to: args.refs_to.map(|s| Key::name(&s)),
+679:        refs_from: args.refs_from.map(|s| Key::name(&s)),
+680:        selector: args.selector.into(),
+681:        limit: args.limit,
+682:        metadata_filters: args.meta,
+683:    };
+684:
+685:    if args.count {
+686:        println!("{}", output.total);
+687:        return;
+688:    }
+689:
+690:    let output = finder.find(&options);
+691:
+692:    match args.format {
+693:        FindFormat::Json => {
+694:            let json = serde_json::to_string_pretty(&output).expect("Failed to serialize to JSON");
+695:            println!("{}", json);
+  ────────────────────────────────────────
+  ▸ shell
+    command: python3 - <<'PY'
+from pathlib import Path
+p=Path('crates/iwe/src/main.rs')
+for i,l in enumerate(p.read_text().splitlines(),1):
+    if 160<=i<=178 or 682<=i<=704:
+        print(f'{i}:{l}')
+PY
+    timeout_secs: 10
+
+160:
+161:    #[clap(long, short = 'f', value_enum, default_value = "markdown")]
+162:    format: FindFormat,
+163:
+164:    #[clap(long, help = "Print only the number of matching documents")]
+165:    count: bool,
+166:    #[clap(long = "meta", value_parser = parse_meta_filter,
+167:           help = "Filter by front matter field (key=value); repeatable")]
+168:    meta: Vec<(String, String)>,
+169:
+170:    #[clap(flatten)]
+171:    selector: SelectorArgs,
+172:}
+173:
+174:#[derive(Debug, Clone, clap::ValueEnum)]
+175:enum FindFormat {
+176:    Markdown,
+177:    Keys,
+178:    Json,
+682:        metadata_filters: args.meta,
+683:    };
+684:
+685:    if args.count {
+686:        println!("{}", output.total);
+687:        return;
+688:    }
+689:
+690:    let output = finder.find(&options);
+691:
+692:    match args.format {
+693:        FindFormat::Json => {
+694:            let json = serde_json::to_string_pretty(&output).expect("Failed to serialize to JSON");
+695:            println!("{}", json);
+696:        }
+697:        FindFormat::Keys => {
+698:            for result in &output.results {
+699:                println!("{}", result.key);
+700:            }
+701:        }
+702:        FindFormat::Markdown => {
+703:            let rendered = render_find_output(&output);
+704:            print!("{}", rendered);I spotted a compile-order bug in my first edit (`output` checked before it’s created). I’m fixing that before adding tests.
+  ────────────────────────────────────────
+  ▸ shell
+    command: ed -s crates/iwe/src/main.rs <<'EOF'
+685,690c
+    let output = finder.find(&options);
+
+    if args.count {
+        println!("{}", output.total);
+        return;
+    }
+.
+w
+EOF
+cargo fmt
+    timeout_secs: 120
+
+(no output)
+  ────────────────────────────────────────
+  ▸ shell
+    command: python3 - <<'PY'
+from pathlib import Path
+p=Path('crates/iwe/src/main.rs')
+for i,l in enumerate(p.read_text().splitlines(),1):
+    if 158<=i<=172 or 680<=i<=694:
+        print(f'{i}:{l}')
+PY
+    timeout_secs: 10
+
+158:    #[clap(long, short = 'l', help = "Maximum results")]
+159:    limit: Option<usize>,
+160:
+161:    #[clap(long, short = 'f', value_enum, default_value = "markdown")]
+162:    format: FindFormat,
+163:
+164:    #[clap(long, help = "Print only the number of matching documents")]
+165:    count: bool,
+166:    #[clap(long = "meta", value_parser = parse_meta_filter,
+167:           help = "Filter by front matter field (key=value); repeatable")]
+168:    meta: Vec<(String, String)>,
+169:
+170:    #[clap(flatten)]
+171:    selector: SelectorArgs,
+172:}
+680:        selector: args.selector.into(),
+681:        limit: args.limit,
+682:        metadata_filters: args.meta,
+683:    };
+684:
+685:    let output = finder.find(&options);
+686:
+687:    if args.count {
+688:        println!("{}", output.total);
+689:        return;
+690:    }
+691:
+692:    match args.format {
+693:        FindFormat::Json => {
+694:            let json = serde_json::to_string_pretty(&output).expect("Failed to serialize to JSON");
+  ────────────────────────────────────────
+  ▸ shell
+    command: ed -s crates/iwe/tests/find_test.rs <<'EOF'
+$a
+
+#[test]
+fn test_find_count_all_documents() {
+    let dir = setup_workspace();
+
+    write(dir.path().join("alpha.md"), "# Alpha\n\nContent.").unwrap();
+    write(dir.path().join("beta.md"), "# Beta\n\nContent.").unwrap();
+
+    let (stdout, stderr, success) = run_iwe(dir.path(), &["--count"]);
+
+    assert!(success, "stderr: {}", stderr);
+    assert_eq!(stdout, "2\n");
+}
+
+#[test]
+fn test_find_count_with_refs_to_filter() {
+    let dir = setup_workspace();
+
+    write(
+        dir.path().join("doc1.md"),
+        indoc! {"
+            # Doc One
+
+            [target](target)
+        "},
+    )
+    .unwrap();
+    write(
+        dir.path().join("doc2.md"),
+        indoc! {"
+            # Doc Two
+
+            See [target](target) for details.
+        "},
+    )
+    .unwrap();
+    write(dir.path().join("other.md"), "# Other\n\nNo refs.").unwrap();
+    write(dir.path().join("target.md"), "# Target\n\nTarget content.").unwrap();
+
+    let (stdout, stderr, success) = run_iwe(dir.path(), &["--refs-to", "target", "--count"]);
+
+    assert!(success, "stderr: {}", stderr);
+    assert_eq!(stdout, "2\n");
+}
+
+#[test]
+fn test_find_count_with_meta_roots_and_limit_filters() {
+    let dir = setup_workspace();
+
+    write(
+        dir.path().join("parent.md"),
+        indoc! {"
+            ---
+            status: ready
+            ---
+
+            # Parent
+
+            [child](child)
+        "},
+    )
+    .unwrap();
+    write(
+        dir.path().join("child.md"),
+        indoc! {"
+            ---
+            status: ready
+            ---
+
+            # Child
+        "},
+    )
+    .unwrap();
+    write(
+        dir.path().join("draft.md"),
+        indoc! {"
+            ---
+            status: draft
+            ---
+
+            # Draft
+        "},
+    )
+    .unwrap();
+
+    let (stdout, stderr, success) = run_iwe(
+        dir.path(),
+        &["--meta", "status=ready", "--roots", "--limit", "1", "--count"],
+    );
+
+    assert!(success, "stderr: {}", stderr);
+    assert_eq!(stdout, "1\n");
+}
+.
+w
+EOF
+cargo fmt
+    timeout_secs: 120
+
+(no output)
+  ────────────────────────────────────────
+  ▸ todo_write todo
+    content: - [x] Add `--count` flag to `iwe find`
+  - [x] Inspect current `iwe find` CLI and execution path
+  - [x] Implement flag so it prints only number of matching documents
+  - [x] Ensure it composes with all existing filters (`--meta`, `--roots`, `--refs-to`, etc.)
+  - [x] Add/update tests for count behavior with filters
+  - [ ] Run `cargo build`
+  - [ ] Run `cargo test`
+
+Continuing with build and test verification now.
+  ────────────────────────────────────────
+  ▸ shell
+    command: cargo build
+    timeout_secs: 120
+
+   Compiling liwe v0.0.70 (/home/dangood/src/iwe/crates/liwe)
+   Compiling iwe v0.0.70 (/home/dangood/src/iwe/crates/iwe)
+   Compiling iwec v0.0.70 (/home/dangood/src/iwe/crates/iwec)
+   Compiling iwes v0.0.70 (/home/dangood/src/iwe/crates/iwes)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.68s
+  ────────────────────────────────────────
+  ▸ todo_write todo
+    content: - [x] Add `--count` flag to `iwe find`
+  - [x] Inspect current `iwe find` CLI and execution path
+  - [x] Implement flag so it prints only number of matching documents
+  - [x] Ensure it composes with all existing filters (`--meta`, `--roots`, `--refs-to`, etc.)
+  - [x] Add/update tests for count behavior with filters
+  - [x] Run `cargo build`
+  - [ ] Run `cargo test`
+
+`cargo build` passed. Running the full test suite now.
+  ────────────────────────────────────────
+  ▸ shell
+    command: cargo test
+    timeout_secs: 240
+
+     Running tests/toc_test.rs (target/debug/deps/toc_test-05e67351921a2ac7)
+
+running 5 tests
+test toc_level_two ... ok
+test toc_one_level ... ok
+test toc_multiple_items_on_level_two ... ok
+test toc_one_level_two_items ... ok
+test toc_one_recusive ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/virtual_directories_test.rs (target/debug/deps/virtual_directories_test-968856b20a3ec651)
+
+running 9 tests
+test disabled_by_default ... ok
+test children_alphabetical_order ... ok
+test directory_with_notes_generates_index ... ok
+test user_index_takes_precedence ... ok
+test parent_dir_with_only_subdirs_gets_index ... ok
+test underscore_stripped_from_key ... ok
+test nested_directories_each_get_index ... ok
+test generated_index_deleted_when_user_creates_own ... ok
+test user_index_suppresses_generated ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+   Doc-tests iwe
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests iwec
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests iwes
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests liwe
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+[Output exceeded 50000 byte limit (52859 bytes total). Full output saved to /tmp/.tmpXAzlZq/output-7. Read it with shell commands like `head`, `tail`, or `sed -n '100,200p'` up to 2000 lines at a time.]
+  ────────────────────────────────────────
+  ▸ todo_write todo
+    content: - [x] Add `--count` flag to `iwe find`
+  - [x] Inspect current `iwe find` CLI and execution path
+  - [x] Implement flag so it prints only number of matching documents
+  - [x] Ensure it composes with all existing filters (`--meta`, `--roots`, `--refs-to`, etc.)
+  - [x] Add/update tests for count behavior with filters
+  - [x] Run `cargo build`
+  - [x] Run `cargo test`
+
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: git diff -- crates/iwe/src/main.rs crates/iwe/tests/find_test.rs crates/iwe/help/find/after_help.txt && git status --short
+    timeout_secs: 10
+
+diff --git a/crates/iwe/src/main.rs b/crates/iwe/src/main.rs
+index 302fc61..c3155e6 100644
+--- a/crates/iwe/src/main.rs
++++ b/crates/iwe/src/main.rs
+@@ -18,19 +18,17 @@ use iwe::stats::{render_stats, GraphStatistics};
+ use liwe::fs::new_for_path_with_options;
+ use liwe::graph::{Graph, GraphContext};
+ use liwe::locale::get_locale;
+-use liwe::model::config::{
+-    load_config, ActionDefinition, Configuration, InlineType, LinkType,
+-};
++use liwe::model::config::{load_config, ActionDefinition, Configuration, InlineType, LinkType};
+ use liwe::model::node::{Node, NodePointer};
+ use liwe::model::tree::{Tree as ModelTree, TreeIter};
+ use liwe::model::Key;
+ use liwe::operations::{
+-    delete as op_delete, extract as op_extract, inline as op_inline, rename as op_rename,
+-    Changes, ExtractConfig, InlineConfig,
++    delete as op_delete, extract as op_extract, inline as op_inline, rename as op_rename, Changes,
++    ExtractConfig, InlineConfig,
+ };
+ 
+-use std::io::{self, Write as IoWrite};
+ use log::{debug, error, info};
++use std::io::{self, Write as IoWrite};
+ 
+ const CONFIG_FILE_NAME: &str = "config.toml";
+ const IWE_MARKER: &str = ".iwe";
+@@ -71,7 +69,11 @@ enum Command {
+     after_help = help::retrieve::AFTER_HELP
+ )]
+ struct Retrieve {
+-    #[clap(long, short = 'k', help = "Document key(s) to retrieve (can be specified multiple times)")]
++    #[clap(
++        long,
++        short = 'k',
++        help = "Document key(s) to retrieve (can be specified multiple times)"
++    )]
+     key: Vec<String>,
+ 
+     #[clap(
+@@ -93,10 +95,19 @@ struct Retrieve {
+     #[clap(long, short = 'l', help = "Include inline references")]
+     links: bool,
+ 
+-    #[clap(long, short = 'e', help = "Exclude document key(s) from results (can be specified multiple times)")]
++    #[clap(
++        long,
++        short = 'e',
++        help = "Exclude document key(s) from results (can be specified multiple times)"
++    )]
+     exclude: Vec<String>,
+ 
+-    #[clap(long, short = 'b', default_value_t = true, help = "Include incoming references")]
++    #[clap(
++        long,
++        short = 'b',
++        default_value_t = true,
++        help = "Include incoming references"
++    )]
+     backlinks: bool,
+ 
+     #[clap(long, short = 'f', value_enum, default_value = "markdown")]
+@@ -150,6 +161,8 @@ struct Find {
+     #[clap(long, short = 'f', value_enum, default_value = "markdown")]
+     format: FindFormat,
+ 
++    #[clap(long, help = "Print only the number of matching documents")]
++    count: bool,
+     #[clap(long = "meta", value_parser = parse_meta_filter,
+            help = "Filter by front matter field (key=value); repeatable")]
+     meta: Vec<(String, String)>,
+@@ -351,7 +364,6 @@ struct Squash {
+     depth: u8,
+ }
+ 
+-
+ #[derive(Debug, Args)]
+ struct GlobalOpts {
+     #[clap(long, short, global = true, required = false, default_value = "0")]
+@@ -604,11 +616,8 @@ fn retrieve_command(args: Retrieve) {
+     }
+ 
+     let reader = DocumentReader::new(&graph);
+-    let exclude: std::collections::HashSet<Key> = args
+-        .exclude
+-        .iter()
+-        .map(|s| Key::name(s))
+-        .collect();
++    let exclude: std::collections::HashSet<Key> =
++        args.exclude.iter().map(|s| Key::name(s)).collect();
+     let options = RetrieveOptions {
+         depth: args.depth,
+         context: args.context,
+@@ -675,6 +684,11 @@ fn find_command(args: Find) {
+ 
+     let output = finder.find(&options);
+ 
++    if args.count {
++        println!("{}", output.total);
++        return;
++    }
++
+     match args.format {
+         FindFormat::Json => {
+             let json = serde_json::to_string_pretty(&output).expect("Failed to serialize to JSON");
+@@ -1062,13 +1076,10 @@ fn stats_command(args: Stats) {
+ 
+     if let Some(key_str) = args.key {
+         let key_stats = liwe::stats::KeyStatistics::from_graph(&graph);
+-        let entry = key_stats
+-            .into_iter()
+-            .find(|s| s.key == key_str);
++        let entry = key_stats.into_iter().find(|s| s.key == key_str);
+         match entry {
+             Some(s) => {
+-                let json = serde_json::to_string_pretty(&s)
+-                    .expect("Failed to serialize stats");
++                let json = serde_json::to_string_pretty(&s).expect("Failed to serialize stats");
+                 println!("{}", json);
+             }
+             None => {
+@@ -1094,8 +1105,7 @@ fn stats_command(args: Stats) {
+         }
+         StatsFormat::Json => {
+             let stats = GraphStatistics::from_graph(&graph);
+-            let json = serde_json::to_string_pretty(&stats)
+-                .expect("Failed to serialize stats");
++            let json = serde_json::to_string_pretty(&stats).expect("Failed to serialize stats");
+             println!("{}", json);
+         }
+     }
+@@ -1248,12 +1258,12 @@ fn delete_command(args: Delete) {
+     }
+ }
+ 
+-fn collect_sections(tree: &ModelTree, sections: &mut Vec<(usize, String, Option<liwe::model::NodeId>)>) {
++fn collect_sections(
++    tree: &ModelTree,
++    sections: &mut Vec<(usize, String, Option<liwe::model::NodeId>)>,
++) {
+     if let Node::Section(inlines) = &tree.node {
+-        let title = inlines
+-            .iter()
+-            .map(|i| i.plain_text())
+-            .collect::<String>();
++        let title = inlines.iter().map(|i| i.plain_text()).collect::<String>();
+         sections.push((sections.len() + 1, title, tree.id));
+     }
+     for child in &tree.children {
+@@ -1278,12 +1288,18 @@ fn collect_block_references(
+     }
+ }
+ 
+-fn get_extract_config(config: &Configuration, action_name: Option<&str>) -> (String, Option<LinkType>) {
++fn get_extract_config(
++    config: &Configuration,
++    action_name: Option<&str>,
++) -> (String, Option<LinkType>) {
+     if let Some(name) = action_name {
+         if let Some(ActionDefinition::Extract(extract)) = config.actions.get(name) {
+             return (extract.key_template.clone(), extract.link_type.clone());
+         }
+-        eprintln!("Error: Action '{}' not found or not an extract action", name);
++        eprintln!(
++            "Error: Action '{}' not found or not an extract action",
++            name
++        );
+         std::process::exit(1);
+     }
+ 
+@@ -1310,10 +1326,7 @@ fn get_inline_config(
+             inline_type = inline.inline_type.clone();
+             should_keep_target = inline.keep_target.unwrap_or(false);
+         } else {
+-            eprintln!(
+-                "Error: Action '{}' not found or not an inline action",
+-                name
+-            );
++            eprintln!("Error: Action '{}' not found or not an inline action", name);
+             std::process::exit(1);
+         }
+     }
+@@ -1401,7 +1414,13 @@ fn extract_command(args: Extract) {
+         locale,
+     };
+ 
+-    let result = match op_extract(&graph, &source_key, section_id, &extract_config, std::time::SystemTime::now()) {
++    let result = match op_extract(
++        &graph,
++        &source_key,
++        section_id,
++        &extract_config,
++        std::time::SystemTime::now(),
++    ) {
+         Ok(changes) => changes,
+         Err(e) => {
+             eprintln!("Error: {}", e);
+@@ -1469,7 +1488,10 @@ fn inline_command(args: Inline) {
+             .iter()
+             .filter(|(_, text, key, _)| {
+                 text.to_lowercase().contains(&reference.to_lowercase())
+-                    || key.to_string().to_lowercase().contains(&reference.to_lowercase())
++                    || key
++                        .to_string()
++                        .to_lowercase()
++                        .contains(&reference.to_lowercase())
+             })
+             .collect();
+ 
+@@ -1504,8 +1526,12 @@ fn inline_command(args: Inline) {
+     let (_, ref_text, inline_key, ref_node_id) = selected_ref;
+     let ref_id = ref_node_id.expect("Reference must have an ID");
+ 
+-    let (inline_type, should_keep_target) =
+-        get_inline_config(&config, args.action.as_deref(), args.as_quote, args.keep_target);
++    let (inline_type, should_keep_target) = get_inline_config(
++        &config,
++        args.action.as_deref(),
++        args.as_quote,
++        args.keep_target,
++    );
+ 
+     let inline_config = InlineConfig {
+         inline_type,
+@@ -1678,8 +1704,8 @@ fn attach_command(args: Attach) {
+         }
+ 
+         if target_path.exists() {
+-            let mut existing = std::fs::read_to_string(&target_path)
+-                .expect("Failed to read existing target file");
++            let mut existing =
++                std::fs::read_to_string(&target_path).expect("Failed to read existing target file");
+             if !existing.ends_with('\n') {
+                 existing.push('\n');
+             }
+diff --git a/crates/iwe/tests/find_test.rs b/crates/iwe/tests/find_test.rs
+index 7042f4e..21dbb8e 100644
+--- a/crates/iwe/tests/find_test.rs
++++ b/crates/iwe/tests/find_test.rs
+@@ -89,8 +89,16 @@ fn test_find_lists_all_documents() {
+ fn test_find_fuzzy_search() {
+     let dir = setup_workspace();
+ 
+-    write(dir.path().join("authentication.md"), "# User Authentication\n\nAuth content.").unwrap();
+-    write(dir.path().join("database.md"), "# Database Config\n\nDB content.").unwrap();
++    write(
++        dir.path().join("authentication.md"),
++        "# User Authentication\n\nAuth content.",
++    )
++    .unwrap();
++    write(
++        dir.path().join("database.md"),
++        "# Database Config\n\nDB content.",
++    )
++    .unwrap();
+     write(dir.path().join("api.md"), "# API Endpoints\n\nAPI content.").unwrap();
+ 
+     let (stdout, stderr, success) = run_iwe(dir.path(), &["auth", "-f", "json"]);
+@@ -174,7 +182,10 @@ fn test_find_refs_to() {
+     assert!(keys.contains(&"doc1"), "doc1 references target");
+     assert!(keys.contains(&"doc2"), "doc2 references target");
+     assert!(!keys.contains(&"doc3"), "doc3 does not reference target");
+-    assert!(!keys.contains(&"target"), "target does not reference itself");
++    assert!(
++        !keys.contains(&"target"),
++        "target does not reference itself"
++    );
+ }
+ 
+ #[test]
+@@ -195,7 +206,11 @@ fn test_find_refs_from() {
+ 
+     write(dir.path().join("child1.md"), "# Child One\n\nContent.").unwrap();
+     write(dir.path().join("child2.md"), "# Child Two\n\nContent.").unwrap();
+-    write(dir.path().join("other.md"), "# Other\n\nNot referenced by source.").unwrap();
++    write(
++        dir.path().join("other.md"),
++        "# Other\n\nNot referenced by source.",
++    )
++    .unwrap();
+ 
+     let (stdout, stderr, success) = run_iwe(dir.path(), &["--refs-from", "source", "-f", "json"]);
+ 
+@@ -208,8 +223,14 @@ fn test_find_refs_from() {
+ 
+     assert!(keys.contains(&"child1"), "child1 is referenced by source");
+     assert!(keys.contains(&"child2"), "child2 is referenced by source");
+-    assert!(!keys.contains(&"other"), "other is not referenced by source");
+-    assert!(!keys.contains(&"source"), "source does not reference itself");
++    assert!(
++        !keys.contains(&"other"),
++        "other is not referenced by source"
++    );
++    assert!(
++        !keys.contains(&"source"),
++        "source does not reference itself"
++    );
+ }
+ 
+ #[test]
+@@ -230,7 +251,11 @@ fn test_find_limit() {
+ 
+     let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+     assert_eq!(parsed["total"], 10, "total should be 10");
+-    assert_eq!(parsed["results"].as_array().unwrap().len(), 3, "should return only 3 results");
++    assert_eq!(
++        parsed["results"].as_array().unwrap().len(),
++        3,
++        "should return only 3 results"
++    );
+ }
+ 
+ #[test]
+@@ -273,7 +298,11 @@ fn test_find_keys_format() {
+ fn test_find_markdown_format() {
+     let dir = setup_workspace();
+ 
+-    write(dir.path().join("test-doc.md"), "# Test Document\n\nContent.").unwrap();
++    write(
++        dir.path().join("test-doc.md"),
++        "# Test Document\n\nContent.",
++    )
++    .unwrap();
+ 
+     let (stdout, stderr, success) = run_iwe(dir.path(), &["-f", "markdown"]);
+ 
+@@ -491,5 +520,108 @@ fn test_find_refs_to_inline_link() {
+ 
+     let keys: Vec<&str> = results.iter().map(|r| r["key"].as_str().unwrap()).collect();
+ 
+-    assert!(keys.contains(&"doc1"), "doc1 references target via inline link");
++    assert!(
++        keys.contains(&"doc1"),
++        "doc1 references target via inline link"
++    );
++}
++
++#[test]
++fn test_find_count_all_documents() {
++    let dir = setup_workspace();
++
++    write(dir.path().join("alpha.md"), "# Alpha\n\nContent.").unwrap();
++    write(dir.path().join("beta.md"), "# Beta\n\nContent.").unwrap();
++
++    let (stdout, stderr, success) = run_iwe(dir.path(), &["--count"]);
++
++    assert!(success, "stderr: {}", stderr);
++    assert_eq!(stdout, "2\n");
++}
++
++#[test]
++fn test_find_count_with_refs_to_filter() {
++    let dir = setup_workspace();
++
++    write(
++        dir.path().join("doc1.md"),
++        indoc! {"
++            # Doc One
++
++            [target](target)
++        "},
++    )
++    .unwrap();
++    write(
++        dir.path().join("doc2.md"),
++        indoc! {"
++            # Doc Two
++
++            See [target](target) for details.
++        "},
++    )
++    .unwrap();
++    write(dir.path().join("other.md"), "# Other\n\nNo refs.").unwrap();
++    write(dir.path().join("target.md"), "# Target\n\nTarget content.").unwrap();
++
++    let (stdout, stderr, success) = run_iwe(dir.path(), &["--refs-to", "target", "--count"]);
++
++    assert!(success, "stderr: {}", stderr);
++    assert_eq!(stdout, "2\n");
++}
++
++#[test]
++fn test_find_count_with_meta_roots_and_limit_filters() {
++    let dir = setup_workspace();
++
++    write(
++        dir.path().join("parent.md"),
++        indoc! {"
++            ---
++            status: ready
++            ---
++
++            # Parent
++
++            [child](child)
++        "},
++    )
++    .unwrap();
++    write(
++        dir.path().join("child.md"),
++        indoc! {"
++            ---
++            status: ready
++            ---
++
++            # Child
++        "},
++    )
++    .unwrap();
++    write(
++        dir.path().join("draft.md"),
++        indoc! {"
++            ---
++            status: draft
++            ---
++
++            # Draft
++        "},
++    )
++    .unwrap();
++
++    let (stdout, stderr, success) = run_iwe(
++        dir.path(),
++        &[
++            "--meta",
++            "status=ready",
++            "--roots",
++            "--limit",
++            "1",
++            "--count",
++        ],
++    );
++
++    assert!(success, "stderr: {}", stderr);
++    assert_eq!(stdout, "1\n");
+ }
+ M .indexnudge.db
+ M crates/iwe/src/export.rs
+ M crates/iwe/src/export/graph_data.rs
+ M crates/iwe/src/main.rs
+ M crates/iwe/src/new.rs
+ M crates/iwe/tests/delete_test.rs
+ M crates/iwe/tests/extract_test.rs
+ M crates/iwe/tests/find_test.rs
+ M crates/iwe/tests/inline_test.rs
+ M crates/iwe/tests/new_test.rs
+ M crates/iwe/tests/rename_test.rs
+ M crates/iwe/tests/retrieve_test.rs
+ M crates/iwe/tests/stats_test.rs
+ M crates/iwe/tests/tree_test.rs
+ M crates/iwec/src/lib.rs
+ M crates/iwec/src/watcher.rs
+ M crates/iwec/tests/attach_test.rs
+ M crates/iwec/tests/extract_test.rs
+ M crates/iwec/tests/find_test.rs
+ M crates/iwec/tests/fixture.rs
+ M crates/iwec/tests/inline_test.rs
+ M crates/iwec/tests/prompt_test.rs
+ M crates/iwec/tests/resource_test.rs
+ M crates/iwec/tests/stats_test.rs
+ M crates/iwec/tests/tree_test.rs
+ M crates/iwec/tests/watcher_test.rs
+ M crates/iwec/tests/write_test.rs
+ M crates/iwes/src/lib.rs
+ M crates/iwes/src/router.rs
+ M crates/iwes/src/router/server.rs
+ M crates/iwes/src/router/server/actions.rs
+ M crates/iwes/src/router/server/actions/attach.rs
+ M crates/iwes/src/router/server/actions/link.rs
+ M crates/iwes/src/router/server/actions/sort.rs
+ M crates/iwes/src/router/server/actions/transform.rs
+ M crates/iwes/src/router/server/base_path.rs
+ M crates/iwes/tests/completion_test.rs
+ M crates/iwes/tests/delete_test.rs
+ M crates/iwes/tests/extract_test.rs
+ M crates/iwes/tests/fixture.rs
+ M crates/iwes/tests/folding_range_test.rs
+ M crates/iwes/tests/go_to_definition_test.rs
+ M crates/iwes/tests/link_test.rs
+ M crates/liwe/src/find.rs
+ M crates/liwe/src/fs.rs
+ M crates/liwe/src/graph.rs
+ M crates/liwe/src/graph/path.rs
+ M crates/liwe/src/model/graph.rs
+ M crates/liwe/src/model/projector.rs
+ M crates/liwe/src/model/reference.rs
+ M crates/liwe/src/operations/changes.rs
+ M crates/liwe/src/operations/extract.rs
+ M crates/liwe/src/operations/inline.rs
+ M crates/liwe/src/parser.rs
+ M crates/liwe/src/retrieve.rs
+ M crates/liwe/src/selector.rs
+ M crates/liwe/tests/bare_frontmatter_test.rs
+ M crates/liwe/tests/config_migration_test.rs
+ M crates/liwe/tests/links_test.rs
+ M crates/liwe/tests/virtual_directories_test.rsThe code change and tests are in place, and both `cargo build` and `cargo test` passed.
+
+One thing I need to flag: running `cargo fmt` touched a lot of already-modified files in the working tree. I did not reset anything because I can’t tell which of those changes were pre-existing DG work. The functional change for this task is in:
+
+- `crates/iwe/src/main.rs`
+- `crates/iwe/tests/find_test.rs`
+
+I’ll keep the summary focused on those.Implemented `iwe find --count`.
+
+What changed:
+
+- Added `--count` to `iwe find`.
+- When present, it prints only the total number of matching documents followed by a newline.
+- It uses the existing `FindOptions` path, so it composes with current filters:
+  - query
+  - `--roots`
+  - `--refs-to`
+  - `--refs-from`
+  - selectors
+  - `--meta`
+  - `--limit`  
+    - Count reports `output.total`, i.e. total matches before limiting, consistent with existing JSON behavior.
+
+Added CLI tests for:
+
+- counting all documents
+- counting with `--refs-to`
+- counting with combined `--meta`, `--roots`, and `--limit`
+
+Verification:
+
+- `cargo build` passed
+- `cargo test` passed
+
+Note: `cargo fmt` touched many already-modified files in the working tree. I did not reset anything because those may include pre-existing DG changes.

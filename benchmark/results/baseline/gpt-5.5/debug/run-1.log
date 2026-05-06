@@ -1,0 +1,2281 @@
+
+  ────────────────────────────────────────
+  ▸ todo_write todo
+    content: - [ ] Diagnose `iwe find --meta depends=foo` failure for bare frontmatter documents
+  - [ ] Reproduce or identify parsing/query path for bare vs fenced YAML front matter
+  - [ ] Find why tests pass despite bug
+- [ ] Fix metadata handling so bare frontmatter `depends:\n- foo` matches `--meta depends=foo`
+- [ ] Add/regression-test behavior if appropriate
+- [ ] Run `cargo test` and ensure it passes
+- [ ] Report root cause, fix, and test result
+
+I'll trace the metadata path first and try to pin down why fenced and bare frontmatter diverge before changing anything.
+  ────────────────────────────────────────
+  ▸ shell
+    command: pwd; ls; sqlite3 .indexnudge.db '.schema' | head -80
+    timeout_secs: 10
+
+/home/dangood/src/iwe
+AUDIT_FINDINGS.md
+BARE_FRONTMATTER_SPEC.md
+CONTRIBUTING.md
+Cargo.lock
+Cargo.toml
+ENHANCEMENTS_SPEC.md
+IMPLEMENTATION_PLAN.md
+LICENSE-APACHE
+README.md
+audit
+crates
+docs
+run-enhancements.sh
+run-merge-envelope.sh
+target
+CREATE TABLE lines (
+            file     TEXT,
+            line_num INTEGER,
+            content  TEXT,
+            symbol   TEXT,
+            PRIMARY KEY (file, line_num)
+        );
+CREATE VIRTUAL TABLE lines_fts USING fts5(file, line_num, content, symbol)
+/* lines_fts(file,line_num,content,symbol) */;
+CREATE TABLE 'lines_fts_data'(id INTEGER PRIMARY KEY, block BLOB);
+CREATE TABLE 'lines_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
+CREATE TABLE 'lines_fts_content'(id INTEGER PRIMARY KEY, c0, c1, c2, c3);
+CREATE TABLE 'lines_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
+CREATE TABLE 'lines_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID;
+CREATE TABLE symbols (
+            id             INTEGER PRIMARY KEY,
+            name           TEXT,
+            qualified_name TEXT,
+            kind           TEXT,
+            file           TEXT,
+            start_line     INTEGER,
+            end_line       INTEGER,
+            parent         TEXT,
+            signature      TEXT
+        );
+CREATE TABLE calls (
+            caller_file   TEXT,
+            caller_symbol TEXT,
+            callee        TEXT,
+            callee_qname  TEXT,
+            kind          TEXT,
+            line_num      INTEGER
+        );
+CREATE TABLE defs (
+            symbol TEXT,
+            file   TEXT,
+            line_num INTEGER,
+            var    TEXT,
+            kind   TEXT
+        );
+CREATE TABLE imports (
+            file   TEXT,
+            module TEXT,
+            line_num INTEGER
+        );
+CREATE INDEX idx_symbols_name ON symbols(name);
+CREATE INDEX idx_symbols_qualified ON symbols(qualified_name);
+CREATE INDEX idx_symbols_file ON symbols(file);
+CREATE INDEX idx_calls_callee ON calls(callee);
+CREATE INDEX idx_calls_caller ON calls(caller_symbol);
+CREATE INDEX idx_defs_var ON defs(var);
+CREATE INDEX idx_imports_module ON imports(module);
+CREATE TABLE files (
+            file           TEXT PRIMARY KEY,
+            lines          INTEGER,
+            language       TEXT,
+            indexed_mtime  REAL,
+            parse_error    INTEGER DEFAULT 0
+        );
+CREATE TABLE directories (
+            path        TEXT PRIMARY KEY,
+            file_count  INTEGER,
+            total_lines INTEGER
+        );
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge.db "select path,file_count,total_lines from directories order by path limit 50; select file,lines,language from files where file like '%find%' or file like '%meta%' order by file;"
+    timeout_secs: 10
+
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: rg -n "meta|frontmatter|front matter|depends|bare" crates tests docs README.md
+    timeout_secs: 10
+
+.|142|38462
+crates|142|38462
+crates/iwe|26|9580
+crates/iwe/src|12|2944
+crates/iwe/src/export|4|640
+crates/iwe/tests|14|6636
+crates/iwec|17|3452
+crates/iwec/src|3|1630
+crates/iwec/tests|14|1822
+crates/iwes|44|10427
+crates/iwes/src|19|3544
+crates/iwes/src/router|16|3047
+crates/iwes/src/router/server|15|2191
+crates/iwes/src/router/server/actions|11|1121
+crates/iwes/tests|25|6883
+crates/liwe|55|15003
+crates/liwe/src|39|11350
+crates/liwe/src/graph|9|2713
+crates/liwe/src/markdown|2|1074
+crates/liwe/src/model|7|3977
+crates/liwe/src/operations|7|641
+crates/liwe/tests|16|3653
+crates/iwe/tests/find_test.rs|495|rust
+crates/iwec/tests/find_test.rs|195|rust
+crates/liwe/src/find.rs|278|rust
+crates/liwe/tests/find_metadata_test.rs|160|rust
+crates/liwe/tests/normalization_metadata.rs|52|rustrg: tests: No such file or directory (os error 2)
+docs/feature-hover-preview.md:15:- Strips frontmatter at the top of the note (delimited by `---` and terminated by `---` or `...`).
+crates/liwe/src/retrieve.rs:294:        self.graph.to_markdown_skip_frontmatter(key)
+crates/liwe/src/parser.rs:33:        self.bare_url_at(position)
+crates/liwe/src/parser.rs:36:    fn bare_url_at(&self, position: Position) -> Option<String> {
+crates/liwe/src/parser.rs:101:    fn bare_https_url() {
+crates/liwe/src/parser.rs:125:    fn bare_http_url() {
+crates/liwe/src/parser.rs:139:    fn bare_mailto_url() {
+crates/liwe/src/parser.rs:153:    fn bare_url_with_path() {
+crates/liwe/src/parser.rs:167:    fn multiple_bare_urls() {
+crates/liwe/src/parser.rs:185:    fn markdown_link_preferred_over_bare_url() {
+crates/liwe/src/graph/graph_node.rs:26:    metadata: Option<String>,
+crates/liwe/src/graph/graph_node.rs:38:    pub fn metadata(&self) -> Option<String> {
+crates/liwe/src/graph/graph_node.rs:39:        self.metadata.clone()
+crates/liwe/src/graph/graph_node.rs:591:    pub fn new_root(key: Key, id: NodeId, metadata: Option<String>) -> GraphNode {
+crates/liwe/src/graph/graph_node.rs:596:            metadata,
+crates/liwe/src/find.rs:43:    pub metadata_filters: Vec<(String, String)>,
+crates/liwe/src/find.rs:88:                if !options.metadata_filters.is_empty()
+crates/liwe/src/find.rs:89:                    && !self.metadata_matches(&key, &options.metadata_filters)
+crates/liwe/src/find.rs:253:    fn metadata_matches(&self, key: &Key, filters: &[(String, String)]) -> bool {
+crates/liwe/src/find.rs:254:        let raw = match self.graph.get_metadata(key) {
+crates/liwe/CHANGELOG.md:205:- Code action should not remove YAML metadata ([#127](https://github.com/iwe-org/iwe/pull/127))
+crates/liwe/src/graph/basic_iter.rs:81:                self.graph.metadata.get(document.key()).cloned(),
+crates/liwe/src/model/document.rs:10:    pub metadata: Option<String>,
+crates/liwe/tests/bare_frontmatter_test.rs:20:fn bare_options() -> MarkdownOptions {
+crates/liwe/tests/bare_frontmatter_test.rs:22:        bare_frontmatter: true,
+crates/liwe/tests/bare_frontmatter_test.rs:28:fn reader_detects_bare_title_block() {
+crates/liwe/tests/bare_frontmatter_test.rs:38:        bare_options(),
+crates/liwe/tests/bare_frontmatter_test.rs:44:    // The metadata should have been parsed — the output should have fenced front matter
+crates/liwe/tests/bare_frontmatter_test.rs:45:    // since we're exporting with bare_frontmatter=true, it should be bare again
+crates/liwe/tests/bare_frontmatter_test.rs:60:        MarkdownOptions::default(), // bare_frontmatter = false
+crates/liwe/tests/bare_frontmatter_test.rs:66:    // Without bare_frontmatter, "title: Foo" is just body text, no metadata parsed
+crates/liwe/tests/bare_frontmatter_test.rs:67:    // So no frontmatter block in output
+crates/liwe/tests/bare_frontmatter_test.rs:82:        bare_options(),
+crates/liwe/tests/bare_frontmatter_test.rs:88:    // First line isn't "title: " so no metadata parsed
+crates/liwe/tests/bare_frontmatter_test.rs:102:        bare_options(),
+crates/liwe/tests/bare_frontmatter_test.rs:123:        bare_options(),
+crates/liwe/tests/bare_frontmatter_test.rs:129:    // With bare_frontmatter enabled, writer should emit bare format
+crates/liwe/tests/bare_frontmatter_test.rs:135:fn writer_emits_bare_when_enabled() {
+crates/liwe/tests/bare_frontmatter_test.rs:146:        bare_options(),
+crates/liwe/tests/bare_frontmatter_test.rs:179:fn frontmatter_title_works_with_bare() {
+crates/liwe/tests/bare_frontmatter_test.rs:191:        bare_options(),
+crates/liwe/tests/frontmatter_title_test.rs:21:fn links_text_updated_from_frontmatter_title() {
+crates/liwe/tests/frontmatter_title_test.rs:55:fn fallback_to_header_when_frontmatter_key_missing() {
+crates/liwe/tests/frontmatter_title_test.rs:89:fn fallback_to_header_when_no_frontmatter() {
+crates/liwe/tests/frontmatter_title_test.rs:115:fn use_header_when_frontmatter_title_not_configured() {
+crates/liwe/src/model/node.rs:1:use crate::model::graph::{blocks_to_markdown_sparce_skip_frontmatter, GraphInlines};
+crates/liwe/src/model/node.rs:80:    fn to_markdown_skip_frontmatter(self, parent: &str, options: &MarkdownOptions) -> String {
+crates/liwe/src/model/node.rs:82:        blocks_to_markdown_sparce_skip_frontmatter(&blocks, options)
+crates/liwe/src/model/config.rs:28:    pub bare_frontmatter: bool,
+crates/liwe/src/model/config.rs:39:            bare_frontmatter: false,
+crates/liwe/src/model/config.rs:143:            newlines_after_metadata: 1,
+crates/liwe/src/model/config.rs:167:    pub frontmatter_document_title: Option<String>,
+crates/liwe/src/model/config.rs:186:            frontmatter_document_title: None,
+docs/documents-processing.md:35:- **Code blocks become Raw nodes**: With language and content metadata
+crates/liwe/src/model/projector.rs:72:            Node::Document(_, metadata) => {
+crates/liwe/src/model/projector.rs:73:                if let Some(metadata_content) = metadata {
+crates/liwe/src/model/projector.rs:74:                    blocks.push(GraphBlock::Frontmatter(metadata_content.clone()));
+crates/liwe/tests/find_metadata_test.rs:32:        metadata_filters: vec![("status".to_string(), "ready".to_string())],
+crates/liwe/tests/find_metadata_test.rs:62:        metadata_filters: vec![
+crates/liwe/tests/find_metadata_test.rs:86:        metadata_filters: vec![("status".to_string(), "ready".to_string())],
+crates/liwe/tests/find_metadata_test.rs:94:fn note_without_metadata_excluded() {
+crates/liwe/tests/find_metadata_test.rs:101:        metadata_filters: vec![("status".to_string(), "ready".to_string())],
+crates/liwe/tests/find_metadata_test.rs:123:        metadata_filters: vec![("tags".to_string(), "rust".to_string())],
+crates/liwe/tests/find_metadata_test.rs:154:        metadata_filters: vec![("status".to_string(), "ready".to_string())],
+crates/liwe/tests/normalization_metadata.rs:10:fn normalization_meta_block() {
+crates/liwe/src/model/graph.rs:88:    fn is_frontmatter(&self) -> bool {
+crates/liwe/src/model/graph.rs:95:                if options.bare_frontmatter {
+crates/liwe/src/model/graph.rs:508:pub fn blocks_to_markdown_sparce_skip_frontmatter(
+crates/liwe/src/model/graph.rs:515:            .filter_map(|block| (!block.is_frontmatter()).then_some(block.to_markdown(options)))
+crates/liwe/tests/config_migration_test.rs:282:    assert!(!parsed.markdown.bare_frontmatter);
+crates/liwe/tests/config_migration_test.rs:287:fn parses_bare_frontmatter_true() {
+crates/liwe/tests/config_migration_test.rs:296:        bare_frontmatter = true
+crates/liwe/tests/config_migration_test.rs:304:    assert!(parsed.markdown.bare_frontmatter);
+crates/liwe/src/markdown/writer.rs:22:        if self.options.bare_frontmatter {
+crates/liwe/src/markdown/writer.rs:24:            let mut frontmatter: Option<String> = None;
+crates/liwe/src/markdown/writer.rs:30:                        frontmatter = Some(content.clone());
+crates/liwe/src/markdown/writer.rs:39:            if let Some(fm) = frontmatter {
+crates/liwe/src/selector.rs:13:    pub fn bare(key: Key) -> Self {
+crates/liwe/src/selector.rs:236:            in_: vec![KeyDepth::bare(k("a")), KeyDepth::bare(k("b"))],
+crates/liwe/src/selector.rs:253:            in_any: vec![KeyDepth::bare(k("a")), KeyDepth::bare(k("b"))],
+crates/liwe/src/selector.rs:269:            in_: vec![KeyDepth::bare(k("a"))],
+crates/liwe/src/selector.rs:270:            not_in: vec![KeyDepth::bare(k("archive"))],
+crates/liwe/src/selector.rs:303:            in_: vec![KeyDepth::bare(k("a"))],
+crates/liwe/src/selector.rs:320:            in_: vec![KeyDepth::bare(k("a")), KeyDepth::bare(k("b"))],
+crates/liwe/src/selector.rs:331:            in_: vec![KeyDepth::bare(k("a")), KeyDepth::bare(k("nonexistent"))],
+crates/liwe/src/markdown.rs:26:/// If `bare_frontmatter` is enabled and content starts with `title: ` (but
+crates/liwe/src/markdown.rs:29:pub fn wrap_bare_frontmatter(content: &str) -> Cow<'_, str> {
+crates/liwe/src/markdown.rs:69:        let effective = if markdown_options.bare_frontmatter {
+crates/liwe/src/markdown.rs:70:            wrap_bare_frontmatter(content)
+crates/liwe/src/markdown.rs:80:            metadata: reader.metadata(),
+crates/liwe/src/markdown/reader.rs:19:    metadata_block: bool,
+crates/liwe/src/markdown/reader.rs:20:    metadata: Option<String>,
+crates/liwe/src/markdown/reader.rs:39:            metadata_block: false,
+crates/liwe/src/markdown/reader.rs:40:            metadata: None,
+crates/liwe/src/markdown/reader.rs:53:            metadata_block: false,
+crates/liwe/src/markdown/reader.rs:54:            metadata: None,
+crates/liwe/src/markdown/reader.rs:63:    pub fn metadata(&self) -> Option<String> {
+crates/liwe/src/markdown/reader.rs:64:        self.metadata.clone()
+crates/liwe/src/markdown/reader.rs:96:                    if !self.metadata_block {
+crates/liwe/src/markdown/reader.rs:111:                        self.metadata = Some(text.to_string());
+crates/liwe/src/markdown/reader.rs:356:            Tag::MetadataBlock(_) => self.metadata_block = true,
+crates/liwe/src/markdown/reader.rs:386:            TagEnd::MetadataBlock(_) => self.metadata_block = false,
+docs/feature-search.md:21:By default, IWE uses the first header of each document as its title in search results. You can configure IWE to use a YAML frontmatter field instead by setting `frontmatter_document_title` in your configuration. See the [Configuration](configuration.md#frontmatter-document-title.md) documentation for details.
+docs/configuration.md:30:frontmatter_document_title = "title"
+docs/configuration.md:71:- `frontmatter_document_title`: YAML frontmatter field to use as document title (default: none, uses first header)
+docs/configuration.md:135:By default, IWE uses the first header in a document as its title for links, autocomplete suggestions, and search results. You can override this behavior by specifying a YAML frontmatter field to use instead:
+docs/configuration.md:139:frontmatter_document_title = "title"
+docs/configuration.md:160:If the configured frontmatter field is missing or the document has no frontmatter, IWE falls back to using the first header as the title.
+crates/liwe/src/graph.rs:55:    metadata: HashMap<Key, String>,
+crates/liwe/src/graph.rs:57:    frontmatter_document_title: Option<String>,
+crates/liwe/src/graph.rs:94:    pub fn frontmatter_document_title(&self) -> Option<&str> {
+crates/liwe/src/graph.rs:95:        self.frontmatter_document_title.as_deref()
+crates/liwe/src/graph.rs:102:            metadata: self.metadata.clone(),
+crates/liwe/src/graph.rs:103:            frontmatter_document_title: self.frontmatter_document_title.clone(),
+crates/liwe/src/graph.rs:141:        self.metadata.remove(&key);
+crates/liwe/src/graph.rs:223:    pub fn get_metadata(&self, key: &Key) -> Option<&str> {
+crates/liwe/src/graph.rs:224:        self.metadata.get(key).map(|s| s.as_str())
+crates/liwe/src/graph.rs:248:        if let Some(title) = self.extract_frontmatter_title(key) {
+crates/liwe/src/graph.rs:260:    fn extract_frontmatter_title(&self, key: &Key) -> Option<String> {
+crates/liwe/src/graph.rs:261:        let title_key = self.frontmatter_document_title.as_ref()?;
+crates/liwe/src/graph.rs:262:        let metadata = self.metadata.get(key)?;
+crates/liwe/src/graph.rs:263:        let yaml_value: serde_yaml::Value = serde_yaml::from_str(metadata).ok()?;
+crates/liwe/src/graph.rs:283:        if let Some(meta) = document.metadata {
+crates/liwe/src/graph.rs:284:            self.metadata.insert(key.clone(), meta);
+crates/liwe/src/graph.rs:286:            self.metadata.remove(&key);
+crates/liwe/src/graph.rs:317:    pub fn to_markdown_skip_frontmatter(&self, key: &Key) -> String {
+crates/liwe/src/graph.rs:324:            .to_markdown_skip_frontmatter(&key.parent(), &self.markdown_options);
+crates/liwe/src/graph.rs:350:        frontmatter_document_title: Option<String>,
+crates/liwe/src/graph.rs:352:        Self::from_state(content.clone(), false, markdown_options, frontmatter_document_title)
+crates/liwe/src/graph.rs:359:        frontmatter_document_title: Option<String>,
+crates/liwe/src/graph.rs:363:        graph.frontmatter_document_title = frontmatter_document_title;
+crates/liwe/src/graph.rs:379:            if let Some(meta) = document.metadata.clone() {
+crates/liwe/src/graph.rs:380:                graph.metadata.insert(key.clone(), meta);
+crates/liwe/src/graph.rs:382:                graph.metadata.remove(&key);
+docs/cli-retrieve.md:24:| `--no-content`        | Exclude content, show child documents instead (metadata only)          | false    |
+docs/cli-retrieve.md:151:Documents are rendered with YAML frontmatter containing metadata, followed by the document content:
+docs/cli-retrieve.md:173:- YAML frontmatter with `key`, `title`, `parents`, and `back-links`
+docs/cli-retrieve.md:177:Multiple documents are separated by their frontmatter delimiters (`---`), no horizontal rules.
+docs/cli-retrieve.md:253:# Get metadata only, no content
+docs/cli-retrieve.md:323:- Documents use YAML frontmatter for metadata, content follows with original formatting
+docs/cli-retrieve.md:324:- Empty `parents` or `back-links` fields are omitted from frontmatter
+docs/feature-autocomplete.md:32:By default, IWE uses the first header of a document as its title in completion suggestions. You can configure IWE to use a YAML frontmatter field instead:
+docs/feature-autocomplete.md:36:frontmatter_document_title = "title"
+docs/feature-autocomplete.md:39:With this configuration, documents with frontmatter like:
+docs/feature-autocomplete.md:49:Will appear in completions as "Custom Document Title" and insert `[Custom Document Title](key)` when selected. If the frontmatter field is missing, IWE falls back to using the first header.
+crates/iwe/src/render.rs:3:use liwe::model::graph::{blocks_to_markdown_sparce_skip_frontmatter, GraphBlock};
+crates/iwe/src/render.rs:24:    /// User-defined front matter fields merged into the envelope.
+crates/iwe/src/render.rs:62:        // Build extra fields from parsed front matter metadata.
+crates/iwe/src/render.rs:65:        if let Some(metadata_str) = self.graph.get_metadata(&key) {
+crates/iwe/src/render.rs:66:            if let Ok(serde_yaml::Value::Mapping(map)) = serde_yaml::from_str(metadata_str) {
+crates/iwe/src/render.rs:67:                let title_field = self.graph.frontmatter_document_title();
+crates/iwe/src/render.rs:88:        let frontmatter = DocumentFrontmatter {
+crates/iwe/src/render.rs:112:        if let Ok(yaml) = serde_yaml::to_string(&frontmatter) {
+crates/iwe/src/render.rs:130:        blocks_to_markdown_sparce_skip_frontmatter(&blocks, self.options)
+crates/iwes/README.md:29:- **Inlay hints** - inline reference metadata
+crates/iwec/src/lib.rs:58:            KeyDepthParam::Bare(s) => KeyDepth::bare(Key::name(&s)),
+crates/iwec/src/lib.rs:61:                None => KeyDepth::bare(Key::name(&key)),
+crates/iwec/src/lib.rs:70:        description = "Restrict to candidates that are sub-documents of EVERY listed key (AND). Each entry is either a bare KEY or {key, depth}."
+crates/iwec/src/lib.rs:114:    #[schemars(description = "Filter by front matter metadata (list of key=value strings)")]
+crates/iwec/src/lib.rs:116:    pub meta: Option<Vec<(String, String)>>,
+crates/iwec/src/lib.rs:130:            metadata_filters: p.meta.unwrap_or_default(),
+crates/iwec/src/lib.rs:150:    #[schemars(description = "Return metadata only without document content. Default: false")]
+crates/iwec/src/lib.rs:342:    frontmatter_document_title: Option<String>,
+crates/iwec/src/lib.rs:388:                frontmatter_document_title: config.library.frontmatter_document_title.clone(),
+crates/iwec/src/lib.rs:1241:            meta: None,
+crates/iwec/src/lib.rs:1335:            meta: None,
+crates/iwec/src/lib.rs:1348:            configuration.library.frontmatter_document_title.clone(),
+crates/iwe/src/selector.rs:54:        Ok(KeyDepth::bare(Key::name(s)))
+crates/iwe/tests/retrieve_test.rs:2080:fn setup_workspace_with_frontmatter_title() -> TempDir {
+crates/iwe/tests/retrieve_test.rs:2089:            frontmatter_document_title: Some("title".to_string()),
+crates/iwe/tests/retrieve_test.rs:2094:            bare_frontmatter: true,
+crates/iwe/tests/retrieve_test.rs:2108:fn test_retrieve_merges_frontmatter_into_envelope() {
+crates/iwe/tests/retrieve_test.rs:2109:    let dir = setup_workspace_with_frontmatter_title();
+crates/iwe/tests/retrieve_test.rs:2143:fn test_retrieve_envelope_no_frontmatter() {
+crates/iwe/tests/retrieve_test.rs:2167:fn test_retrieve_envelope_frontmatter_without_title_config() {
+crates/iwe/tests/retrieve_test.rs:2168:    // No frontmatter_document_title configured, so all fields merge
+crates/iwe/tests/retrieve_test.rs:2196:fn test_retrieve_envelope_bare_frontmatter_merged() {
+crates/iwe/tests/retrieve_test.rs:2197:    let dir = setup_workspace_with_frontmatter_title();
+crates/iwe/tests/retrieve_test.rs:2200:        dir.path().join("bare.md"),
+crates/iwe/tests/retrieve_test.rs:2204:            depends: []
+crates/iwe/tests/retrieve_test.rs:2206:            Body of bare doc.
+crates/iwe/tests/retrieve_test.rs:2211:    let (stdout, stderr, success) = run_iwe(dir.path(), &["-k", "bare", "-d", "0"]);
+crates/iwe/tests/retrieve_test.rs:2217:    assert!(stdout.contains("Body of bare doc."), "body present: {}", stdout);
+crates/iwe/tests/retrieve_test.rs:2225:    let dir = setup_workspace_with_frontmatter_title();
+crates/iwe/src/main.rs:108:    #[clap(long, help = "Exclude document content from results (metadata only)")]
+crates/iwe/src/main.rs:153:    #[clap(long = "meta", value_parser = parse_meta_filter,
+crates/iwe/src/main.rs:154:           help = "Filter by front matter field (key=value); repeatable")]
+crates/iwe/src/main.rs:155:    meta: Vec<(String, String)>,
+crates/iwe/src/main.rs:654:fn parse_meta_filter(s: &str) -> Result<(String, String), String> {
+crates/iwe/src/main.rs:673:        metadata_filters: args.meta,
+crates/iwe/src/main.rs:1032:        configuration.library.frontmatter_document_title.clone(),
+crates/iwe/CHANGELOG.md:128:- Code action should not remove YAML metadata ([#127](https://github.com/iwe-org/iwe/pull/127))
+crates/iwes/src/router/server.rs:49:            config.configuration.library.frontmatter_document_title.clone(),
+crates/iwes/src/router/server.rs:89:        let markdown = self.graph.to_markdown_skip_frontmatter(&target_key);
+crates/iwe/README.md:96:iwe retrieve -k doc --no-content   # metadata only
+crates/iwe/README.md:108:- `--no-content` - exclude document content from results (metadata only)
+crates/iwes/CHANGELOG.md:234:- Code action should not remove YAML metadata ([#127](https://github.com/iwe-org/iwe/pull/127))
+crates/iwes/tests/go_to_definition_test.rs:221:fn definition_bare_https_url() {
+crates/iwes/tests/go_to_definition_test.rs:235:fn definition_bare_http_url() {
+crates/iwes/tests/go_to_definition_test.rs:249:fn definition_bare_mailto_url() {
+crates/iwes/tests/completion_test.rs:47:            bare_frontmatter: false,
+crates/iwes/tests/completion_test.rs:117:        bare_frontmatter: false,
+crates/iwes/tests/completion_test.rs:299:            bare_frontmatter: false,
+crates/iwes/tests/completion_test.rs:326:fn completion_uses_frontmatter_title() {
+crates/iwes/tests/completion_test.rs:329:            frontmatter_document_title: Some("title".to_string()),
+crates/iwes/tests/completion_test.rs:368:fn completion_fallback_to_header_when_frontmatter_missing() {
+crates/iwes/tests/completion_test.rs:371:            frontmatter_document_title: Some("title".to_string()),
+crates/iwes/tests/hover_test.rs:9:fn hover_preview_for_wiki_link_strips_frontmatter() {
+crates/iwes/tests/format_document_test.rs:24:fn metadata_format() {
+crates/iwe/help/retrieve/after_help.txt:4:  Each document has YAML frontmatter followed by content:
+crates/iwe/help/retrieve/after_help.txt:22:  Multiple documents are separated by frontmatter delimiters (---).
+crates/iwes/tests/list_to_sections_test.rs:18:fn keep_frontmatter() {
+crates/iwes/tests/list_to_sections_test.rs:22:            frontmatter: true
+crates/iwes/tests/list_to_sections_test.rs:30:            frontmatter: true
+crates/iwe/help/find/after_help.txt:24:  Structured output with metadata:
+
+Command exited with code 2
+  ────────────────────────────────────────
+  ▸ shell
+    command: sed -n '1,130p' crates/liwe/src/markdown.rs; sed -n '240,275p' crates/liwe/src/find.rs; sed -n '1,190p' crates/liwe/tests/find_metadata_test.rs; sed -n '1,120p' crates/liwe/tests/bare_frontmatter_test.rs
+    timeout_secs: 10
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge.db ──
+query: SELECT line_num, content FROM lines WHERE file='crates/liwe/src/markdown.rs' AND line_num BETWEEN 1 AND 130;
+** STOP USING sed. Query the DB directly: sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/markdown.rs' AND line_num BETWEEN START AND END ORDER BY line_num;" **
+
+   1 │ use std::borrow::Cow;
+   2 │ 
+   3 │ use crate::graph::Reader;
+   4 │ use crate::model::config::MarkdownOptions;
+   5 │ use crate::model::document::Document;
+   6 │ 
+   7 │ pub mod reader;
+   8 │ 
+   9 │ use reader::MarkdownEventsReader;
+  10 │ pub struct MarkdownReader {}
+  11 │ 
+  12 │ pub mod writer;
+  13 │ 
+  14 │ impl Default for MarkdownReader {
+  15 │     fn default() -> Self {
+  16 │         Self::new()
+  17 │     }
+  18 │ }
+  19 │ 
+  20 │ impl MarkdownReader {
+  21 │     pub fn new() -> MarkdownReader {
+  22 │         MarkdownReader {}
+  23 │     }
+  24 │ }
+  25 │ 
+  26 │ /// If `bare_frontmatter` is enabled and content starts with `title: ` (but
+  27 │ /// not `---`), wrap the leading header block in `---` fences so the
+  28 │ /// downstream pulldown-cmark MetadataBlock machinery picks it up.
+  29 │ pub fn wrap_bare_frontmatter(content: &str) -> Cow<'_, str> {
+  30 │     // Already fenced — leave alone.
+  31 │     if content.starts_with("---") {
+  32 │         return Cow::Borrowed(content);
+  33 │     }
+  34 │ 
+  35 │     // Must start with `title: `.
+  36 │     if !content.starts_with("title: ") {
+  37 │         return Cow::Borrowed(content);
+  38 │     }
+  39 │ 
+  40 │     // Find first true blank line (\n\n or \r\n\r\n).
+  41 │     let (header, rest) = if let Some(pos) = content.find("\n\n") {
+  42 │         (&content[..pos], &content[pos + 2..])
+  43 │     } else if let Some(pos) = content.find("\r\n\r\n") {
+  44 │         (&content[..pos], &content[pos + 4..])
+  45 │     } else {
+  46 │         // No blank line — entire content is header.
+  47 │         (content.trim_end(), "")
+  48 │     };
+  49 │ 
+  50 │     if rest.is_empty() {
+  51 │         let cleaned_header: String = header
+  52 │             .lines()
+  53 │             .filter(|l| !l.starts_with(' '))
+  54 │             .collect::<Vec<_>>()
+  55 │             .join("\n");
+  56 │         Cow::Owned(format!("---\n{}\n---\n", cleaned_header))
+  57 │     } else {
+  58 │         let cleaned_header: String = header
+  59 │             .lines()
+  60 │             .filter(|l| !l.starts_with(' '))
+  61 │             .collect::<Vec<_>>()
+  62 │             .join("\n");
+  63 │         Cow::Owned(format!("---\n{}\n---\n\n{}", cleaned_header, rest))
+  64 │     }
+  65 │ }
+  66 │ 
+  67 │ impl Reader for MarkdownReader {
+  68 │     fn document(&self, content: &str, markdown_options: &MarkdownOptions) -> Document {
+  69 │         let effective = if markdown_options.bare_frontmatter {
+  70 │             wrap_bare_frontmatter(content)
+  71 │         } else {
+  72 │             Cow::Borrowed(content)
+  73 │         };
+  74 │ 
+  75 │         let mut reader = MarkdownEventsReader::new_with_options(markdown_options);
+  76 │         reader.read(&effective);
+  77 │ 
+  78 │         Document {
+  79 │             blocks: reader.blocks(),
+  80 │             metadata: reader.metadata(),
+  81 │         }
+  82 │     }
+  83 │ }
+
+── enclosing: MarkdownReader | struct | lines 10-10
+MarkdownReader | trait_impl | lines 14-18
+default | method | lines 15-17
+MarkdownReader | impl | lines 20-24
+new | method | lines 21-23
+wrap_bare_frontmatter | function | lines 29-65
+MarkdownReader | trait_impl | lines 67-83
+document | method | lines 68-82 ──
+── full  struct : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/markdown.rs' AND line_num BETWEEN 10 AND 10 ORDER BY line_num;" ──
+── full  trait_impl : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/markdown.rs' AND line_num BETWEEN 14 AND 18 ORDER BY line_num;" ──
+── full  method : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/markdown.rs' AND line_num BETWEEN 15 AND 17 ORDER BY line_num;" ──
+── full  impl : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/markdown.rs' AND line_num BETWEEN 20 AND 24 ORDER BY line_num;" ──
+── full  method : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/markdown.rs' AND line_num BETWEEN 21 AND 23 ORDER BY line_num;" ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/markdown.rs' AND line_num BETWEEN 29 AND 65 ORDER BY line_num;" ──
+── full  trait_impl : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/markdown.rs' AND line_num BETWEEN 67 AND 83 ORDER BY line_num;" ──
+── full  method : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/markdown.rs' AND line_num BETWEEN 68 AND 82 ORDER BY line_num;" ──
+── sqlite3 /home/dangood/src/iwe/.indexnudge.db ──
+query: SELECT line_num, content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN 240 AND 275;
+** STOP USING sed. Query the DB directly: sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN START AND END ORDER BY line_num;" **
+
+ 240 │                     .unwrap_or(true)
+ 241 │             {
+ 242 │                 let text = parent.plain_text().trim().to_string();
+ 243 │                 path.push(text);
+ 244 │             }
+ 245 │             if parent.is_document() {
+ 246 │                 break;
+ 247 │             }
+ 248 │             current = parent;
+ 249 │         }
+ 250 │         path
+ 251 │     }
+ 252 │ 
+ 253 │     fn metadata_matches(&self, key: &Key, filters: &[(String, String)]) -> bool {
+ 254 │         let raw = match self.graph.get_metadata(key) {
+ 255 │             Some(s) => s,
+ 256 │             None => return false,
+ 257 │         };
+ 258 │         let val: serde_yaml::Value = match serde_yaml::from_str(raw) {
+ 259 │             Ok(v) => v,
+ 260 │             _ => return false,
+ 261 │         };
+ 262 │         filters.iter().all(|(k, v)| {
+ 263 │             val.get(k.as_str())
+ 264 │                 .and_then(|node| match node {
+ 265 │                     serde_yaml::Value::String(s) => Some(s.as_str() == v.as_str()),
+ 266 │                     serde_yaml::Value::Bool(b) => Some(b.to_string() == *v),
+ 267 │                     serde_yaml::Value::Number(n) => Some(n.to_string() == *v),
+ 268 │                     serde_yaml::Value::Sequence(items) => Some(
+ 269 │                         items
+ 270 │                             .iter()
+ 271 │                             .any(|i| i.as_str().map(|s| s == v.as_str()).unwrap_or(false)),
+ 272 │                     ),
+ 273 │                     _ => Some(false),
+ 274 │                 })
+ 275 │                 .unwrap_or(false)
+
+── enclosing: DocumentFinder | impl | lines 50-278
+get_section_path | method | lines 231-251
+metadata_matches | method | lines 253-277 ──
+── full  impl : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN 50 AND 278 ORDER BY line_num;" ──
+── full  method : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN 231 AND 251 ORDER BY line_num;" ──
+── full  method : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN 253 AND 277 ORDER BY line_num;" ──
+── sqlite3 /home/dangood/src/iwe/.indexnudge.db ──
+query: SELECT line_num, content FROM lines WHERE file='crates/liwe/tests/find_metadata_test.rs' AND line_num BETWEEN 1 AND 190;
+** STOP USING sed. Query the DB directly: sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/tests/find_metadata_test.rs' AND line_num BETWEEN START AND END ORDER BY line_num;" **
+
+   1 │ use indoc::indoc;
+   2 │ 
+   3 │ use liwe::find::{DocumentFinder, FindOptions};
+   4 │ use liwe::graph::Graph;
+   5 │ use liwe::model::config::MarkdownOptions;
+   6 │ use liwe::state::from_indoc;
+   7 │ 
+   8 │ fn setup_graph(input: &str) -> Graph {
+   9 │     Graph::import(&from_indoc(input), MarkdownOptions::default(), None)
+  10 │ }
+  11 │ 
+  12 │ #[test]
+  13 │ fn filters_by_single_string_value() {
+  14 │     let graph = setup_graph(indoc! {"
+  15 │         ---
+  16 │         title: Task A
+  17 │         status: ready
+  18 │         ---
+  19 │ 
+  20 │         # Task A
+  21 │         _
+  22 │         ---
+  23 │         title: Task B
+  24 │         status: done
+  25 │         ---
+  26 │ 
+  27 │         # Task B
+  28 │     "});
+  29 │ 
+  30 │     let finder = DocumentFinder::new(&graph);
+  31 │     let options = FindOptions {
+  32 │         metadata_filters: vec![("status".to_string(), "ready".to_string())],
+  33 │         ..Default::default()
+  34 │     };
+  35 │     let output = finder.find(&options);
+  36 │     assert_eq!(output.results.len(), 1);
+  37 │     assert_eq!(output.results[0].title, "Task A");
+  38 │ }
+  39 │ 
+  40 │ #[test]
+  41 │ fn combines_filters_with_and() {
+  42 │     let graph = setup_graph(indoc! {"
+  43 │         ---
+  44 │         title: Note 1
+  45 │         status: ready
+  46 │         category: work
+  47 │         ---
+  48 │ 
+  49 │         # Note 1
+  50 │         _
+  51 │         ---
+  52 │         title: Note 2
+  53 │         status: ready
+  54 │         category: personal
+  55 │         ---
+  56 │ 
+  57 │         # Note 2
+  58 │     "});
+  59 │ 
+  60 │     let finder = DocumentFinder::new(&graph);
+  61 │     let options = FindOptions {
+  62 │         metadata_filters: vec![
+  63 │             ("status".to_string(), "ready".to_string()),
+  64 │             ("category".to_string(), "work".to_string()),
+  65 │         ],
+  66 │         ..Default::default()
+  67 │     };
+  68 │     let output = finder.find(&options);
+  69 │     assert_eq!(output.results.len(), 1);
+  70 │     assert_eq!(output.results[0].title, "Note 1");
+  71 │ }
+  72 │ 
+  73 │ #[test]
+  74 │ fn non_matching_value_excluded() {
+  75 │     let graph = setup_graph(indoc! {"
+  76 │         ---
+  77 │         title: Task A
+  78 │         status: done
+  79 │         ---
+  80 │ 
+  81 │         # Task A
+  82 │     "});
+  83 │ 
+  84 │     let finder = DocumentFinder::new(&graph);
+  85 │     let options = FindOptions {
+  86 │         metadata_filters: vec![("status".to_string(), "ready".to_string())],
+  87 │         ..Default::default()
+  88 │     };
+  89 │     let output = finder.find(&options);
+  90 │     assert_eq!(output.results.len(), 0);
+  91 │ }
+  92 │ 
+  93 │ #[test]
+  94 │ fn note_without_metadata_excluded() {
+  95 │     let graph = setup_graph(indoc! {"
+  96 │         # No Metadata
+  97 │     "});
+  98 │ 
+  99 │     let finder = DocumentFinder::new(&graph);
+ 100 │     let options = FindOptions {
+ 101 │         metadata_filters: vec![("status".to_string(), "ready".to_string())],
+ 102 │         ..Default::default()
+ 103 │     };
+ 104 │     let output = finder.find(&options);
+ 105 │     assert_eq!(output.results.len(), 0);
+ 106 │ }
+ 107 │ 
+ 108 │ #[test]
+ 109 │ fn value_in_yaml_sequence_matches() {
+ 110 │     let graph = setup_graph(indoc! {"
+ 111 │         ---
+ 112 │         title: Task A
+ 113 │         tags:
+ 114 │           - rust
+ 115 │           - iwe
+ 116 │         ---
+ 117 │ 
+ 118 │         # Task A
+ 119 │     "});
+ 120 │ 
+ 121 │     let finder = DocumentFinder::new(&graph);
+ 122 │     let options = FindOptions {
+ 123 │         metadata_filters: vec![("tags".to_string(), "rust".to_string())],
+ 124 │         ..Default::default()
+ 125 │     };
+ 126 │     let output = finder.find(&options);
+ 127 │     assert_eq!(output.results.len(), 1);
+ 128 │     assert_eq!(output.results[0].title, "Task A");
+ 129 │ }
+ 130 │ 
+ 131 │ #[test]
+ 132 │ fn combines_with_roots_flag() {
+ 133 │     let graph = setup_graph(indoc! {"
+ 134 │         ---
+ 135 │         title: Root
+ 136 │         status: ready
+ 137 │         ---
+ 138 │ 
+ 139 │         # Root
+ 140 │ 
+ 141 │         [child](2)
+ 142 │         _
+ 143 │         ---
+ 144 │         title: Child
+ 145 │         status: ready
+ 146 │         ---
+ 147 │ 
+ 148 │         # Child
+ 149 │     "});
+ 150 │ 
+ 151 │     let finder = DocumentFinder::new(&graph);
+ 152 │     let options = FindOptions {
+ 153 │         roots: true,
+ 154 │         metadata_filters: vec![("status".to_string(), "ready".to_string())],
+ 155 │         ..Default::default()
+ 156 │     };
+ 157 │     let output = finder.find(&options);
+ 158 │     assert_eq!(output.results.len(), 1);
+ 159 │     assert_eq!(output.results[0].title, "Root");
+ 160 │ }
+
+── enclosing: setup_graph | function | lines 8-10
+filters_by_single_string_value | function | lines 13-38
+combines_filters_with_and | function | lines 41-71
+non_matching_value_excluded | function | lines 74-91
+note_without_metadata_excluded | function | lines 94-106
+value_in_yaml_sequence_matches | function | lines 109-129
+combines_with_roots_flag | function | lines 132-160 ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/tests/find_metadata_test.rs' AND line_num BETWEEN 8 AND 10 ORDER BY line_num;" ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/tests/find_metadata_test.rs' AND line_num BETWEEN 13 AND 38 ORDER BY line_num;" ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/tests/find_metadata_test.rs' AND line_num BETWEEN 41 AND 71 ORDER BY line_num;" ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/tests/find_metadata_test.rs' AND line_num BETWEEN 74 AND 91 ORDER BY line_num;" ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/tests/find_metadata_test.rs' AND line_num BETWEEN 94 AND 106 ORDER BY line_num;" ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/tests/find_metadata_test.rs' AND line_num BETWEEN 109 AND 129 ORDER BY line_num;" ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/tests/find_metadata_test.rs' AND line_num BETWEEN 132 AND 160 ORDER BY line_num;" ──
+── sqlite3 /home/dangood/src/iwe/.indexnudge.db ──
+query: SELECT line_num, content FROM lines WHERE file='crates/liwe/tests/bare_frontmatter_test.rs' AND line_num BETWEEN 1 AND 120;
+** STOP USING sed. Query the DB directly: sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/tests/bare_frontmatter_test.rs' AND line_num BETWEEN START AND END ORDER BY line_num;" **
+
+   1 │ use std::sync::Once;
+   2 │ 
+   3 │ use indoc::indoc;
+   4 │ use pretty_assertions::assert_str_eq;
+   5 │ 
+   6 │ use liwe::model::config::MarkdownOptions;
+   7 │ use liwe::{
+   8 │     graph::Graph,
+   9 │     state::{from_indoc, to_indoc},
+  10 │ };
+  11 │ 
+  12 │ static INIT: Once = Once::new();
+  13 │ 
+  14 │ fn setup() {
+  15 │     INIT.call_once(|| {
+  16 │         env_logger::builder().init();
+  17 │     });
+  18 │ }
+  19 │ 
+  20 │ fn bare_options() -> MarkdownOptions {
+  21 │     MarkdownOptions {
+  22 │         bare_frontmatter: true,
+  23 │         ..Default::default()
+  24 │     }
+  25 │ }
+  26 │ 
+  27 │ #[test]
+  28 │ fn reader_detects_bare_title_block() {
+  29 │     setup();
+  30 │ 
+  31 │     let graph = Graph::import(
+  32 │         &from_indoc(indoc! {"
+  33 │             title: Foo
+  34 │             status: ready
+  35 │ 
+  36 │             # Body
+  37 │             "}),
+  38 │         bare_options(),
+  39 │         None,
+  40 │     );
+  41 │ 
+  42 │     let state = graph.export();
+  43 │     let content = state.values().next().unwrap();
+  44 │     // The metadata should have been parsed — the output should have fenced front matter
+  45 │     // since we're exporting with bare_frontmatter=true, it should be bare again
+  46 │     assert!(content.starts_with("title: Foo"));
+  47 │ }
+  48 │ 
+  49 │ #[test]
+  50 │ fn reader_skips_when_disabled() {
+  51 │     setup();
+  52 │ 
+  53 │     let graph = Graph::import(
+  54 │         &from_indoc(indoc! {"
+  55 │             title: Foo
+  56 │             status: ready
+  57 │ 
+  58 │             # Body
+  59 │             "}),
+  60 │         MarkdownOptions::default(), // bare_frontmatter = false
+  61 │         None,
+  62 │     );
+  63 │ 
+  64 │     let state = graph.export();
+  65 │     let content = state.values().next().unwrap();
+  66 │     // Without bare_frontmatter, "title: Foo" is just body text, no metadata parsed
+  67 │     // So no frontmatter block in output
+  68 │     assert!(!content.contains("---"));
+  69 │ }
+  70 │ 
+  71 │ #[test]
+  72 │ fn reader_skips_when_no_title_first_line() {
+  73 │     setup();
+  74 │ 
+  75 │     let graph = Graph::import(
+  76 │         &from_indoc(indoc! {"
+  77 │             date: 2024-01-01
+  78 │             title: Foo
+  79 │ 
+  80 │             # Body
+  81 │             "}),
+  82 │         bare_options(),
+  83 │         None,
+  84 │     );
+  85 │ 
+  86 │     let state = graph.export();
+  87 │     let content = state.values().next().unwrap();
+  88 │     // First line isn't "title: " so no metadata parsed
+  89 │     assert!(!content.contains("---"));
+  90 │ }
+  91 │ 
+  92 │ #[test]
+  93 │ fn reader_does_not_misparse_prose() {
+  94 │     setup();
+  95 │ 
+  96 │     let graph = Graph::import(
+  97 │         &from_indoc(indoc! {"
+  98 │             This is a paragraph.
+  99 │ 
+ 100 │             # H
+ 101 │             "}),
+ 102 │         bare_options(),
+ 103 │         None,
+ 104 │     );
+ 105 │ 
+ 106 │     let state = graph.export();
+ 107 │     let content = state.values().next().unwrap();
+ 108 │     assert!(!content.contains("---"));
+ 109 │ }
+ 110 │ 
+ 111 │ #[test]
+ 112 │ fn reader_still_handles_fenced() {
+ 113 │     setup();
+ 114 │ 
+ 115 │     let graph = Graph::import(
+ 116 │         &from_indoc(indoc! {"
+ 117 │             ---
+ 118 │             title: Fenced
+ 119 │             ---
+ 120 │ 
+
+── enclosing: INIT | static | lines 12-12
+setup | function | lines 14-18
+bare_options | function | lines 20-25
+reader_detects_bare_title_block | function | lines 28-47
+reader_skips_when_disabled | function | lines 50-69
+reader_skips_when_no_title_first_line | function | lines 72-90
+reader_does_not_misparse_prose | function | lines 93-109
+reader_still_handles_fenced | function | lines 112-132 ──
+── full  static : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/tests/bare_frontmatter_test.rs' AND line_num BETWEEN 12 AND 12 ORDER BY line_num;" ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/tests/bare_frontmatter_test.rs' AND line_num BETWEEN 14 AND 18 ORDER BY line_num;" ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/tests/bare_frontmatter_test.rs' AND line_num BETWEEN 20 AND 25 ORDER BY line_num;" ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/tests/bare_frontmatter_test.rs' AND line_num BETWEEN 28 AND 47 ORDER BY line_num;" ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/tests/bare_frontmatter_test.rs' AND line_num BETWEEN 50 AND 69 ORDER BY line_num;" ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/tests/bare_frontmatter_test.rs' AND line_num BETWEEN 72 AND 90 ORDER BY line_num;" ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/tests/bare_frontmatter_test.rs' AND line_num BETWEEN 93 AND 109 ORDER BY line_num;" ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/tests/bare_frontmatter_test.rs' AND line_num BETWEEN 112 AND 132 ORDER BY line_num;" ──
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge.db "SELECT line_num, content FROM lines WHERE file='BARE_FRONTMATTER_SPEC.md' ORDER BY line_num LIMIT 220;"; sqlite3 .indexnudge.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/tests/bare_frontmatter_test.rs' AND line_num BETWEEN 120 AND 230 ORDER BY line_num;"; sqlite3 .indexnudge.db "SELECT line_num, content FROM lines WHERE file='crates/iwe/tests/find_test.rs' AND content REGEXP 'meta|bare|depends|frontmatter' ORDER BY line_num;"
+    timeout_secs: 10
+
+120|
+121|            # Header
+122|            "}),
+123|        bare_options(),
+124|        None,
+125|    );
+126|
+127|    let state = graph.export();
+128|    let content = state.values().next().unwrap();
+129|    // With bare_frontmatter enabled, writer should emit bare format
+130|    assert!(content.starts_with("title: Fenced"));
+131|    assert!(!content.starts_with("---"));
+132|}
+133|
+134|#[test]
+135|fn writer_emits_bare_when_enabled() {
+136|    setup();
+137|
+138|    let input = indoc! {"
+139|        title: Foo
+140|
+141|        # Body
+142|    "};
+143|
+144|    let graph = Graph::import(
+145|        &from_indoc(input),
+146|        bare_options(),
+147|        None,
+148|    );
+149|
+150|    let state = graph.export();
+151|    let content = state.values().next().unwrap();
+152|    assert!(content.starts_with("title: Foo"));
+153|    assert!(!content.starts_with("---"));
+154|    assert!(content.contains("# Body"));
+155|}
+156|
+157|#[test]
+158|fn writer_emits_fenced_when_disabled() {
+159|    setup();
+160|
+161|    let graph = Graph::import(
+162|        &from_indoc(indoc! {"
+163|            ---
+164|            title: Foo
+165|            ---
+166|
+167|            # Body
+168|            "}),
+169|        MarkdownOptions::default(),
+170|        None,
+171|    );
+172|
+173|    let state = graph.export();
+174|    let content = state.values().next().unwrap();
+175|    assert!(content.starts_with("---\ntitle: Foo\n---"));
+176|}
+177|
+178|#[test]
+179|fn frontmatter_title_works_with_bare() {
+180|    setup();
+181|
+182|    let graph = Graph::import(
+183|        &from_indoc(indoc! {"
+184|            [old](2)
+185|            _
+186|            title: Bare Title
+187|            status: ready
+188|
+189|            # Header
+190|            "}),
+191|        bare_options(),
+192|        Some("title".to_string()),
+193|    );
+194|
+195|    let normalized = to_indoc(&graph.export());
+196|
+197|    assert_str_eq!(
+198|        indoc! {"
+199|            [Bare Title](2)
+200|            _
+201|            title: Bare Title
+202|            status: ready
+203|
+204|            # Header
+205|            "},
+206|        normalized
+207|    );
+208|}
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge.db "SELECT line_num, content FROM lines WHERE file='BARE_FRONTMATTER_SPEC.md' ORDER BY line_num;"
+    timeout_secs: 10
+
+(no output)
+  ────────────────────────────────────────
+  ▸ shell
+    command: wc -l BARE_FRONTMATTER_SPEC.md; head -220 BARE_FRONTMATTER_SPEC.md; sqlite3 .indexnudge.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/src/markdown/writer.rs' ORDER BY line_num; SELECT line_num, content FROM lines WHERE file='crates/liwe/src/model/graph.rs' AND line_num BETWEEN 80 AND 115 ORDER BY line_num;"
+    timeout_secs: 10
+
+50 BARE_FRONTMATTER_SPEC.md
+# iwe bare front matter support
+
+## Problem
+
+iwe requires `---` fenced YAML front matter. Some wiki systems (e.g., TibbitWiki) use bare RFC 822-style headers — `key: value` lines at the top of the file, separated from body by a blank line, no delimiters. The content is valid YAML; only the framing differs.
+
+## Design
+
+### Detection rule
+
+If `bare_frontmatter` is enabled in config and the file does not start with `---`:
+- Check if the first line starts with `title: `
+- If so, all lines up to the first blank line are treated as front matter
+- Parse that block as YAML
+
+If the first line is not `title: `, no bare front matter is detected; the file is parsed normally.
+
+The `title:` requirement avoids false positives (e.g., prose starting with `Something: explanation`). No key whitelist is needed — `title` as a mandatory first key is sufficient, and additional keys can be added freely over time.
+
+### Config
+
+Add `bare_frontmatter = true` to `.iwe/config.toml` under `[markdown]`. Default: `false` (current behavior preserved).
+
+### Reader changes
+
+In `MarkdownReader::document()` (or the events reader), before passing content to pulldown_cmark:
+- If `bare_frontmatter` is enabled, detect bare headers per the rule above
+- Wrap the detected block with `---` delimiters so pulldown_cmark parses it as a metadata block
+- The rest of the pipeline (metadata storage, title extraction, graph) works unchanged
+
+### Writer changes
+
+If `bare_frontmatter` is enabled:
+- Emit metadata as bare `key: value` lines followed by a blank line — no `---` fences
+- This preserves round-trip compatibility with systems that don't understand YAML front matter delimiters
+
+### Scope of changes
+
+- `crates/liwe/src/model/config.rs` — add `bare_frontmatter` field
+- `crates/liwe/src/markdown.rs` or `crates/liwe/src/markdown/reader.rs` — pre-process content
+- `crates/liwe/src/markdown/writer.rs` — conditional fence suppression
+- Tests for: detection, round-trip, no false positive on prose, interaction with `---` fenced files
+
+## Future: metadata querying
+
+Once front matter is reliably parsed (bare or fenced), add `--meta key=value` filtering to `iwe find`. This enables task tracking via front matter fields like `status: active`, `depends: concurrency-design`, etc., queryable from the CLI.
+
+## Compatibility note
+
+TibbitWiki uses four keys: `title`, `tags`, `created`, `modified`. Enabling `bare_frontmatter` in an iwe workspace pointing at wiki notes would let iwe read them natively. The writer would emit bare headers, preserving compatibility with the wiki.
+1|use pulldown_cmark::{Event, HeadingLevel, MetadataBlockKind, Tag, TagEnd};
+2|use pulldown_cmark_to_cmark::cmark_with_options;
+3|
+4|use crate::model::config::MarkdownOptions;
+5|use crate::model::node::ColumnAlignment;
+6|use crate::model::{
+7|    document,
+8|    graph::{inlines_to_markdown, GraphBlock, GraphInline, GraphInlines},
+9|    is_ref_url,
+10|};
+11|
+12|pub struct MarkdownWriter {
+13|    options: MarkdownOptions,
+14|}
+15|
+16|impl MarkdownWriter {
+17|    pub fn new(options: MarkdownOptions) -> MarkdownWriter {
+18|        MarkdownWriter { options }
+19|    }
+20|
+21|    pub fn write(&self, blocks: Vec<GraphBlock>) -> String {
+22|        if self.options.bare_frontmatter {
+23|            // Partition: extract leading Frontmatter block, keep rest.
+24|            let mut frontmatter: Option<String> = None;
+25|            let mut rest_blocks = Vec::new();
+26|            let mut seen_first = false;
+27|            for block in blocks {
+28|                if !seen_first {
+29|                    if let GraphBlock::Frontmatter(content) = &block {
+30|                        frontmatter = Some(content.clone());
+31|                        seen_first = true;
+32|                        continue;
+33|                    }
+34|                }
+35|                seen_first = true;
+36|                rest_blocks.push(block);
+37|            }
+38|            let mut buf = String::new();
+39|            if let Some(fm) = frontmatter {
+40|                buf.push_str(fm.trim_end());
+41|                buf.push_str("\n\n");
+42|            }
+43|            let mut body = String::new();
+44|            cmark_with_options(
+45|                self.blocks_events(rest_blocks).iter().cloned(),
+46|                &mut body,
+47|                self.options.formatting.to_cmark_options(),
+48|            )
+49|            .unwrap();
+50|            buf.push_str(&body);
+51|            buf
+52|        } else {
+53|            let mut buf = String::new();
+54|            cmark_with_options(
+55|                self.blocks_events(blocks).iter().cloned(),
+56|                &mut buf,
+57|                self.options.formatting.to_cmark_options(),
+58|            )
+59|            .unwrap();
+60|            buf
+61|        }
+62|    }
+63|
+64|    fn blocks_events(&self, iter: Vec<GraphBlock>) -> Vec<Event<'_>> {
+65|        iter.into_iter()
+66|            .flat_map(|block| self.block_events(block))
+67|            .collect()
+68|    }
+69|
+70|    fn block_events(&self, block: GraphBlock) -> Vec<Event<'_>> {
+71|        let mut events = Vec::new();
+72|        match block {
+73|            GraphBlock::Frontmatter(content) => {
+74|                events.push(Event::Start(Tag::MetadataBlock(
+75|                    MetadataBlockKind::YamlStyle,
+76|                )));
+77|                events.push(Event::Text(content.into()));
+78|                events.push(Event::End(TagEnd::MetadataBlock(
+79|                    MetadataBlockKind::YamlStyle,
+80|                )));
+81|            }
+82|            GraphBlock::Header(level, inlines) => {
+83|                events.push(Event::Start(Tag::Heading {
+84|                    level: header_level(level),
+85|                    id: None,
+86|                    classes: vec![],
+87|                    attrs: vec![],
+88|                }));
+89|                events.append(&mut self.inlines_to_events(inlines));
+90|                events.push(Event::End(TagEnd::Heading(header_level(level))));
+91|            }
+92|            GraphBlock::BlockQuote(blocks) => {
+93|                events.push(Event::Start(Tag::BlockQuote(None)));
+94|                events.append(&mut self.blocks_events(blocks));
+95|                events.push(Event::End(TagEnd::BlockQuote(None)));
+96|            }
+97|            GraphBlock::BulletList(items) => {
+98|                events.push(Event::Start(Tag::List(None)));
+99|                for item in items {
+100|                    events.push(Event::Start(Tag::Item));
+101|                    events.append(&mut self.blocks_events(item));
+102|                    events.push(Event::End(TagEnd::Item));
+103|                }
+104|                events.push(Event::End(TagEnd::List(false)));
+105|            }
+106|            GraphBlock::OrderedList(items) => {
+107|                events.push(Event::Start(Tag::List(Some(1))));
+108|                for blocks in items {
+109|                    events.push(Event::Start(Tag::Item));
+110|                    events.append(&mut self.blocks_events(blocks));
+111|                    events.push(Event::End(TagEnd::Item));
+112|                }
+113|                events.push(Event::End(TagEnd::List(true)));
+114|            }
+115|            GraphBlock::Para(inlines) => {
+116|                events.push(Event::Start(Tag::Paragraph));
+117|                events.append(&mut self.inlines_to_events(inlines));
+118|                events.push(Event::End(TagEnd::Paragraph));
+119|            }
+120|            GraphBlock::RawBlock(_, content) => {
+121|                events.push(Event::Html(content.into()));
+122|            }
+123|            GraphBlock::HorizontalRule => {
+124|                events.push(Event::Rule);
+125|            }
+126|            GraphBlock::Plain(inlines) => {
+127|                events.push(Event::Start(Tag::Paragraph));
+128|                events.append(&mut self.inlines_to_events(inlines));
+129|                events.push(Event::End(TagEnd::Paragraph));
+130|            }
+131|            GraphBlock::LineBlock(lines) => {
+132|                events.push(Event::Start(Tag::Paragraph));
+133|                lines.iter().for_each(|line| {
+134|                    events.append(&mut self.inlines_to_events(line.clone()));
+135|                    events.push(Event::HardBreak);
+136|                });
+137|                events.push(Event::End(TagEnd::Paragraph));
+138|            }
+139|            GraphBlock::CodeBlock(_, content) => {
+140|                events.push(Event::Start(Tag::CodeBlock(
+141|                    pulldown_cmark::CodeBlockKind::Fenced(content.into()),
+142|                )));
+143|                events.push(Event::End(TagEnd::CodeBlock));
+144|            }
+145|            GraphBlock::Table(header_row, alignment, rows) => {
+146|                let table_md = self.render_aligned_table(&header_row, &alignment, &rows);
+147|                events.push(Event::Html(table_md.into()));
+148|            }
+149|        }
+150|        events
+151|    }
+152|
+153|    fn inlines_to_events(&self, inlines: GraphInlines) -> Vec<Event<'_>> {
+154|        let mut events = Vec::new();
+155|        for inline in inlines {
+156|            match inline {
+157|                GraphInline::Code(_, code) => {
+158|                    events.push(Event::Start(Tag::CodeBlock(
+159|                        pulldown_cmark::CodeBlockKind::Fenced(code.into()),
+160|                    )));
+161|                    events.push(Event::End(TagEnd::CodeBlock));
+162|                }
+163|                GraphInline::Emph(vec) => {
+164|                    events.push(Event::Start(Tag::Emphasis));
+165|                    events.extend(self.inlines_to_events(vec));
+166|                    events.push(Event::End(TagEnd::Emphasis));
+167|                }
+168|                GraphInline::Image(url, title, _) => {
+169|                    events.push(Event::Start(Tag::Image {
+170|                        title: title.into(),
+171|                        link_type: pulldown_cmark::LinkType::Autolink,
+172|                        dest_url: url.into(),
+173|                        id: "".into(),
+174|                    }));
+175|                    events.push(Event::End(TagEnd::Image));
+176|                }
+177|                GraphInline::LineBreak => {
+178|                    events.push(Event::HardBreak);
+179|                }
+180|                GraphInline::Link(url, title, t, inlines) => {
+181|                    let text = inlines_to_markdown(&inlines, &self.options);
+182|                    if !is_ref_url(&url) && text.eq_ignore_ascii_case(&url) {
+183|                        events.push(Event::Start(Tag::Link {
+184|                            title: title.into(),
+185|                            link_type: pulldown_cmark::LinkType::Autolink,
+186|                            dest_url: url.into(),
+187|                            id: "".into(),
+188|                        }));
+189|                        events.extend(self.inlines_to_events(inlines));
+190|                        events.push(Event::End(TagEnd::Link));
+191|                    } else {
+192|                        events.push(Event::Start(Tag::Link {
+193|                            title: title.into(),
+194|                            link_type: link_type(t),
+195|                            dest_url: url.into(),
+196|                            id: "".into(),
+197|                        }));
+198|                        events.extend(self.inlines_to_events(inlines));
+199|                        events.push(Event::End(TagEnd::Link));
+200|                    }
+201|                }
+202|                GraphInline::Reference(reference) => {
+203|                    events.push(Event::Start(Tag::Link {
+204|                        title: "".into(),
+205|                        link_type: link_type(reference.reference_type.to_link_type()),
+206|                        dest_url: reference.key.to_library_url().into(),
+207|                        id: "".into(),
+208|                    }));
+209|                    events.push(Event::Text(reference.text.into()));
+210|                    events.push(Event::End(TagEnd::Link));
+211|                }
+212|                GraphInline::Math(math) => {
+213|                    events.push(Event::Html(format!("\\({}\\)", math).into()));
+214|                }
+215|                GraphInline::RawInline(_, content) => {
+216|                    events.push(Event::Html(content.into()));
+217|                }
+218|                GraphInline::SmallCaps(vec) => {
+219|                    events.extend(self.inlines_to_events(vec));
+220|                }
+221|                GraphInline::SoftBreak => {
+222|                    events.push(Event::SoftBreak);
+223|                }
+224|                GraphInline::Space => {
+225|                    events.push(Event::Text(" ".into()));
+226|                }
+227|                GraphInline::Str(text) => {
+228|                    events.push(Event::Text(text.into()));
+229|                }
+230|                GraphInline::Strikeout(vec) => {
+231|                    events.push(Event::Start(Tag::Strikethrough));
+232|                    events.extend(self.inlines_to_events(vec));
+233|                    events.push(Event::End(TagEnd::Strikethrough));
+234|                }
+235|                GraphInline::Strong(vec) => {
+236|                    events.push(Event::Start(Tag::Strong));
+237|                    events.extend(self.inlines_to_events(vec));
+238|                    events.push(Event::End(TagEnd::Strong));
+239|                }
+240|                GraphInline::Subscript(vec) => {
+241|                    events.extend(self.inlines_to_events(vec));
+242|                }
+243|                GraphInline::Superscript(vec) => {
+244|                    events.extend(self.inlines_to_events(vec));
+245|                }
+246|                GraphInline::Underline(vec) => {
+247|                    events.extend(self.inlines_to_events(vec));
+248|                }
+249|            }
+250|        }
+251|        events
+252|    }
+253|
+254|    fn render_aligned_table(
+255|        &self,
+256|        header: &[GraphInlines],
+257|        alignment: &[ColumnAlignment],
+258|        rows: &[Vec<GraphInlines>],
+259|    ) -> String {
+260|        let header_strs: Vec<String> = header
+261|            .iter()
+262|            .map(|c| inlines_to_markdown(c, &self.options))
+263|            .collect();
+264|        let row_strs: Vec<Vec<String>> = rows
+265|            .iter()
+266|            .map(|row| {
+267|                row.iter()
+268|                    .map(|c| inlines_to_markdown(c, &self.options))
+269|                    .collect()
+270|            })
+271|            .collect();
+272|
+273|        let num_cols = header.len();
+274|        let mut widths: Vec<usize> = header_strs.iter().map(|s| s.chars().count()).collect();
+275|
+276|        for row in &row_strs {
+277|            for (i, cell) in row.iter().enumerate() {
+278|                if i < widths.len() {
+279|                    widths[i] = widths[i].max(cell.chars().count());
+280|                }
+281|            }
+282|        }
+283|
+284|        for w in &mut widths {
+285|            if *w < 3 {
+286|                *w = 3;
+287|            }
+288|        }
+289|
+290|        let mut result = String::new();
+291|
+292|        result.push('|');
+293|        for (i, cell) in header_strs.iter().enumerate() {
+294|            let width = widths.get(i).copied().unwrap_or(3);
+295|            result.push(' ');
+296|            result.push_str(&pad_cell(cell, width, alignment.get(i).copied()));
+297|            result.push_str(" |");
+298|        }
+299|        result.push('\n');
+300|
+301|        result.push('|');
+302|        for (i, &width) in widths.iter().enumerate() {
+303|            let al = alignment.get(i).copied().unwrap_or(ColumnAlignment::None);
+304|            result.push_str(&separator_cell(width, al));
+305|            result.push('|');
+306|        }
+307|        result.push('\n');
+308|
+309|        for row in &row_strs {
+310|            result.push('|');
+311|            for i in 0..num_cols {
+312|                let cell = row.get(i).map(|s| s.as_str()).unwrap_or("");
+313|                let width = widths.get(i).copied().unwrap_or(3);
+314|                result.push(' ');
+315|                result.push_str(&pad_cell(cell, width, alignment.get(i).copied()));
+316|                result.push_str(" |");
+317|            }
+318|            result.push('\n');
+319|        }
+320|
+321|        result
+322|    }
+323|}
+324|
+325|fn pad_cell(content: &str, width: usize, alignment: Option<ColumnAlignment>) -> String {
+326|    let content_len = content.chars().count();
+327|    if content_len >= width {
+328|        return content.to_string();
+329|    }
+330|    let padding = width - content_len;
+331|    match alignment.unwrap_or(ColumnAlignment::None) {
+332|        ColumnAlignment::Right => format!("{}{}", " ".repeat(padding), content),
+333|        ColumnAlignment::Center => {
+334|            let left = padding / 2;
+335|            let right = padding - left;
+336|            format!("{}{}{}", " ".repeat(left), content, " ".repeat(right))
+337|        }
+338|        _ => format!("{}{}", content, " ".repeat(padding)),
+339|    }
+340|}
+341|
+342|fn separator_cell(width: usize, alignment: ColumnAlignment) -> String {
+343|    match alignment {
+344|        ColumnAlignment::Left => format!(":{}", "-".repeat(width + 1)),
+345|        ColumnAlignment::Right => format!("{}:", "-".repeat(width + 1)),
+346|        ColumnAlignment::Center => format!(":{}:", "-".repeat(width)),
+347|        ColumnAlignment::None => format!(" {} ", "-".repeat(width)),
+348|    }
+349|}
+350|
+351|fn link_type(link_type: document::LinkType) -> pulldown_cmark::LinkType {
+352|    match link_type {
+353|        document::LinkType::Markdown => pulldown_cmark::LinkType::Inline,
+354|        document::LinkType::WikiLink => pulldown_cmark::LinkType::WikiLink { has_pothole: false },
+355|        document::LinkType::WikiLinkPiped => {
+356|            pulldown_cmark::LinkType::WikiLink { has_pothole: true }
+357|        }
+358|    }
+359|}
+360|
+361|fn header_level(level: u8) -> HeadingLevel {
+362|    match level {
+363|        1 => HeadingLevel::H1,
+364|        2 => HeadingLevel::H2,
+365|        3 => HeadingLevel::H3,
+366|        4 => HeadingLevel::H4,
+367|        5 => HeadingLevel::H5,
+368|        6 => HeadingLevel::H6,
+369|        _ => HeadingLevel::H6,
+370|    }
+371|}
+80|    fn is_list(&self) -> bool {
+81|        matches!(self, GraphBlock::BulletList(_) | GraphBlock::OrderedList(_))
+82|    }
+83|
+84|    fn is_paragraph(&self) -> bool {
+85|        matches!(self, GraphBlock::Plain(_) | GraphBlock::Para(_))
+86|    }
+87|
+88|    fn is_frontmatter(&self) -> bool {
+89|        matches!(self, GraphBlock::Frontmatter(_))
+90|    }
+91|
+92|    pub fn to_markdown(&self, options: &MarkdownOptions) -> String {
+93|        match self {
+94|            GraphBlock::Frontmatter(content) => {
+95|                if options.bare_frontmatter {
+96|                    format!("{}\n", content.trim_end())
+97|                } else {
+98|                    format!("---\n{}---\n", content)
+99|                }
+100|            }
+101|            GraphBlock::Plain(inlines) => format!("{}\n", inlines_to_markdown(inlines, options)),
+102|            GraphBlock::Para(inlines) => format!("{}\n", inlines_to_markdown(inlines, options)),
+103|            GraphBlock::LineBlock(lines) => lines
+104|                .iter()
+105|                .map(|line| inlines_to_markdown(line, options))
+106|                .collect::<Vec<String>>()
+107|                .join("\n"),
+108|            GraphBlock::CodeBlock(lang, text) => {
+109|                let fence = options
+110|                    .formatting
+111|                    .code_block_token()
+112|                    .repeat(options.formatting.code_block_token_count());
+113|                lang.clone()
+114|                    .filter(|lang| !lang.trim().is_empty())
+115|                    .map(|lang| {
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/src/state.rs' ORDER BY line_num; SELECT line_num, content FROM lines WHERE file='crates/liwe/src/graph.rs' AND line_num BETWEEN 330 AND 390 ORDER BY line_num; SELECT line_num, content FROM lines WHERE file='crates/iwe/src/main.rs' AND line_num BETWEEN 630 AND 680 ORDER BY line_num;"
+    timeout_secs: 10
+
+1|use itertools::Itertools;
+2|
+3|use crate::model::State;
+4|
+5|pub fn to_indoc(state: &State) -> String {
+6|    state
+7|        .iter()
+8|        .sorted_by_key(|a| a.0)
+9|        .map(|file| file.1.to_string())
+10|        .collect::<Vec<String>>()
+11|        .join("_\n")
+12|}
+13|
+14|pub fn from_indoc(indoc: &str) -> State {
+15|    indoc
+16|        .split("\n_\n")
+17|        .enumerate()
+18|        .map(|(index, text)| ((index + 1).to_string(), text.trim().to_string()))
+19|        .collect()
+20|}
+21|
+22|pub fn from_indoc_sub(indoc: &str) -> State {
+23|    indoc
+24|        .split("\n_\n")
+25|        .enumerate()
+26|        .map(|(index, text)| {
+27|            let name = if index == 0 {
+28|                "1".to_string()
+29|            } else {
+30|                format!("d/{}", index + 1)
+31|            };
+32|            (name.to_string(), text.trim().to_string())
+33|        })
+34|        .collect()
+35|}
+36|
+37|pub fn new_form_pairs(files: Vec<&str>) -> State {
+38|    let pairs = files
+39|        .iter()
+40|        .enumerate()
+41|        .filter(|(i, _)| i % 2 == 0)
+42|        .map(|(_, name)| name)
+43|        .zip(
+44|            files
+45|                .iter()
+46|                .enumerate()
+47|                .filter(|(i, _)| i % 2 == 1)
+48|                .map(|(_, content)| content),
+49|        );
+50|
+51|    pairs
+52|        .map(|(name, content)| (name.to_string(), content.to_string()))
+53|        .collect()
+54|}
+55|
+56|#[test]
+57|fn test_store_new_form_indoc() {
+58|    use std::collections::HashMap;
+59|    let store: HashMap<String, String> = {
+60|        let indoc: &str = indoc::indoc! {"
+61|            a
+62|            _
+63|            b
+64|            _
+65|            c
+66|            "};
+67|        from_indoc(indoc)
+68|    };
+69|    assert_eq!(store[&"1".to_string()], "a");
+70|    assert_eq!(store[&"2".to_string()], "b");
+71|    assert_eq!(store[&"3".to_string()], "c");
+72|}
+330|        graph_to_paths(self)
+331|    }
+332|
+333|    pub fn update_key(&mut self, key: Key, content: &str) -> &mut Graph {
+334|        if let Some(id) = self.keys.get(&key) {
+335|            self.arena.delete_branch(*id);
+336|        }
+337|
+338|        self.from_markdown(key, content, MarkdownReader::new());
+339|
+340|        self
+341|    }
+342|
+343|    pub fn node_line_range(&self, id: NodeId) -> Option<LineRange> {
+344|        self.global_nodes_map.get(&id).cloned()
+345|    }
+346|
+347|    pub fn import(
+348|        content: &State,
+349|        markdown_options: MarkdownOptions,
+350|        frontmatter_document_title: Option<String>,
+351|    ) -> Graph {
+352|        Self::from_state(content.clone(), false, markdown_options, frontmatter_document_title)
+353|    }
+354|
+355|    pub fn from_state(
+356|        state: State,
+357|        sequential_ids: bool,
+358|        markdown_options: MarkdownOptions,
+359|        frontmatter_document_title: Option<String>,
+360|    ) -> Self {
+361|        let mut graph = Graph::new_with_options(markdown_options.clone());
+362|        graph.set_sequential_keys(sequential_ids);
+363|        graph.frontmatter_document_title = frontmatter_document_title;
+364|
+365|        let reader = MarkdownReader::new();
+366|
+367|        let blocks = state
+368|            .iter()
+369|            .sorted_by(|a, b| a.0.cmp(b.0))
+370|            .collect_vec()
+371|            .par_iter()
+372|            .map(|(k, v)| {
+373|                debug!("parsing content, key={}", k);
+374|                (Key::name(k), reader.document(v, &markdown_options))
+375|            })
+376|            .collect::<Vec<_>>();
+377|
+378|        for (key, document) in blocks.into_iter() {
+379|            if let Some(meta) = document.metadata.clone() {
+380|                graph.metadata.insert(key.clone(), meta);
+381|            } else {
+382|                graph.metadata.remove(&key);
+383|            }
+384|
+385|            let nodes_map =
+386|                SectionsBuilder::new(&mut graph.build_key(&key), &document.blocks, &key)
+387|                    .nodes_map();
+388|            graph.nodes_map.insert(key.clone(), nodes_map.clone());
+389|            graph.global_nodes_map.extend(nodes_map);
+390|        }
+630|            .sum();
+631|        println!("documents: {}", doc_count);
+632|        println!("lines: {}", total_lines);
+633|        return;
+634|    }
+635|
+636|    match args.format {
+637|        RetrieveFormat::Json => {
+638|            let json = serde_json::to_string_pretty(&output).expect("Failed to serialize to JSON");
+639|            println!("{}", json);
+640|        }
+641|        RetrieveFormat::Keys => {
+642|            for doc in &output.documents {
+643|                println!("{}", doc.key);
+644|            }
+645|        }
+646|        RetrieveFormat::Markdown => {
+647|            let options = graph.markdown_options();
+648|            let renderer = RetrieveRenderer::new(&output, &options, &graph);
+649|            print!("{}", renderer.render());
+650|        }
+651|    }
+652|}
+653|
+654|fn parse_meta_filter(s: &str) -> Result<(String, String), String> {
+655|    s.split_once('=')
+656|        .map(|(k, v)| (k.trim().to_string(), v.trim().to_string()))
+657|        .ok_or_else(|| format!("expected key=value, got `{}`", s))
+658|}
+659|
+660|#[tracing::instrument(level = "debug")]
+661|fn find_command(args: Find) {
+662|    let config = get_configuration();
+663|    let graph = load_graph(&config);
+664|
+665|    let finder = DocumentFinder::new(&graph);
+666|    let options = FindOptions {
+667|        query: args.query,
+668|        roots: args.roots,
+669|        refs_to: args.refs_to.map(|s| Key::name(&s)),
+670|        refs_from: args.refs_from.map(|s| Key::name(&s)),
+671|        selector: args.selector.into(),
+672|        limit: args.limit,
+673|        metadata_filters: args.meta,
+674|    };
+675|
+676|    let output = finder.find(&options);
+677|
+678|    match args.format {
+679|        FindFormat::Json => {
+680|            let json = serde_json::to_string_pretty(&output).expect("Failed to serialize to JSON");
+  ────────────────────────────────────────
+  ▸ shell
+    command: git status --short; cargo test -p liwe find_metadata -- --nocapture
+    timeout_secs: 120
+
+ M .indexnudge.db
+ M crates/liwe/src/markdown.rs
+   Compiling liwe v0.0.70 (/home/dangood/src/iwe/crates/liwe)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.74s
+     Running unittests src/lib.rs (target/debug/deps/liwe-c57f89fd96d3a10e)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 88 filtered out; finished in 0.00s
+
+     Running tests/bare_frontmatter_test.rs (target/debug/deps/bare_frontmatter_test-5df928203c317901)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 8 filtered out; finished in 0.00s
+
+     Running tests/config_migration_test.rs (target/debug/deps/config_migration_test-aa60b8b682bda7c1)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 12 filtered out; finished in 0.00s
+
+     Running tests/find_metadata_test.rs (target/debug/deps/find_metadata_test-8b7984a5fea00063)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.00s
+
+     Running tests/formatting_test.rs (target/debug/deps/formatting_test-1ab16c30fc954d8c)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 24 filtered out; finished in 0.00s
+
+     Running tests/frontmatter_title_test.rs (target/debug/deps/frontmatter_title_test-94b6f7bb1ed07ede)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.00s
+
+     Running tests/gitignore_test.rs (target/debug/deps/gitignore_test-67cea6513cee9467)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+
+     Running tests/links_test.rs (target/debug/deps/links_test-5af30d46f25b9676)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 16 filtered out; finished in 0.00s
+
+     Running tests/normalization_headers.rs (target/debug/deps/normalization_headers-d388ef5bda235030)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 23 filtered out; finished in 0.00s
+
+     Running tests/normalization_html.rs (target/debug/deps/normalization_html-48cd0630c42a348c)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+
+     Running tests/normalization_lists.rs (target/debug/deps/normalization_lists-ca81b82567f8cb08)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 23 filtered out; finished in 0.00s
+
+     Running tests/normalization_metadata.rs (target/debug/deps/normalization_metadata-ada79742e7b7558c)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests/normalization_misc.rs (target/debug/deps/normalization_misc-abb1f4f9f80c1621)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 19 filtered out; finished in 0.00s
+
+     Running tests/normalization_raw.rs (target/debug/deps/normalization_raw-0f17f7b709b85eab)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 0.00s
+
+     Running tests/squash_test.rs (target/debug/deps/squash_test-5021f8aaa0a0a5e3)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 12 filtered out; finished in 0.00s
+
+     Running tests/toc_test.rs (target/debug/deps/toc_test-173659129d78b308)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.00s
+
+     Running tests/virtual_directories_test.rs (target/debug/deps/virtual_directories_test-df865321661582e1)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.00s
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: git diff -- crates/liwe/src/markdown.rs; git diff --stat
+    timeout_secs: 10
+
+diff --git a/crates/liwe/src/markdown.rs b/crates/liwe/src/markdown.rs
+index bc4fa12..e4a45c9 100644
+--- a/crates/liwe/src/markdown.rs
++++ b/crates/liwe/src/markdown.rs
+@@ -48,9 +48,19 @@ pub fn wrap_bare_frontmatter(content: &str) -> Cow<'_, str> {
+     };
+ 
+     if rest.is_empty() {
+-        Cow::Owned(format!("---\n{}\n---\n", header))
++        let cleaned_header: String = header
++            .lines()
++            .filter(|l| !l.starts_with(' '))
++            .collect::<Vec<_>>()
++            .join("\n");
++        Cow::Owned(format!("---\n{}\n---\n", cleaned_header))
+     } else {
+-        Cow::Owned(format!("---\n{}\n---\n\n{}", header, rest))
++        let cleaned_header: String = header
++            .lines()
++            .filter(|l| !l.starts_with(' '))
++            .collect::<Vec<_>>()
++            .join("\n");
++        Cow::Owned(format!("---\n{}\n---\n\n{}", cleaned_header, rest))
+     }
+ }
+ 
+ .indexnudge.db              | Bin 15015936 -> 15097856 bytes
+ crates/liwe/src/markdown.rs |  14 ++++++++++++--
+ 2 files changed, 12 insertions(+), 2 deletions(-)
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/src/markdown.rs' AND line_num BETWEEN 26 AND 65 ORDER BY line_num;"; sqlite3 .indexnudge.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/src/markdown/reader.rs' AND line_num BETWEEN 80 AND 125 ORDER BY line_num;"
+    timeout_secs: 10
+
+26|/// If `bare_frontmatter` is enabled and content starts with `title: ` (but
+27|/// not `---`), wrap the leading header block in `---` fences so the
+28|/// downstream pulldown-cmark MetadataBlock machinery picks it up.
+29|pub fn wrap_bare_frontmatter(content: &str) -> Cow<'_, str> {
+30|    // Already fenced — leave alone.
+31|    if content.starts_with("---") {
+32|        return Cow::Borrowed(content);
+33|    }
+34|
+35|    // Must start with `title: `.
+36|    if !content.starts_with("title: ") {
+37|        return Cow::Borrowed(content);
+38|    }
+39|
+40|    // Find first true blank line (\n\n or \r\n\r\n).
+41|    let (header, rest) = if let Some(pos) = content.find("\n\n") {
+42|        (&content[..pos], &content[pos + 2..])
+43|    } else if let Some(pos) = content.find("\r\n\r\n") {
+44|        (&content[..pos], &content[pos + 4..])
+45|    } else {
+46|        // No blank line — entire content is header.
+47|        (content.trim_end(), "")
+48|    };
+49|
+50|    if rest.is_empty() {
+51|        let cleaned_header: String = header
+52|            .lines()
+53|            .filter(|l| !l.starts_with(' '))
+54|            .collect::<Vec<_>>()
+55|            .join("\n");
+56|        Cow::Owned(format!("---\n{}\n---\n", cleaned_header))
+57|    } else {
+58|        let cleaned_header: String = header
+59|            .lines()
+60|            .filter(|l| !l.starts_with(' '))
+61|            .collect::<Vec<_>>()
+62|            .join("\n");
+63|        Cow::Owned(format!("---\n{}\n---\n\n{}", cleaned_header, rest))
+64|    }
+65|}
+80|            Options::ENABLE_YAML_STYLE_METADATA_BLOCKS
+81|                | Options::ENABLE_WIKILINKS
+82|                | Options::ENABLE_TABLES,
+83|        )
+84|        .into_offset_iter();
+85|        self.line_starts = line_starts(content);
+86|
+87|        for (event, range) in iter {
+88|            match event {
+89|                Start(tag) => {
+90|                    self.start_tag(tag, range);
+91|                }
+92|                End(tag) => {
+93|                    self.end_tag(tag, range);
+94|                }
+95|                Text(text) => {
+96|                    if !self.metadata_block {
+97|                        match self.top_block() {
+98|                            DocumentBlock::CodeBlock(code_block) => {
+99|                                code_block.text = format!("{}{}", code_block.text, text)
+100|                            }
+101|                            DocumentBlock::RawBlock(block) => block.text = text.to_string(),
+102|                            _ => {
+103|                                self.push_inline(
+104|                                    DocumentInline::Str(text.to_string()),
+105|                                    self.to_line_range(range),
+106|                                );
+107|                                self.pop_inline();
+108|                            }
+109|                        }
+110|                    } else {
+111|                        self.metadata = Some(text.to_string());
+112|                    }
+113|                }
+114|                Code(text) => {
+115|                    self.push_inline(
+116|                        DocumentInline::Code(document::Code {
+117|                            attr: Attributes::default(),
+118|                            text: text.to_string(),
+119|                            inline_range: self.to_inline_range(range.clone()),
+120|                        }),
+121|                        self.to_line_range(range),
+122|                    );
+123|                    self.pop_inline();
+124|                }
+125|                InlineMath(cow_str) => {
+  ────────────────────────────────────────
+  ▸ todo_write todo
+    content: - [x] Diagnose `iwe find --meta depends=foo` failure for bare frontmatter documents
+  - [x] Reproduce/identify parsing/query path for bare vs fenced YAML front matter
+  - [x] Find why tests pass despite bug: tests cover fenced YAML sequences and bare scalar metadata separately, but not bare YAML sequences
+- [ ] Fix metadata handling so bare frontmatter `depends:\n  - foo` matches `--meta depends=foo`
+- [ ] Add/regression-test behavior
+- [ ] Run `cargo test` and ensure it passes
+- [ ] Report root cause, fix, and test result
+
+Root cause is now clear: bare frontmatter is pre-wrapped as fenced YAML before pulldown-cmark sees it, but `wrap_bare_frontmatter()` currently “cleans” the header by dropping every line that starts with a space. That silently deletes indented YAML sequence entries:
+
+```yaml
+depends:
+  - foo
+```
+
+becomes:
+
+```yaml
+depends:
+```
+
+So `serde_yaml` parses `depends` as null, and `--meta depends=foo` has nothing to match. Fenced frontmatter bypasses this wrapper, which is why it works there.
+  ────────────────────────────────────────
+  ▸ shell
+    command: ed -s crates/liwe/src/markdown.rs <<'EOF'
+50,64c
+    if rest.is_empty() {
+        Cow::Owned(format!("---\n{}\n---\n", header))
+    } else {
+        Cow::Owned(format!("---\n{}\n---\n\n{}", header, rest))
+    }
+.
+w
+EOF
+
+ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+129a
+
+#[test]
+fn value_in_bare_yaml_sequence_matches() {
+    let graph = Graph::import(
+        &from_indoc(indoc! {"
+            title: Task A
+            depends:
+              - foo
+              - bar
+
+            # Task A
+        "}),
+        MarkdownOptions {
+            bare_frontmatter: true,
+            ..Default::default()
+        },
+        None,
+    );
+
+    let finder = DocumentFinder::new(&graph);
+    let options = FindOptions {
+        metadata_filters: vec![("depends".to_string(), "foo".to_string())],
+        ..Default::default()
+    };
+    let output = finder.find(&options);
+    assert_eq!(output.results.len(), 1);
+    assert_eq!(output.results[0].title, "Task A");
+}
+.
+w
+EOF
+
+git diff -- crates/liwe/src/markdown.rs crates/liwe/tests/find_metadata_test.rs
+    timeout_secs: 10
+
+diff --git a/crates/liwe/tests/find_metadata_test.rs b/crates/liwe/tests/find_metadata_test.rs
+index 0369c9e..5488375 100644
+--- a/crates/liwe/tests/find_metadata_test.rs
++++ b/crates/liwe/tests/find_metadata_test.rs
+@@ -128,6 +128,34 @@ fn value_in_yaml_sequence_matches() {
+     assert_eq!(output.results[0].title, "Task A");
+ }
+ 
++#[test]
++fn value_in_bare_yaml_sequence_matches() {
++    let graph = Graph::import(
++        &from_indoc(indoc! {"
++            title: Task A
++            depends:
++              - foo
++              - bar
++
++            # Task A
++        "}),
++        MarkdownOptions {
++            bare_frontmatter: true,
++            ..Default::default()
++        },
++        None,
++    );
++
++    let finder = DocumentFinder::new(&graph);
++    let options = FindOptions {
++        metadata_filters: vec![("depends".to_string(), "foo".to_string())],
++        ..Default::default()
++    };
++    let output = finder.find(&options);
++    assert_eq!(output.results.len(), 1);
++    assert_eq!(output.results[0].title, "Task A");
++}
++
+ #[test]
+ fn combines_with_roots_flag() {
+     let graph = setup_graph(indoc! {"
+  ────────────────────────────────────────
+  ▸ shell
+    command: git diff -- crates/liwe/src/markdown.rs; cargo test -p liwe value_in_bare_yaml_sequence_matches -- --nocapture
+    timeout_secs: 120
+
+   Compiling liwe v0.0.70 (/home/dangood/src/iwe/crates/liwe)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.21s
+     Running unittests src/lib.rs (target/debug/deps/liwe-c57f89fd96d3a10e)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 88 filtered out; finished in 0.00s
+
+     Running tests/bare_frontmatter_test.rs (target/debug/deps/bare_frontmatter_test-5df928203c317901)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 8 filtered out; finished in 0.00s
+
+     Running tests/config_migration_test.rs (target/debug/deps/config_migration_test-aa60b8b682bda7c1)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 12 filtered out; finished in 0.00s
+
+     Running tests/find_metadata_test.rs (target/debug/deps/find_metadata_test-8b7984a5fea00063)
+
+running 1 test
+test value_in_bare_yaml_sequence_matches ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.00s
+
+     Running tests/formatting_test.rs (target/debug/deps/formatting_test-1ab16c30fc954d8c)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 24 filtered out; finished in 0.00s
+
+     Running tests/frontmatter_title_test.rs (target/debug/deps/frontmatter_title_test-94b6f7bb1ed07ede)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.00s
+
+     Running tests/gitignore_test.rs (target/debug/deps/gitignore_test-67cea6513cee9467)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+
+     Running tests/links_test.rs (target/debug/deps/links_test-5af30d46f25b9676)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 16 filtered out; finished in 0.00s
+
+     Running tests/normalization_headers.rs (target/debug/deps/normalization_headers-d388ef5bda235030)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 23 filtered out; finished in 0.00s
+
+     Running tests/normalization_html.rs (target/debug/deps/normalization_html-48cd0630c42a348c)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+
+     Running tests/normalization_lists.rs (target/debug/deps/normalization_lists-ca81b82567f8cb08)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 23 filtered out; finished in 0.00s
+
+     Running tests/normalization_metadata.rs (target/debug/deps/normalization_metadata-ada79742e7b7558c)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests/normalization_misc.rs (target/debug/deps/normalization_misc-abb1f4f9f80c1621)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 19 filtered out; finished in 0.00s
+
+     Running tests/normalization_raw.rs (target/debug/deps/normalization_raw-0f17f7b709b85eab)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 0.00s
+
+     Running tests/squash_test.rs (target/debug/deps/squash_test-5021f8aaa0a0a5e3)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 12 filtered out; finished in 0.00s
+
+     Running tests/toc_test.rs (target/debug/deps/toc_test-173659129d78b308)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.00s
+
+     Running tests/virtual_directories_test.rs (target/debug/deps/virtual_directories_test-df865321661582e1)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.00s
+
+  ────────────────────────────────────────
+  ▸ todo_write todo
+    content: - [x] Diagnose `iwe find --meta depends=foo` failure for bare frontmatter documents
+  - [x] Reproduce/identify parsing/query path for bare vs fenced YAML front matter
+  - [x] Find why tests pass despite bug: tests cover fenced YAML sequences and bare scalar metadata separately, but not bare YAML sequences
+- [x] Fix metadata handling so bare frontmatter `depends:\n  - foo` matches `--meta depends=foo`
+- [x] Add/regression-test behavior
+- [ ] Run `cargo test` and ensure it passes
+- [ ] Report root cause, fix, and test result
+
+The targeted regression passes. I’m running the full suite now.
+  ────────────────────────────────────────
+  ▸ shell
+    command: cargo test
+    timeout_secs: 300
+
+     Running tests/toc_test.rs (target/debug/deps/toc_test-05e67351921a2ac7)
+
+running 5 tests
+test toc_level_two ... ok
+test toc_multiple_items_on_level_two ... ok
+test toc_one_level_two_items ... ok
+test toc_one_level ... ok
+test toc_one_recusive ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/virtual_directories_test.rs (target/debug/deps/virtual_directories_test-968856b20a3ec651)
+
+running 9 tests
+test user_index_takes_precedence ... ok
+test directory_with_notes_generates_index ... ok
+test disabled_by_default ... ok
+test children_alphabetical_order ... ok
+test generated_index_deleted_when_user_creates_own ... ok
+test underscore_stripped_from_key ... ok
+test parent_dir_with_only_subdirs_gets_index ... ok
+test nested_directories_each_get_index ... ok
+test user_index_suppresses_generated ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests iwe
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests iwec
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests iwes
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests liwe
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+[Output exceeded 50000 byte limit (52755 bytes total). Full output saved to /tmp/.tmpZ9uhll/output-5. Read it with shell commands like `head`, `tail`, or `sed -n '100,200p'` up to 2000 lines at a time.]
+  ────────────────────────────────────────
+  ▸ todo_write todo
+    content: - [x] Diagnose `iwe find --meta depends=foo` failure for bare frontmatter documents
+  - [x] Reproduce/identify parsing/query path for bare vs fenced YAML front matter
+  - [x] Find why tests pass despite bug: tests cover fenced YAML sequences and bare scalar metadata separately, but not bare YAML sequences
+- [x] Fix metadata handling so bare frontmatter `depends:\n  - foo` matches `--meta depends=foo`
+- [x] Add/regression-test behavior
+- [x] Run `cargo test` and ensure it passes
+- [x] Report root cause, fix, and test result
+
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: git status --short; git diff --stat; git diff -- crates/liwe/src/markdown.rs crates/liwe/tests/find_metadata_test.rs | head -120
+    timeout_secs: 10
+
+ M .indexnudge.db
+ M crates/liwe/tests/find_metadata_test.rs
+ .indexnudge.db                          | Bin 15015936 -> 15097856 bytes
+ crates/liwe/tests/find_metadata_test.rs |  28 ++++++++++++++++++++++++++++
+ 2 files changed, 28 insertions(+)
+diff --git a/crates/liwe/tests/find_metadata_test.rs b/crates/liwe/tests/find_metadata_test.rs
+index 0369c9e..5488375 100644
+--- a/crates/liwe/tests/find_metadata_test.rs
++++ b/crates/liwe/tests/find_metadata_test.rs
+@@ -128,6 +128,34 @@ fn value_in_yaml_sequence_matches() {
+     assert_eq!(output.results[0].title, "Task A");
+ }
+ 
++#[test]
++fn value_in_bare_yaml_sequence_matches() {
++    let graph = Graph::import(
++        &from_indoc(indoc! {"
++            title: Task A
++            depends:
++              - foo
++              - bar
++
++            # Task A
++        "}),
++        MarkdownOptions {
++            bare_frontmatter: true,
++            ..Default::default()
++        },
++        None,
++    );
++
++    let finder = DocumentFinder::new(&graph);
++    let options = FindOptions {
++        metadata_filters: vec![("depends".to_string(), "foo".to_string())],
++        ..Default::default()
++    };
++    let output = finder.find(&options);
++    assert_eq!(output.results.len(), 1);
++    assert_eq!(output.results[0].title, "Task A");
++}
++
+ #[test]
+ fn combines_with_roots_flag() {
+     let graph = setup_graph(indoc! {"
+  ────────────────────────────────────────
+  ▸ shell
+    command: git checkout -- .indexnudge.db && git status --short && nl -ba crates/liwe/src/markdown.rs | sed -n '40,65p'
+    timeout_secs: 10
+
+ M crates/liwe/tests/find_metadata_test.rs
+    40	    // Find first true blank line (\n\n or \r\n\r\n).
+    41	    let (header, rest) = if let Some(pos) = content.find("\n\n") {
+    42	        (&content[..pos], &content[pos + 2..])
+    43	    } else if let Some(pos) = content.find("\r\n\r\n") {
+    44	        (&content[..pos], &content[pos + 4..])
+    45	    } else {
+    46	        // No blank line — entire content is header.
+    47	        (content.trim_end(), "")
+    48	    };
+    49	
+    50	    if rest.is_empty() {
+    51	        Cow::Owned(format!("---\n{}\n---\n", header))
+    52	    } else {
+    53	        Cow::Owned(format!("---\n{}\n---\n\n{}", header, rest))
+    54	    }
+    55	}
+    56	
+    57	impl Reader for MarkdownReader {
+    58	    fn document(&self, content: &str, markdown_options: &MarkdownOptions) -> Document {
+    59	        let effective = if markdown_options.bare_frontmatter {
+    60	            wrap_bare_frontmatter(content)
+    61	        } else {
+    62	            Cow::Borrowed(content)
+    63	        };
+    64	
+    65	        let mut reader = MarkdownEventsReader::new_with_options(markdown_options);Diagnosed and fixed.
+
+## Root cause
+
+Bare frontmatter is parsed by `wrap_bare_frontmatter()` in `crates/liwe/src/markdown.rs`, which wraps the leading bare header block in `---` fences so pulldown-cmark parses it as YAML metadata.
+
+The broken working-tree version was “cleaning” the bare header by dropping every line beginning with a space:
+
+```rust
+.filter(|l| !l.starts_with(' '))
+```
+
+That corrupts valid YAML sequences:
+
+```yaml
+title: Task A
+depends:
+  - foo
+  - bar
+```
+
+became effectively:
+
+```yaml
+title: Task A
+depends:
+```
+
+So `serde_yaml` parsed `depends` as null, and `iwe find --meta depends=foo` didn’t match.
+
+Fenced YAML worked because it bypassed `wrap_bare_frontmatter()` and preserved the sequence indentation.
+
+## Fix
+
+Restored `wrap_bare_frontmatter()` to preserve the header exactly when wrapping:
+
+```rust
+Cow::Owned(format!("---\n{}\n---\n\n{}", header, rest))
+```
+
+That code now preserves YAML indentation, so bare metadata sequences survive parsing.
+
+Note: this code restoration matches `HEAD`, so the current tracked diff does **not** show a `markdown.rs` change. The working tree had an uncommitted broken version at start; reverting that was the code fix.
+
+## Regression test added
+
+Added `value_in_bare_yaml_sequence_matches` to:
+
+```text
+crates/liwe/tests/find_metadata_test.rs
+```
+
+It verifies:
+
+```yaml
+title: Task A
+depends:
+  - foo
+  - bar
+```
+
+with `bare_frontmatter: true` matches:
+
+```text
+--meta depends=foo
+```
+
+## Verification
+
+Ran:
+
+```text
+cargo test -p liwe value_in_bare_yaml_sequence_matches -- --nocapture
+cargo test
+```
+
+Both passed.
+
+Current tracked change:
+
+```text
+M crates/liwe/tests/find_metadata_test.rs
+```
+
+I also reverted the incidental `.indexnudge.db` modification so it is no longer dirty.

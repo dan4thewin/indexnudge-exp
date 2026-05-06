@@ -1,0 +1,2365 @@
+
+  ────────────────────────────────────────
+  ▸ todo_write todo
+    content: - [x] Capture requirements in TODO immediately
+- [ ] Inspect existing `iwe find` implementation and relevant tests
+- [ ] Add `--count` flag to `iwe find`
+  - [ ] Ensure it composes with existing filters (`--meta`, `--roots`, `--refs-to`, etc.)
+  - [ ] Print only the number of matching documents
+- [ ] Add or update tests for `--count`
+- [ ] Verify `cargo build` passes
+- [ ] Verify `cargo test` passes
+
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: printf '.schema\n' | sqlite3 .indexnudge.db && printf '\n---DIRECTORIES---\n' && sqlite3 .indexnudge.db 'select * from directories limit 20;' && printf '\n---FILES---\n' && sqlite3 .indexnudge.db 'select * from files where path like "%find%" or path like "%cli%" limit 50;'
+    timeout_secs: 20
+
+
+  ────────────────────────────────────────
+  ▸ tree
+    path: .
+    depth: 2
+
+CREATE TABLE lines (
+            file     TEXT,
+            line_num INTEGER,
+            content  TEXT,
+            symbol   TEXT,
+            PRIMARY KEY (file, line_num)
+        );
+CREATE VIRTUAL TABLE lines_fts USING fts5(file, line_num, content, symbol)
+/* lines_fts(file,line_num,content,symbol) */;
+CREATE TABLE 'lines_fts_data'(id INTEGER PRIMARY KEY, block BLOB);
+CREATE TABLE 'lines_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
+CREATE TABLE 'lines_fts_content'(id INTEGER PRIMARY KEY, c0, c1, c2, c3);
+CREATE TABLE 'lines_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
+CREATE TABLE 'lines_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID;
+CREATE TABLE symbols (
+            id             INTEGER PRIMARY KEY,
+            name           TEXT,
+            qualified_name TEXT,
+            kind           TEXT,
+            file           TEXT,
+            start_line     INTEGER,
+            end_line       INTEGER,
+            parent         TEXT,
+            signature      TEXT
+        );
+CREATE TABLE calls (
+            caller_file   TEXT,
+            caller_symbol TEXT,
+            callee        TEXT,
+            callee_qname  TEXT,
+            kind          TEXT,
+            line_num      INTEGER
+        );
+CREATE TABLE defs (
+            symbol TEXT,
+            file   TEXT,
+            line_num INTEGER,
+            var    TEXT,
+            kind   TEXT
+        );
+CREATE TABLE imports (
+            file   TEXT,
+            module TEXT,
+            line_num INTEGER
+        );
+CREATE INDEX idx_symbols_name ON symbols(name);
+CREATE INDEX idx_symbols_qualified ON symbols(qualified_name);
+CREATE INDEX idx_symbols_file ON symbols(file);
+CREATE INDEX idx_calls_callee ON calls(callee);
+CREATE INDEX idx_calls_caller ON calls(caller_symbol);
+CREATE INDEX idx_defs_var ON defs(var);
+CREATE INDEX idx_imports_module ON imports(module);
+CREATE TABLE files (
+            file           TEXT PRIMARY KEY,
+            lines          INTEGER,
+            language       TEXT,
+            indexed_mtime  REAL,
+            parse_error    INTEGER DEFAULT 0
+        );
+CREATE TABLE directories (
+            path        TEXT PRIMARY KEY,
+            file_count  INTEGER,
+            total_lines INTEGER
+        );
+
+---DIRECTORIES---
+crates/iwes/src/router/server/actions|11|1121
+crates/liwe/src/operations|7|641
+crates/liwe/src/graph|9|2713
+crates/iwe|26|9580
+crates/liwe/src/model|7|3977
+crates/iwes|44|10427
+crates/iwe/tests|14|6636
+crates|142|38452
+crates/iwes/tests|25|6883
+crates/iwec/src|3|1630
+crates/iwe/src/export|4|640
+crates/liwe/tests|16|3653
+crates/liwe|55|14993
+crates/iwes/src/router|16|3047
+crates/iwes/src|19|3544
+.|142|38452
+crates/iwec|17|3452
+crates/liwe/src|39|11340
+crates/iwe/src|12|2944
+crates/liwe/src/markdown|2|1074
+
+---FILES---
+Parse error in 2nd command line argument: no such column: "%cli%" - should this be a string literal in single-quotes?
+   from files where path like "%find%" or path like "%cli%" limit 50;
+                                      error here ---^
+
+Command exited with code 1── sqlite3 /home/dangood/src/iwe/./.indexnudge.db ──
+query: SELECT path, file_count, total_lines FROM directories ORDER BY path;
+
+path             | files | lines
+-----------------+-------+------
+.                |   142 | 38452
+crates           |   142 | 38452
+crates/iwe       |    26 |  9580
+crates/iwe/src   |    12 |  2944
+crates/iwe/src/export |     4 |   640
+crates/iwe/tests |    14 |  6636
+crates/iwec      |    17 |  3452
+crates/iwec/src  |     3 |  1630
+crates/iwec/tests |    14 |  1822
+crates/iwes      |    44 | 10427
+crates/iwes/src  |    19 |  3544
+crates/iwes/src/router |    16 |  3047
+crates/iwes/src/router/server |    15 |  2191
+crates/iwes/src/router/server/actions |    11 |  1121
+crates/iwes/tests |    25 |  6883
+crates/liwe      |    55 | 14993
+crates/liwe/src  |    39 | 11340
+crates/liwe/src/graph |     9 |  2713
+crates/liwe/src/markdown |     2 |  1074
+crates/liwe/src/model |     7 |  3977
+crates/liwe/src/operations |     7 |   641
+crates/liwe/tests |    16 |  3653
+
+query: SELECT file, lines, language FROM files ORDER BY file;
+
+file                          | lines | language
+------------------------------+-------+---------
+crates/iwe/src/export.rs      |     4 | rust
+crates/iwe/src/export/dot_details_exporter.rs |   142 | rust
+crates/iwe/src/export/dot_exporter.rs |    67 | rust
+crates/iwe/src/export/graph_colors.rs |   101 | rust
+crates/iwe/src/export/graph_data.rs |   330 | rust
+crates/iwe/src/help.rs        |    89 | rust
+crates/iwe/src/lib.rs         |     8 | rust
+crates/iwe/src/main.rs        |  1734 | rust
+crates/iwe/src/new.rs         |   234 | rust
+crates/iwe/src/render.rs      |   165 | rust
+crates/iwe/src/selector.rs    |    56 | rust
+crates/iwe/src/stats.rs       |    14 | rust
+crates/iwe/tests/common.rs    |    20 | rust
+crates/iwe/tests/delete_test.rs |   261 | rust
+crates/iwe/tests/export_dot_test.rs |    98 | rust
+crates/iwe/tests/extract_test.rs |   380 | rust
+crates/iwe/tests/find_test.rs |   495 | rust
+crates/iwe/tests/init_test.rs |   220 | rust
+crates/iwe/tests/inline_test.rs |   392 | rust
+crates/iwe/tests/new_test.rs  |   483 | rust
+crates/iwe/tests/normalize_test.rs |   411 | rust
+crates/iwe/tests/rename_test.rs |   246 | rust
+crates/iwe/tests/retrieve_test.rs |  2249 | rust
+crates/iwe/tests/squash_test.rs |   512 | rust
+crates/iwe/tests/stats_test.rs |   394 | rust
+crates/iwe/tests/tree_test.rs |   475 | rust
+crates/iwec/src/lib.rs        |  1468 | rust
+crates/iwec/src/main.rs       |    49 | rust
+crates/iwec/src/watcher.rs    |   113 | rust
+crates/iwec/tests/attach_test.rs |   230 | rust
+crates/iwec/tests/extract_test.rs |   103 | rust
+crates/iwec/tests/find_test.rs |   195 | rust
+crates/iwec/tests/fixture.rs  |   161 | rust
+crates/iwec/tests/inline_test.rs |   133 | rust
+crates/iwec/tests/normalize_test.rs |    30 | rust
+crates/iwec/tests/prompt_test.rs |    65 | rust
+crates/iwec/tests/resource_test.rs |   114 | rust
+crates/iwec/tests/retrieve_test.rs |   174 | rust
+crates/iwec/tests/squash_test.rs |    42 | rust
+crates/iwec/tests/stats_test.rs |    59 | rust
+crates/iwec/tests/tree_test.rs |   110 | rust
+crates/iwec/tests/watcher_test.rs |   143 | rust
+crates/iwec/tests/write_test.rs |   263 | rust
+crates/iwes/src/lib.rs        |    61 | rust
+crates/iwes/src/main.rs       |   141 | rust
+crates/iwes/src/router.rs     |   295 | rust
+crates/iwes/src/router/server.rs |   856 | rust
+crates/iwes/src/router/server/actions.rs |   396 | rust
+crates/iwes/src/router/server/actions/attach.rs |   196 | rust
+crates/iwes/src/router/server/actions/delete.rs |    63 | rust
+crates/iwes/src/router/server/actions/extract.rs |    66 | rust
+crates/iwes/src/router/server/actions/extract_all.rs |    67 | rust
+crates/iwes/src/router/server/actions/inline.rs |    57 | rust
+crates/iwes/src/router/server/actions/link.rs |   222 | rust
+crates/iwes/src/router/server/actions/list.rs |   104 | rust
+crates/iwes/src/router/server/actions/section.rs |    54 | rust
+crates/iwes/src/router/server/actions/sort.rs |    60 | rust
+crates/iwes/src/router/server/actions/templates.rs |    26 | rust
+crates/iwes/src/router/server/actions/transform.rs |   206 | rust
+crates/iwes/src/router/server/base_path.rs |   120 | rust
+crates/iwes/src/router/server/extensions.rs |   389 | rust
+crates/iwes/src/router/server/search.rs |   165 | rust
+crates/iwes/tests/attach_test.rs |   457 | rust
+crates/iwes/tests/change_list_type_test.rs |    45 | rust
+crates/iwes/tests/completion_test.rs |   475 | rust
+crates/iwes/tests/custom_actions_test.rs |    43 | rust
+crates/iwes/tests/delete_test.rs |   244 | rust
+crates/iwes/tests/did_change_test.rs |    57 | rust
+crates/iwes/tests/did_save_test.rs |    54 | rust
+crates/iwes/tests/extract_all_test.rs |   397 | rust
+crates/iwes/tests/extract_test.rs |   691 | rust
+crates/iwes/tests/fixture.rs  |   891 | rust
+crates/iwes/tests/folding_range_test.rs |   205 | rust
+crates/iwes/tests/format_document_test.rs |   196 | rust
+crates/iwes/tests/go_to_definition_test.rs |   260 | rust
+crates/iwes/tests/hover_test.rs |    83 | rust
+crates/iwes/tests/inlay_hints_test.rs |   169 | rust
+crates/iwes/tests/inline_quote_test.rs |   182 | rust
+crates/iwes/tests/inline_section_test.rs |   393 | rust
+crates/iwes/tests/link_test.rs |   596 | rust
+crates/iwes/tests/list_to_sections_test.rs |   194 | rust
+crates/iwes/tests/references_test.rs |    58 | rust
+crates/iwes/tests/rename_test.rs |   182 | rust
+crates/iwes/tests/sections_to_list_test.rs |   138 | rust
+crates/iwes/tests/sort_test.rs |   179 | rust
+crates/iwes/tests/transform_test.rs |   472 | rust
+crates/iwes/tests/workspace_symbols_test.rs |   222 | rust
+crates/liwe/src/file.rs       |    22 | rust
+crates/liwe/src/find.rs       |   278 | rust
+crates/liwe/src/fs.rs         |   200 | rust
+crates/liwe/src/graph.rs      |   652 | rust
+crates/liwe/src/graph/arena.rs |    95 | rust
+crates/liwe/src/graph/basic_iter.rs |   129 | rust
+crates/liwe/src/graph/builder.rs |   553 | rust
+crates/liwe/src/graph/graph_line.rs |    36 | rust
+crates/liwe/src/graph/graph_node.rs |   670 | rust
+crates/liwe/src/graph/index.rs |   153 | rust
+crates/liwe/src/graph/path.rs |   356 | rust
+crates/liwe/src/graph/sections_builder.rs |   591 | rust
+crates/liwe/src/graph/squash_iter.rs |   130 | rust
+crates/liwe/src/lib.rs        |    13 | rust
+crates/liwe/src/locale.rs     |    76 | rust
+crates/liwe/src/markdown.rs   |    73 | rust
+crates/liwe/src/markdown/reader.rs |   703 | rust
+crates/liwe/src/markdown/writer.rs |   371 | rust
+crates/liwe/src/model.rs      |   168 | rust
+crates/liwe/src/model/config.rs |   800 | rust
+crates/liwe/src/model/document.rs |   947 | rust
+crates/liwe/src/model/graph.rs |   670 | rust
+crates/liwe/src/model/node.rs |   441 | rust
+crates/liwe/src/model/projector.rs |   193 | rust
+crates/liwe/src/model/reference.rs |    26 | rust
+crates/liwe/src/model/tree.rs |   900 | rust
+crates/liwe/src/operations.rs |    15 | rust
+crates/liwe/src/operations/changes.rs |    84 | rust
+crates/liwe/src/operations/config.rs |    37 | rust
+crates/liwe/src/operations/delete.rs |    40 | rust
+crates/liwe/src/operations/extract.rs |   260 | rust
+crates/liwe/src/operations/inline.rs |    92 | rust
+crates/liwe/src/operations/rename.rs |    46 | rust
+crates/liwe/src/operations/util.rs |    82 | rust
+crates/liwe/src/parser.rs     |   197 | rust
+crates/liwe/src/retrieve.rs   |   403 | rust
+crates/liwe/src/selector.rs   |   337 | rust
+crates/liwe/src/state.rs      |    72 | rust
+crates/liwe/src/stats.rs      |   429 | rust
+crates/liwe/tests/bare_frontmatter_test.rs |   208 | rust
+crates/liwe/tests/config_migration_test.rs |   326 | rust
+crates/liwe/tests/find_metadata_test.rs |   160 | rust
+crates/liwe/tests/formatting_test.rs |   425 | rust
+crates/liwe/tests/frontmatter_title_test.rs |   146 | rust
+crates/liwe/tests/gitignore_test.rs |    81 | rust
+crates/liwe/tests/links_test.rs |   332 | rust
+crates/liwe/tests/normalization_headers.rs |   370 | rust
+crates/liwe/tests/normalization_html.rs |    61 | rust
+crates/liwe/tests/normalization_lists.rs |   371 | rust
+crates/liwe/tests/normalization_metadata.rs |    52 | rust
+crates/liwe/tests/normalization_misc.rs |   344 | rust
+crates/liwe/tests/normalization_raw.rs |   163 | rust
+crates/liwe/tests/squash_test.rs |   313 | rust
+crates/liwe/tests/toc_test.rs |   133 | rust
+crates/liwe/tests/virtual_directories_test.rs |   168 | rust
+
+── .indexnudge.db has 7 tables: calls, defs, directories, files, imports, lines, symbols ──
+Every line of source is in `lines`. Every function call is in `calls`.
+Every symbol definition is in `symbols`. Full-text search via `lines_fts`.
+For deeper exploration: sqlite3 /home/dangood/src/iwe/./.indexnudge.db .schema
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge.db "select file, line_num, content from lines where file='crates/iwe/src/main.rs' and content like '%find%' order by line_num;"
+    timeout_secs: 20
+
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge.db "select file, line_num, content from lines where file='crates/iwe/tests/find_test.rs' order by line_num;"
+    timeout_secs: 20
+
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge.db "select name, qualified_name, file, start_line, end_line from symbols where file='crates/iwe/src/main.rs' and kind in ('function','struct','enum','impl','method') and (name like '%find%' or qualified_name like '%find%') order by start_line;"
+    timeout_secs: 20
+
+crates/iwe/src/main.rs|12|use iwe::find::{DocumentFinder, FindOptions};
+crates/iwe/src/main.rs|53|    Find(Find),
+crates/iwe/src/main.rs|130|    about = help::find::ABOUT,
+crates/iwe/src/main.rs|131|    long_about = help::find::LONG_ABOUT,
+crates/iwe/src/main.rs|132|    after_help = help::find::AFTER_HELP
+crates/iwe/src/main.rs|134|struct Find {
+crates/iwe/src/main.rs|151|    format: FindFormat,
+crates/iwe/src/main.rs|162|enum FindFormat {
+crates/iwe/src/main.rs|557|        Command::Find(find) => find_command(find),
+crates/iwe/src/main.rs|661|fn find_command(args: Find) {
+crates/iwe/src/main.rs|665|    let finder = DocumentFinder::new(&graph);
+crates/iwe/src/main.rs|666|    let options = FindOptions {
+crates/iwe/src/main.rs|676|    let output = finder.find(&options);
+crates/iwe/src/main.rs|679|        FindFormat::Json => {
+crates/iwe/src/main.rs|683|        FindFormat::Keys => {
+crates/iwe/src/main.rs|688|        FindFormat::Markdown => {
+crates/iwe/src/main.rs|689|            let rendered = render_find_output(&output);
+crates/iwe/src/main.rs|695|fn render_find_output(output: &iwe::find::FindOutput) -> String {
+crates/iwe/src/main.rs|1067|            .find(|s| s.key == key_str);crates/iwe/tests/find_test.rs|1|use indoc::indoc;
+crates/iwe/tests/find_test.rs|2|use liwe::model::config::{Configuration, LibraryOptions, MarkdownOptions};
+crates/iwe/tests/find_test.rs|3|use std::fs::{create_dir_all, write};
+crates/iwe/tests/find_test.rs|4|use std::process::Command;
+crates/iwe/tests/find_test.rs|5|use tempfile::TempDir;
+crates/iwe/tests/find_test.rs|6|
+crates/iwe/tests/find_test.rs|7|mod common;
+crates/iwe/tests/find_test.rs|8|
+crates/iwe/tests/find_test.rs|9|fn setup_workspace() -> TempDir {
+crates/iwe/tests/find_test.rs|10|    let temp_dir = TempDir::new().expect("Failed to create temp directory");
+crates/iwe/tests/find_test.rs|11|    let temp_path = temp_dir.path();
+crates/iwe/tests/find_test.rs|12|
+crates/iwe/tests/find_test.rs|13|    create_dir_all(temp_path.join(".iwe")).expect("Failed to create .iwe directory");
+crates/iwe/tests/find_test.rs|14|
+crates/iwe/tests/find_test.rs|15|    let config = Configuration {
+crates/iwe/tests/find_test.rs|16|        library: LibraryOptions {
+crates/iwe/tests/find_test.rs|17|            path: "".to_string(),
+crates/iwe/tests/find_test.rs|18|            ..Default::default()
+crates/iwe/tests/find_test.rs|19|        },
+crates/iwe/tests/find_test.rs|20|        markdown: MarkdownOptions {
+crates/iwe/tests/find_test.rs|21|            refs_extension: "".to_string(),
+crates/iwe/tests/find_test.rs|22|            ..Default::default()
+crates/iwe/tests/find_test.rs|23|        },
+crates/iwe/tests/find_test.rs|24|        ..Default::default()
+crates/iwe/tests/find_test.rs|25|    };
+crates/iwe/tests/find_test.rs|26|
+crates/iwe/tests/find_test.rs|27|    let config_content = toml::to_string(&config).expect("Failed to serialize config to TOML");
+crates/iwe/tests/find_test.rs|28|    write(temp_path.join(".iwe").join("config.toml"), config_content)
+crates/iwe/tests/find_test.rs|29|        .expect("Should write config file");
+crates/iwe/tests/find_test.rs|30|
+crates/iwe/tests/find_test.rs|31|    temp_dir
+crates/iwe/tests/find_test.rs|32|}
+crates/iwe/tests/find_test.rs|33|
+crates/iwe/tests/find_test.rs|34|fn run_iwe(dir: &std::path::Path, args: &[&str]) -> (String, String, bool) {
+crates/iwe/tests/find_test.rs|35|    let mut command = Command::new(common::get_iwe_binary_path());
+crates/iwe/tests/find_test.rs|36|    command.arg("find").current_dir(dir);
+crates/iwe/tests/find_test.rs|37|
+crates/iwe/tests/find_test.rs|38|    for arg in args {
+crates/iwe/tests/find_test.rs|39|        command.arg(arg);
+crates/iwe/tests/find_test.rs|40|    }
+crates/iwe/tests/find_test.rs|41|
+crates/iwe/tests/find_test.rs|42|    let output = command.output().expect("Failed to execute command");
+crates/iwe/tests/find_test.rs|43|
+crates/iwe/tests/find_test.rs|44|    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+crates/iwe/tests/find_test.rs|45|    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+crates/iwe/tests/find_test.rs|46|    let success = output.status.success();
+crates/iwe/tests/find_test.rs|47|
+crates/iwe/tests/find_test.rs|48|    (stdout, stderr, success)
+crates/iwe/tests/find_test.rs|49|}
+crates/iwe/tests/find_test.rs|50|
+crates/iwe/tests/find_test.rs|51|#[test]
+crates/iwe/tests/find_test.rs|52|fn test_find_lists_all_documents() {
+crates/iwe/tests/find_test.rs|53|    let dir = setup_workspace();
+crates/iwe/tests/find_test.rs|54|
+crates/iwe/tests/find_test.rs|55|    write(
+crates/iwe/tests/find_test.rs|56|        dir.path().join("doc1.md"),
+crates/iwe/tests/find_test.rs|57|        indoc! {"
+crates/iwe/tests/find_test.rs|58|            # Document One
+crates/iwe/tests/find_test.rs|59|
+crates/iwe/tests/find_test.rs|60|            Content one.
+crates/iwe/tests/find_test.rs|61|        "},
+crates/iwe/tests/find_test.rs|62|    )
+crates/iwe/tests/find_test.rs|63|    .unwrap();
+crates/iwe/tests/find_test.rs|64|
+crates/iwe/tests/find_test.rs|65|    write(
+crates/iwe/tests/find_test.rs|66|        dir.path().join("doc2.md"),
+crates/iwe/tests/find_test.rs|67|        indoc! {"
+crates/iwe/tests/find_test.rs|68|            # Document Two
+crates/iwe/tests/find_test.rs|69|
+crates/iwe/tests/find_test.rs|70|            Content two.
+crates/iwe/tests/find_test.rs|71|        "},
+crates/iwe/tests/find_test.rs|72|    )
+crates/iwe/tests/find_test.rs|73|    .unwrap();
+crates/iwe/tests/find_test.rs|74|
+crates/iwe/tests/find_test.rs|75|    let (stdout, stderr, success) = run_iwe(dir.path(), &["-f", "json"]);
+crates/iwe/tests/find_test.rs|76|
+crates/iwe/tests/find_test.rs|77|    assert!(success, "stderr: {}", stderr);
+crates/iwe/tests/find_test.rs|78|
+crates/iwe/tests/find_test.rs|79|    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+crates/iwe/tests/find_test.rs|80|    assert_eq!(parsed["total"], 2);
+crates/iwe/tests/find_test.rs|81|
+crates/iwe/tests/find_test.rs|82|    let results = parsed["results"].as_array().unwrap();
+crates/iwe/tests/find_test.rs|83|    let keys: Vec<&str> = results.iter().map(|r| r["key"].as_str().unwrap()).collect();
+crates/iwe/tests/find_test.rs|84|    assert!(keys.contains(&"doc1"));
+crates/iwe/tests/find_test.rs|85|    assert!(keys.contains(&"doc2"));
+crates/iwe/tests/find_test.rs|86|}
+crates/iwe/tests/find_test.rs|87|
+crates/iwe/tests/find_test.rs|88|#[test]
+crates/iwe/tests/find_test.rs|89|fn test_find_fuzzy_search() {
+crates/iwe/tests/find_test.rs|90|    let dir = setup_workspace();
+crates/iwe/tests/find_test.rs|91|
+crates/iwe/tests/find_test.rs|92|    write(dir.path().join("authentication.md"), "# User Authentication\n\nAuth content.").unwrap();
+crates/iwe/tests/find_test.rs|93|    write(dir.path().join("database.md"), "# Database Config\n\nDB content.").unwrap();
+crates/iwe/tests/find_test.rs|94|    write(dir.path().join("api.md"), "# API Endpoints\n\nAPI content.").unwrap();
+crates/iwe/tests/find_test.rs|95|
+crates/iwe/tests/find_test.rs|96|    let (stdout, stderr, success) = run_iwe(dir.path(), &["auth", "-f", "json"]);
+crates/iwe/tests/find_test.rs|97|
+crates/iwe/tests/find_test.rs|98|    assert!(success, "stderr: {}", stderr);
+crates/iwe/tests/find_test.rs|99|
+crates/iwe/tests/find_test.rs|100|    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+crates/iwe/tests/find_test.rs|101|    let results = parsed["results"].as_array().unwrap();
+crates/iwe/tests/find_test.rs|102|
+crates/iwe/tests/find_test.rs|103|    assert!(!results.is_empty(), "Should find at least one result");
+crates/iwe/tests/find_test.rs|104|    assert_eq!(results[0]["key"], "authentication");
+crates/iwe/tests/find_test.rs|105|}
+crates/iwe/tests/find_test.rs|106|
+crates/iwe/tests/find_test.rs|107|#[test]
+crates/iwe/tests/find_test.rs|108|fn test_find_roots_only() {
+crates/iwe/tests/find_test.rs|109|    let dir = setup_workspace();
+crates/iwe/tests/find_test.rs|110|
+crates/iwe/tests/find_test.rs|111|    write(
+crates/iwe/tests/find_test.rs|112|        dir.path().join("parent.md"),
+crates/iwe/tests/find_test.rs|113|        indoc! {"
+crates/iwe/tests/find_test.rs|114|            # Parent
+crates/iwe/tests/find_test.rs|115|
+crates/iwe/tests/find_test.rs|116|            [child](child)
+crates/iwe/tests/find_test.rs|117|        "},
+crates/iwe/tests/find_test.rs|118|    )
+crates/iwe/tests/find_test.rs|119|    .unwrap();
+crates/iwe/tests/find_test.rs|120|
+crates/iwe/tests/find_test.rs|121|    write(dir.path().join("child.md"), "# Child\n\nChild content.").unwrap();
+crates/iwe/tests/find_test.rs|122|    write(dir.path().join("orphan.md"), "# Orphan\n\nNo references.").unwrap();
+crates/iwe/tests/find_test.rs|123|
+crates/iwe/tests/find_test.rs|124|    let (stdout, stderr, success) = run_iwe(dir.path(), &["--roots", "-f", "json"]);
+crates/iwe/tests/find_test.rs|125|
+crates/iwe/tests/find_test.rs|126|    assert!(success, "stderr: {}", stderr);
+crates/iwe/tests/find_test.rs|127|
+crates/iwe/tests/find_test.rs|128|    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+crates/iwe/tests/find_test.rs|129|    let results = parsed["results"].as_array().unwrap();
+crates/iwe/tests/find_test.rs|130|
+crates/iwe/tests/find_test.rs|131|    let keys: Vec<&str> = results.iter().map(|r| r["key"].as_str().unwrap()).collect();
+crates/iwe/tests/find_test.rs|132|
+crates/iwe/tests/find_test.rs|133|    assert!(keys.contains(&"parent"), "parent should be a root");
+crates/iwe/tests/find_test.rs|134|    assert!(keys.contains(&"orphan"), "orphan should be a root");
+crates/iwe/tests/find_test.rs|135|    assert!(!keys.contains(&"child"), "child should NOT be a root");
+crates/iwe/tests/find_test.rs|136|}
+crates/iwe/tests/find_test.rs|137|
+crates/iwe/tests/find_test.rs|138|#[test]
+crates/iwe/tests/find_test.rs|139|fn test_find_refs_to() {
+crates/iwe/tests/find_test.rs|140|    let dir = setup_workspace();
+crates/iwe/tests/find_test.rs|141|
+crates/iwe/tests/find_test.rs|142|    write(
+crates/iwe/tests/find_test.rs|143|        dir.path().join("doc1.md"),
+crates/iwe/tests/find_test.rs|144|        indoc! {"
+crates/iwe/tests/find_test.rs|145|            # Doc One
+crates/iwe/tests/find_test.rs|146|
+crates/iwe/tests/find_test.rs|147|            [target](target)
+crates/iwe/tests/find_test.rs|148|        "},
+crates/iwe/tests/find_test.rs|149|    )
+crates/iwe/tests/find_test.rs|150|    .unwrap();
+crates/iwe/tests/find_test.rs|151|
+crates/iwe/tests/find_test.rs|152|    write(
+crates/iwe/tests/find_test.rs|153|        dir.path().join("doc2.md"),
+crates/iwe/tests/find_test.rs|154|        indoc! {"
+crates/iwe/tests/find_test.rs|155|            # Doc Two
+crates/iwe/tests/find_test.rs|156|
+crates/iwe/tests/find_test.rs|157|            [target](target)
+crates/iwe/tests/find_test.rs|158|        "},
+crates/iwe/tests/find_test.rs|159|    )
+crates/iwe/tests/find_test.rs|160|    .unwrap();
+crates/iwe/tests/find_test.rs|161|
+crates/iwe/tests/find_test.rs|162|    write(dir.path().join("doc3.md"), "# Doc Three\n\nNo refs.").unwrap();
+crates/iwe/tests/find_test.rs|163|    write(dir.path().join("target.md"), "# Target\n\nTarget content.").unwrap();
+crates/iwe/tests/find_test.rs|164|
+crates/iwe/tests/find_test.rs|165|    let (stdout, stderr, success) = run_iwe(dir.path(), &["--refs-to", "target", "-f", "json"]);
+crates/iwe/tests/find_test.rs|166|
+crates/iwe/tests/find_test.rs|167|    assert!(success, "stderr: {}", stderr);
+crates/iwe/tests/find_test.rs|168|
+crates/iwe/tests/find_test.rs|169|    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+crates/iwe/tests/find_test.rs|170|    let results = parsed["results"].as_array().unwrap();
+crates/iwe/tests/find_test.rs|171|
+crates/iwe/tests/find_test.rs|172|    let keys: Vec<&str> = results.iter().map(|r| r["key"].as_str().unwrap()).collect();
+crates/iwe/tests/find_test.rs|173|
+crates/iwe/tests/find_test.rs|174|    assert!(keys.contains(&"doc1"), "doc1 references target");
+crates/iwe/tests/find_test.rs|175|    assert!(keys.contains(&"doc2"), "doc2 references target");
+crates/iwe/tests/find_test.rs|176|    assert!(!keys.contains(&"doc3"), "doc3 does not reference target");
+crates/iwe/tests/find_test.rs|177|    assert!(!keys.contains(&"target"), "target does not reference itself");
+crates/iwe/tests/find_test.rs|178|}
+crates/iwe/tests/find_test.rs|179|
+crates/iwe/tests/find_test.rs|180|#[test]
+crates/iwe/tests/find_test.rs|181|fn test_find_refs_from() {
+crates/iwe/tests/find_test.rs|182|    let dir = setup_workspace();
+crates/iwe/tests/find_test.rs|183|
+crates/iwe/tests/find_test.rs|184|    write(
+crates/iwe/tests/find_test.rs|185|        dir.path().join("source.md"),
+crates/iwe/tests/find_test.rs|186|        indoc! {"
+crates/iwe/tests/find_test.rs|187|            # Source
+crates/iwe/tests/find_test.rs|188|
+crates/iwe/tests/find_test.rs|189|            [child1](child1)
+crates/iwe/tests/find_test.rs|190|
+crates/iwe/tests/find_test.rs|191|            [child2](child2)
+crates/iwe/tests/find_test.rs|192|        "},
+crates/iwe/tests/find_test.rs|193|    )
+crates/iwe/tests/find_test.rs|194|    .unwrap();
+crates/iwe/tests/find_test.rs|195|
+crates/iwe/tests/find_test.rs|196|    write(dir.path().join("child1.md"), "# Child One\n\nContent.").unwrap();
+crates/iwe/tests/find_test.rs|197|    write(dir.path().join("child2.md"), "# Child Two\n\nContent.").unwrap();
+crates/iwe/tests/find_test.rs|198|    write(dir.path().join("other.md"), "# Other\n\nNot referenced by source.").unwrap();
+crates/iwe/tests/find_test.rs|199|
+crates/iwe/tests/find_test.rs|200|    let (stdout, stderr, success) = run_iwe(dir.path(), &["--refs-from", "source", "-f", "json"]);
+crates/iwe/tests/find_test.rs|201|
+crates/iwe/tests/find_test.rs|202|    assert!(success, "stderr: {}", stderr);
+crates/iwe/tests/find_test.rs|203|
+crates/iwe/tests/find_test.rs|204|    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+crates/iwe/tests/find_test.rs|205|    let results = parsed["results"].as_array().unwrap();
+crates/iwe/tests/find_test.rs|206|
+crates/iwe/tests/find_test.rs|207|    let keys: Vec<&str> = results.iter().map(|r| r["key"].as_str().unwrap()).collect();
+crates/iwe/tests/find_test.rs|208|
+crates/iwe/tests/find_test.rs|209|    assert!(keys.contains(&"child1"), "child1 is referenced by source");
+crates/iwe/tests/find_test.rs|210|    assert!(keys.contains(&"child2"), "child2 is referenced by source");
+crates/iwe/tests/find_test.rs|211|    assert!(!keys.contains(&"other"), "other is not referenced by source");
+crates/iwe/tests/find_test.rs|212|    assert!(!keys.contains(&"source"), "source does not reference itself");
+crates/iwe/tests/find_test.rs|213|}
+crates/iwe/tests/find_test.rs|214|
+crates/iwe/tests/find_test.rs|215|#[test]
+crates/iwe/tests/find_test.rs|216|fn test_find_limit() {
+crates/iwe/tests/find_test.rs|217|    let dir = setup_workspace();
+crates/iwe/tests/find_test.rs|218|
+crates/iwe/tests/find_test.rs|219|    for i in 1..=10 {
+crates/iwe/tests/find_test.rs|220|        write(
+crates/iwe/tests/find_test.rs|221|            dir.path().join(format!("doc{}.md", i)),
+crates/iwe/tests/find_test.rs|222|            format!("# Document {}\n\nContent.", i),
+crates/iwe/tests/find_test.rs|223|        )
+crates/iwe/tests/find_test.rs|224|        .unwrap();
+crates/iwe/tests/find_test.rs|225|    }
+crates/iwe/tests/find_test.rs|226|
+crates/iwe/tests/find_test.rs|227|    let (stdout, stderr, success) = run_iwe(dir.path(), &["--limit", "3", "-f", "json"]);
+crates/iwe/tests/find_test.rs|228|
+crates/iwe/tests/find_test.rs|229|    assert!(success, "stderr: {}", stderr);
+crates/iwe/tests/find_test.rs|230|
+crates/iwe/tests/find_test.rs|231|    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+crates/iwe/tests/find_test.rs|232|    assert_eq!(parsed["total"], 10, "total should be 10");
+crates/iwe/tests/find_test.rs|233|    assert_eq!(parsed["results"].as_array().unwrap().len(), 3, "should return only 3 results");
+crates/iwe/tests/find_test.rs|234|}
+crates/iwe/tests/find_test.rs|235|
+crates/iwe/tests/find_test.rs|236|#[test]
+crates/iwe/tests/find_test.rs|237|fn test_find_limit_shown_in_markdown() {
+crates/iwe/tests/find_test.rs|238|    let dir = setup_workspace();
+crates/iwe/tests/find_test.rs|239|
+crates/iwe/tests/find_test.rs|240|    for i in 1..=10 {
+crates/iwe/tests/find_test.rs|241|        write(
+crates/iwe/tests/find_test.rs|242|            dir.path().join(format!("doc{}.md", i)),
+crates/iwe/tests/find_test.rs|243|            format!("# Document {}\n\nContent.", i),
+crates/iwe/tests/find_test.rs|244|        )
+crates/iwe/tests/find_test.rs|245|        .unwrap();
+crates/iwe/tests/find_test.rs|246|    }
+crates/iwe/tests/find_test.rs|247|
+crates/iwe/tests/find_test.rs|248|    let (stdout, stderr, success) = run_iwe(dir.path(), &["--limit", "3", "-f", "markdown"]);
+crates/iwe/tests/find_test.rs|249|
+crates/iwe/tests/find_test.rs|250|    assert!(success, "stderr: {}", stderr);
+crates/iwe/tests/find_test.rs|251|
+crates/iwe/tests/find_test.rs|252|    assert!(stdout.contains("Found 10 results"));
+crates/iwe/tests/find_test.rs|253|    assert!(stdout.contains("(showing 3)"));
+crates/iwe/tests/find_test.rs|254|}
+crates/iwe/tests/find_test.rs|255|
+crates/iwe/tests/find_test.rs|256|#[test]
+crates/iwe/tests/find_test.rs|257|fn test_find_keys_format() {
+crates/iwe/tests/find_test.rs|258|    let dir = setup_workspace();
+crates/iwe/tests/find_test.rs|259|
+crates/iwe/tests/find_test.rs|260|    write(dir.path().join("alpha.md"), "# Alpha\n\nContent.").unwrap();
+crates/iwe/tests/find_test.rs|261|    write(dir.path().join("beta.md"), "# Beta\n\nContent.").unwrap();
+crates/iwe/tests/find_test.rs|262|
+crates/iwe/tests/find_test.rs|263|    let (stdout, stderr, success) = run_iwe(dir.path(), &["-f", "keys"]);
+crates/iwe/tests/find_test.rs|264|
+crates/iwe/tests/find_test.rs|265|    assert!(success, "stderr: {}", stderr);
+crates/iwe/tests/find_test.rs|266|
+crates/iwe/tests/find_test.rs|267|    let keys: Vec<&str> = stdout.lines().collect();
+crates/iwe/tests/find_test.rs|268|    assert!(keys.contains(&"alpha"));
+crates/iwe/tests/find_test.rs|269|    assert!(keys.contains(&"beta"));
+crates/iwe/tests/find_test.rs|270|}
+crates/iwe/tests/find_test.rs|271|
+crates/iwe/tests/find_test.rs|272|#[test]
+crates/iwe/tests/find_test.rs|273|fn test_find_markdown_format() {
+crates/iwe/tests/find_test.rs|274|    let dir = setup_workspace();
+crates/iwe/tests/find_test.rs|275|
+crates/iwe/tests/find_test.rs|276|    write(dir.path().join("test-doc.md"), "# Test Document\n\nContent.").unwrap();
+crates/iwe/tests/find_test.rs|277|
+crates/iwe/tests/find_test.rs|278|    let (stdout, stderr, success) = run_iwe(dir.path(), &["-f", "markdown"]);
+crates/iwe/tests/find_test.rs|279|
+crates/iwe/tests/find_test.rs|280|    assert!(success, "stderr: {}", stderr);
+crates/iwe/tests/find_test.rs|281|
+crates/iwe/tests/find_test.rs|282|    assert_eq!(
+crates/iwe/tests/find_test.rs|283|        stdout,
+crates/iwe/tests/find_test.rs|284|        indoc! {"
+crates/iwe/tests/find_test.rs|285|            Found 1 results:
+crates/iwe/tests/find_test.rs|286|
+crates/iwe/tests/find_test.rs|287|            Test Document   #test-doc
+crates/iwe/tests/find_test.rs|288|        "}
+crates/iwe/tests/find_test.rs|289|    );
+crates/iwe/tests/find_test.rs|290|}
+crates/iwe/tests/find_test.rs|291|
+crates/iwe/tests/find_test.rs|292|#[test]
+crates/iwe/tests/find_test.rs|293|fn test_find_with_parent_documents() {
+crates/iwe/tests/find_test.rs|294|    let dir = setup_workspace();
+crates/iwe/tests/find_test.rs|295|
+crates/iwe/tests/find_test.rs|296|    write(
+crates/iwe/tests/find_test.rs|297|        dir.path().join("parent.md"),
+crates/iwe/tests/find_test.rs|298|        indoc! {"
+crates/iwe/tests/find_test.rs|299|            # Parent
+crates/iwe/tests/find_test.rs|300|
+crates/iwe/tests/find_test.rs|301|            ## Section One
+crates/iwe/tests/find_test.rs|302|
+crates/iwe/tests/find_test.rs|303|            [child](child)
+crates/iwe/tests/find_test.rs|304|        "},
+crates/iwe/tests/find_test.rs|305|    )
+crates/iwe/tests/find_test.rs|306|    .unwrap();
+crates/iwe/tests/find_test.rs|307|
+crates/iwe/tests/find_test.rs|308|    write(dir.path().join("child.md"), "# Child\n\nChild content.").unwrap();
+crates/iwe/tests/find_test.rs|309|
+crates/iwe/tests/find_test.rs|310|    let (stdout, stderr, success) = run_iwe(dir.path(), &["-f", "json"]);
+crates/iwe/tests/find_test.rs|311|
+crates/iwe/tests/find_test.rs|312|    assert!(success, "stderr: {}", stderr);
+crates/iwe/tests/find_test.rs|313|
+crates/iwe/tests/find_test.rs|314|    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+crates/iwe/tests/find_test.rs|315|    let results = parsed["results"].as_array().unwrap();
+crates/iwe/tests/find_test.rs|316|
+crates/iwe/tests/find_test.rs|317|    let child = results.iter().find(|r| r["key"] == "child").unwrap();
+crates/iwe/tests/find_test.rs|318|
+crates/iwe/tests/find_test.rs|319|    assert_eq!(child["is_root"], false);
+crates/iwe/tests/find_test.rs|320|    assert_eq!(child["display_title"], "Child ↖Parent");
+crates/iwe/tests/find_test.rs|321|
+crates/iwe/tests/find_test.rs|322|    let parents = child["parent_documents"].as_array().unwrap();
+crates/iwe/tests/find_test.rs|323|    assert_eq!(parents.len(), 1);
+crates/iwe/tests/find_test.rs|324|    assert_eq!(parents[0]["key"], "parent");
+crates/iwe/tests/find_test.rs|325|    assert_eq!(parents[0]["title"], "Parent");
+crates/iwe/tests/find_test.rs|326|}
+crates/iwe/tests/find_test.rs|327|
+crates/iwe/tests/find_test.rs|328|#[test]
+crates/iwe/tests/find_test.rs|329|fn test_find_is_root_flag() {
+crates/iwe/tests/find_test.rs|330|    let dir = setup_workspace();
+crates/iwe/tests/find_test.rs|331|
+crates/iwe/tests/find_test.rs|332|    write(
+crates/iwe/tests/find_test.rs|333|        dir.path().join("parent.md"),
+crates/iwe/tests/find_test.rs|334|        indoc! {"
+crates/iwe/tests/find_test.rs|335|            # Parent
+crates/iwe/tests/find_test.rs|336|
+crates/iwe/tests/find_test.rs|337|            [child](child)
+crates/iwe/tests/find_test.rs|338|        "},
+crates/iwe/tests/find_test.rs|339|    )
+crates/iwe/tests/find_test.rs|340|    .unwrap();
+crates/iwe/tests/find_test.rs|341|
+crates/iwe/tests/find_test.rs|342|    write(dir.path().join("child.md"), "# Child\n\nChild content.").unwrap();
+crates/iwe/tests/find_test.rs|343|
+crates/iwe/tests/find_test.rs|344|    let (stdout, stderr, success) = run_iwe(dir.path(), &["-f", "json"]);
+crates/iwe/tests/find_test.rs|345|
+crates/iwe/tests/find_test.rs|346|    assert!(success, "stderr: {}", stderr);
+crates/iwe/tests/find_test.rs|347|
+crates/iwe/tests/find_test.rs|348|    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+crates/iwe/tests/find_test.rs|349|    let results = parsed["results"].as_array().unwrap();
+crates/iwe/tests/find_test.rs|350|
+crates/iwe/tests/find_test.rs|351|    let parent = results.iter().find(|r| r["key"] == "parent").unwrap();
+crates/iwe/tests/find_test.rs|352|    let child = results.iter().find(|r| r["key"] == "child").unwrap();
+crates/iwe/tests/find_test.rs|353|
+crates/iwe/tests/find_test.rs|354|    assert_eq!(parent["is_root"], true, "parent should be root");
+crates/iwe/tests/find_test.rs|355|    assert_eq!(child["is_root"], false, "child should not be root");
+crates/iwe/tests/find_test.rs|356|}
+crates/iwe/tests/find_test.rs|357|
+crates/iwe/tests/find_test.rs|358|#[test]
+crates/iwe/tests/find_test.rs|359|fn test_find_incoming_outgoing_refs() {
+crates/iwe/tests/find_test.rs|360|    let dir = setup_workspace();
+crates/iwe/tests/find_test.rs|361|
+crates/iwe/tests/find_test.rs|362|    write(
+crates/iwe/tests/find_test.rs|363|        dir.path().join("hub.md"),
+crates/iwe/tests/find_test.rs|364|        indoc! {"
+crates/iwe/tests/find_test.rs|365|            # Hub
+crates/iwe/tests/find_test.rs|366|
+crates/iwe/tests/find_test.rs|367|            [child1](child1)
+crates/iwe/tests/find_test.rs|368|
+crates/iwe/tests/find_test.rs|369|            [child2](child2)
+crates/iwe/tests/find_test.rs|370|        "},
+crates/iwe/tests/find_test.rs|371|    )
+crates/iwe/tests/find_test.rs|372|    .unwrap();
+crates/iwe/tests/find_test.rs|373|
+crates/iwe/tests/find_test.rs|374|    write(
+crates/iwe/tests/find_test.rs|375|        dir.path().join("referrer.md"),
+crates/iwe/tests/find_test.rs|376|        indoc! {"
+crates/iwe/tests/find_test.rs|377|            # Referrer
+crates/iwe/tests/find_test.rs|378|
+crates/iwe/tests/find_test.rs|379|            Check out [hub](hub) for more.
+crates/iwe/tests/find_test.rs|380|        "},
+crates/iwe/tests/find_test.rs|381|    )
+crates/iwe/tests/find_test.rs|382|    .unwrap();
+crates/iwe/tests/find_test.rs|383|
+crates/iwe/tests/find_test.rs|384|    write(dir.path().join("child1.md"), "# Child One\n\nContent.").unwrap();
+crates/iwe/tests/find_test.rs|385|    write(dir.path().join("child2.md"), "# Child Two\n\nContent.").unwrap();
+crates/iwe/tests/find_test.rs|386|
+crates/iwe/tests/find_test.rs|387|    let (stdout, stderr, success) = run_iwe(dir.path(), &["-f", "json"]);
+crates/iwe/tests/find_test.rs|388|
+crates/iwe/tests/find_test.rs|389|    assert!(success, "stderr: {}", stderr);
+crates/iwe/tests/find_test.rs|390|
+crates/iwe/tests/find_test.rs|391|    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+crates/iwe/tests/find_test.rs|392|    let results = parsed["results"].as_array().unwrap();
+crates/iwe/tests/find_test.rs|393|
+crates/iwe/tests/find_test.rs|394|    let hub = results.iter().find(|r| r["key"] == "hub").unwrap();
+crates/iwe/tests/find_test.rs|395|
+crates/iwe/tests/find_test.rs|396|    assert_eq!(hub["outgoing_refs"], 2);
+crates/iwe/tests/find_test.rs|397|    assert_eq!(hub["incoming_refs"], 1);
+crates/iwe/tests/find_test.rs|398|}
+crates/iwe/tests/find_test.rs|399|
+crates/iwe/tests/find_test.rs|400|#[test]
+crates/iwe/tests/find_test.rs|401|fn test_find_empty_workspace() {
+crates/iwe/tests/find_test.rs|402|    let dir = setup_workspace();
+crates/iwe/tests/find_test.rs|403|
+crates/iwe/tests/find_test.rs|404|    let (stdout, stderr, success) = run_iwe(dir.path(), &["-f", "json"]);
+crates/iwe/tests/find_test.rs|405|
+crates/iwe/tests/find_test.rs|406|    assert!(success, "stderr: {}", stderr);
+crates/iwe/tests/find_test.rs|407|
+crates/iwe/tests/find_test.rs|408|    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+crates/iwe/tests/find_test.rs|409|    assert_eq!(parsed["total"], 0);
+crates/iwe/tests/find_test.rs|410|    assert_eq!(parsed["results"].as_array().unwrap().len(), 0);
+crates/iwe/tests/find_test.rs|411|}
+crates/iwe/tests/find_test.rs|412|
+crates/iwe/tests/find_test.rs|413|#[test]
+crates/iwe/tests/find_test.rs|414|fn test_find_query_with_no_match() {
+crates/iwe/tests/find_test.rs|415|    let dir = setup_workspace();
+crates/iwe/tests/find_test.rs|416|
+crates/iwe/tests/find_test.rs|417|    write(dir.path().join("document.md"), "# My Document\n\nContent.").unwrap();
+crates/iwe/tests/find_test.rs|418|
+crates/iwe/tests/find_test.rs|419|    let (stdout, stderr, success) = run_iwe(dir.path(), &["zzzznonexistent", "-f", "json"]);
+crates/iwe/tests/find_test.rs|420|
+crates/iwe/tests/find_test.rs|421|    assert!(success, "stderr: {}", stderr);
+crates/iwe/tests/find_test.rs|422|
+crates/iwe/tests/find_test.rs|423|    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+crates/iwe/tests/find_test.rs|424|    assert_eq!(parsed["total"], 0);
+crates/iwe/tests/find_test.rs|425|    assert_eq!(parsed["results"].as_array().unwrap().len(), 0);
+crates/iwe/tests/find_test.rs|426|}
+crates/iwe/tests/find_test.rs|427|
+crates/iwe/tests/find_test.rs|428|#[test]
+crates/iwe/tests/find_test.rs|429|fn test_find_search_query_in_output() {
+crates/iwe/tests/find_test.rs|430|    let dir = setup_workspace();
+crates/iwe/tests/find_test.rs|431|
+crates/iwe/tests/find_test.rs|432|    write(dir.path().join("test.md"), "# Test\n\nContent.").unwrap();
+crates/iwe/tests/find_test.rs|433|
+crates/iwe/tests/find_test.rs|434|    let (stdout, stderr, success) = run_iwe(dir.path(), &["myquery", "-f", "json"]);
+crates/iwe/tests/find_test.rs|435|
+crates/iwe/tests/find_test.rs|436|    assert!(success, "stderr: {}", stderr);
+crates/iwe/tests/find_test.rs|437|
+crates/iwe/tests/find_test.rs|438|    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+crates/iwe/tests/find_test.rs|439|    assert_eq!(parsed["query"], "myquery");
+crates/iwe/tests/find_test.rs|440|}
+crates/iwe/tests/find_test.rs|441|
+crates/iwe/tests/find_test.rs|442|#[test]
+crates/iwe/tests/find_test.rs|443|fn test_find_no_query_null_in_output() {
+crates/iwe/tests/find_test.rs|444|    let dir = setup_workspace();
+crates/iwe/tests/find_test.rs|445|
+crates/iwe/tests/find_test.rs|446|    write(dir.path().join("test.md"), "# Test\n\nContent.").unwrap();
+crates/iwe/tests/find_test.rs|447|
+crates/iwe/tests/find_test.rs|448|    let (stdout, stderr, success) = run_iwe(dir.path(), &["-f", "json"]);
+crates/iwe/tests/find_test.rs|449|
+crates/iwe/tests/find_test.rs|450|    assert!(success, "stderr: {}", stderr);
+crates/iwe/tests/find_test.rs|451|
+crates/iwe/tests/find_test.rs|452|    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+crates/iwe/tests/find_test.rs|453|    assert!(parsed["query"].is_null());
+crates/iwe/tests/find_test.rs|454|}
+crates/iwe/tests/find_test.rs|455|
+crates/iwe/tests/find_test.rs|456|#[test]
+crates/iwe/tests/find_test.rs|457|fn test_find_markdown_with_query() {
+crates/iwe/tests/find_test.rs|458|    let dir = setup_workspace();
+crates/iwe/tests/find_test.rs|459|
+crates/iwe/tests/find_test.rs|460|    write(dir.path().join("test.md"), "# Test Document\n\nContent.").unwrap();
+crates/iwe/tests/find_test.rs|461|
+crates/iwe/tests/find_test.rs|462|    let (stdout, stderr, success) = run_iwe(dir.path(), &["test", "-f", "markdown"]);
+crates/iwe/tests/find_test.rs|463|
+crates/iwe/tests/find_test.rs|464|    assert!(success, "stderr: {}", stderr);
+crates/iwe/tests/find_test.rs|465|
+crates/iwe/tests/find_test.rs|466|    assert!(stdout.contains("for \"test\""));
+crates/iwe/tests/find_test.rs|467|}
+crates/iwe/tests/find_test.rs|468|
+crates/iwe/tests/find_test.rs|469|#[test]
+crates/iwe/tests/find_test.rs|470|fn test_find_refs_to_inline_link() {
+crates/iwe/tests/find_test.rs|471|    let dir = setup_workspace();
+crates/iwe/tests/find_test.rs|472|
+crates/iwe/tests/find_test.rs|473|    write(
+crates/iwe/tests/find_test.rs|474|        dir.path().join("doc1.md"),
+crates/iwe/tests/find_test.rs|475|        indoc! {"
+crates/iwe/tests/find_test.rs|476|            # Doc One
+crates/iwe/tests/find_test.rs|477|
+crates/iwe/tests/find_test.rs|478|            See [target](target) for details.
+crates/iwe/tests/find_test.rs|479|        "},
+crates/iwe/tests/find_test.rs|480|    )
+crates/iwe/tests/find_test.rs|481|    .unwrap();
+crates/iwe/tests/find_test.rs|482|
+crates/iwe/tests/find_test.rs|483|    write(dir.path().join("target.md"), "# Target\n\nTarget content.").unwrap();
+crates/iwe/tests/find_test.rs|484|
+crates/iwe/tests/find_test.rs|485|    let (stdout, stderr, success) = run_iwe(dir.path(), &["--refs-to", "target", "-f", "json"]);
+crates/iwe/tests/find_test.rs|486|
+crates/iwe/tests/find_test.rs|487|    assert!(success, "stderr: {}", stderr);
+crates/iwe/tests/find_test.rs|488|
+crates/iwe/tests/find_test.rs|489|    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+crates/iwe/tests/find_test.rs|490|    let results = parsed["results"].as_array().unwrap();
+crates/iwe/tests/find_test.rs|491|
+crates/iwe/tests/find_test.rs|492|    let keys: Vec<&str> = results.iter().map(|r| r["key"].as_str().unwrap()).collect();
+crates/iwe/tests/find_test.rs|493|
+crates/iwe/tests/find_test.rs|494|    assert!(keys.contains(&"doc1"), "doc1 references target via inline link");
+crates/iwe/tests/find_test.rs|495|}Find||crates/iwe/src/main.rs|134|134
+FindFormat||crates/iwe/src/main.rs|162|166
+find_command||crates/iwe/src/main.rs|661|693
+render_find_output||crates/iwe/src/main.rs|695|712
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge.db "select line_num, content from lines where file='crates/iwe/src/main.rs' and line_num between 134 and 712 order by line_num;"
+    timeout_secs: 20
+
+134|struct Find {
+135|    #[clap(help = "Search query (fuzzy match on title and key)")]
+136|    query: Option<String>,
+137|
+138|    #[clap(long, help = "Only root documents (no incoming block refs)")]
+139|    roots: bool,
+140|
+141|    #[clap(long, help = "Documents that reference this key")]
+142|    refs_to: Option<String>,
+143|
+144|    #[clap(long, help = "Documents referenced by this key")]
+145|    refs_from: Option<String>,
+146|
+147|    #[clap(long, short = 'l', help = "Maximum results")]
+148|    limit: Option<usize>,
+149|
+150|    #[clap(long, short = 'f', value_enum, default_value = "markdown")]
+151|    format: FindFormat,
+152|
+153|    #[clap(long = "meta", value_parser = parse_meta_filter,
+154|           help = "Filter by front matter field (key=value); repeatable")]
+155|    meta: Vec<(String, String)>,
+156|
+157|    #[clap(flatten)]
+158|    selector: SelectorArgs,
+159|}
+160|
+161|#[derive(Debug, Clone, clap::ValueEnum)]
+162|enum FindFormat {
+163|    Markdown,
+164|    Keys,
+165|    Json,
+166|}
+167|
+168|#[derive(Debug, Args)]
+169|#[clap(
+170|    about = help::normalize::ABOUT,
+171|    long_about = help::normalize::LONG_ABOUT,
+172|    after_help = help::normalize::AFTER_HELP
+173|)]
+174|struct Normalize {}
+175|
+176|#[derive(Debug, Args)]
+177|#[clap(
+178|    about = help::init::ABOUT,
+179|    long_about = help::init::LONG_ABOUT,
+180|    after_help = help::init::AFTER_HELP
+181|)]
+182|struct Init {}
+183|
+184|#[derive(Debug, Args)]
+185|#[clap(
+186|    about = help::new::ABOUT,
+187|    long_about = help::new::LONG_ABOUT,
+188|    after_help = help::new::AFTER_HELP
+189|)]
+190|struct New {
+191|    #[clap(help = "Title for the new document")]
+192|    title: String,
+193|
+194|    #[clap(long, short = 't', help = "Template name from config")]
+195|    template: Option<String>,
+196|
+197|    #[clap(long, short = 'c', help = "Content for the new document")]
+198|    content: Option<String>,
+199|
+200|    #[clap(
+201|        long,
+202|        short = 'i',
+203|        value_enum,
+204|        default_value = "suffix",
+205|        help = "Behavior when file already exists: suffix (append -1, -2, etc.), override (overwrite), skip (do nothing)"
+206|    )]
+207|    if_exists: IfExists,
+208|
+209|    #[clap(long, short = 'e', help = "Open created file in $EDITOR")]
+210|    edit: bool,
+211|}
+212|
+213|#[derive(Debug, Args)]
+214|#[clap(
+215|    about = help::tree::ABOUT,
+216|    long_about = help::tree::LONG_ABOUT,
+217|    after_help = help::tree::AFTER_HELP
+218|)]
+219|struct TreeArgs {
+220|    #[clap(
+221|        long,
+222|        short = 'f',
+223|        value_enum,
+224|        default_value = "markdown",
+225|        help = "Output format: markdown (nested list with links), keys, json"
+226|    )]
+227|    format: TreeFormat,
+228|
+229|    #[clap(
+230|        long,
+231|        short = 'k',
+232|        help = "Filter to paths starting from specific document(s)"
+233|    )]
+234|    key: Vec<String>,
+235|
+236|    #[clap(
+237|        long,
+238|        short = 'd',
+239|        default_value = "4",
+240|        help = "Maximum depth to traverse"
+241|    )]
+242|    depth: u8,
+243|
+244|    #[clap(flatten)]
+245|    selector: SelectorArgs,
+246|}
+247|
+248|#[derive(Debug, Clone, clap::ValueEnum)]
+249|enum TreeFormat {
+250|    Markdown,
+251|    Keys,
+252|    Json,
+253|}
+254|
+255|#[derive(Debug, serde::Serialize)]
+256|struct TreeNode {
+257|    key: String,
+258|    title: String,
+259|    #[serde(skip_serializing_if = "Vec::is_empty")]
+260|    children: Vec<TreeNode>,
+261|}
+262|
+263|#[derive(Debug, Args)]
+264|#[clap(
+265|    about = help::stats::ABOUT,
+266|    long_about = help::stats::LONG_ABOUT,
+267|    after_help = help::stats::AFTER_HELP
+268|)]
+269|struct Stats {
+270|    #[clap(
+271|        long,
+272|        short = 'f',
+273|        value_enum,
+274|        default_value = "markdown",
+275|        help = "Output format for statistics"
+276|    )]
+277|    format: StatsFormat,
+278|
+279|    #[clap(
+280|        long,
+281|        short = 'k',
+282|        help = "Document key for per-document stats. Omit for aggregate graph statistics."
+283|    )]
+284|    key: Option<String>,
+285|}
+286|
+287|#[derive(Debug, Clone, clap::ValueEnum)]
+288|enum StatsFormat {
+289|    Markdown,
+290|    Csv,
+291|    Json,
+292|}
+293|
+294|#[derive(Debug, Args)]
+295|#[clap(
+296|    about = help::export::ABOUT,
+297|    long_about = help::export::LONG_ABOUT,
+298|    after_help = help::export::AFTER_HELP
+299|)]
+300|struct Export {
+301|    #[clap(
+302|        long,
+303|        short = 'f',
+304|        value_enum,
+305|        default_value = "dot",
+306|        help = "Output format"
+307|    )]
+308|    format: Format,
+309|    #[clap(
+310|        long,
+311|        short = 'k',
+312|        help = "Filter nodes by document key. Repeatable; if omitted, exports all root notes."
+313|    )]
+314|    key: Vec<String>,
+315|    #[clap(
+316|        long,
+317|        short = 'd',
+318|        global = true,
+319|        required = false,
+320|        default_value = "0"
+321|    )]
+322|    depth: u8,
+323|    #[clap(
+324|        long,
+325|        global = true,
+326|        required = false,
+327|        default_value = "false",
+328|        help = "Include section headers and create subgraphs for detailed visualization. When enabled, shows document structure with sections grouped in colored subgraphs"
+329|    )]
+330|    include_headers: bool,
+331|
+332|    #[clap(flatten)]
+333|    selector: SelectorArgs,
+334|}
+335|
+336|#[derive(Debug, Clone, clap::ValueEnum)]
+337|enum Format {
+338|    Dot,
+339|}
+340|
+341|#[derive(Debug, Args)]
+342|#[clap(
+343|    about = help::squash::ABOUT,
+344|    long_about = help::squash::LONG_ABOUT,
+345|    after_help = help::squash::AFTER_HELP
+346|)]
+347|struct Squash {
+348|    #[clap(help = "Document key to squash")]
+349|    key: String,
+350|    #[clap(long, short, global = true, required = false, default_value = "2")]
+351|    depth: u8,
+352|}
+353|
+354|
+355|#[derive(Debug, Args)]
+356|struct GlobalOpts {
+357|    #[clap(long, short, global = true, required = false, default_value = "0")]
+358|    verbose: u8,
+359|}
+360|
+361|#[derive(Debug, Args)]
+362|#[clap(
+363|    about = help::rename::ABOUT,
+364|    long_about = help::rename::LONG_ABOUT,
+365|    after_help = help::rename::AFTER_HELP
+366|)]
+367|struct Rename {
+368|    #[clap(help = "Current document key")]
+369|    old_key: String,
+370|
+371|    #[clap(help = "New document key")]
+372|    new_key: String,
+373|
+374|    #[clap(long, help = "Preview changes without writing to disk")]
+375|    dry_run: bool,
+376|
+377|    #[clap(long, help = "Suppress progress output")]
+378|    quiet: bool,
+379|
+380|    #[clap(long, help = "Print affected document keys (one per line)")]
+381|    keys: bool,
+382|}
+383|
+384|#[derive(Debug, Args)]
+385|#[clap(
+386|    about = help::delete::ABOUT,
+387|    long_about = help::delete::LONG_ABOUT,
+388|    after_help = help::delete::AFTER_HELP
+389|)]
+390|struct Delete {
+391|    #[clap(help = "Document key to delete")]
+392|    key: String,
+393|
+394|    #[clap(long, help = "Preview changes without writing to disk")]
+395|    dry_run: bool,
+396|
+397|    #[clap(long, help = "Suppress progress output")]
+398|    quiet: bool,
+399|
+400|    #[clap(long, help = "Print affected document keys (one per line)")]
+401|    keys: bool,
+402|
+403|    #[clap(long, help = "Skip confirmation prompt")]
+404|    force: bool,
+405|}
+406|
+407|#[derive(Debug, Args)]
+408|#[clap(
+409|    about = help::extract::ABOUT,
+410|    long_about = help::extract::LONG_ABOUT,
+411|    after_help = help::extract::AFTER_HELP
+412|)]
+413|struct Extract {
+414|    #[clap(help = "Document key containing the section to extract")]
+415|    key: String,
+416|
+417|    #[clap(long, help = "Section title to extract (case-insensitive)")]
+418|    section: Option<String>,
+419|
+420|    #[clap(long, help = "Block number to extract (1-indexed)")]
+421|    block: Option<usize>,
+422|
+423|    #[clap(long, help = "List all sections with block numbers")]
+424|    list: bool,
+425|
+426|    #[clap(long, help = "Action name from config to use for extraction")]
+427|    action: Option<String>,
+428|
+429|    #[clap(long, help = "Preview changes without writing to disk")]
+430|    dry_run: bool,
+431|
+432|    #[clap(long, help = "Suppress progress output")]
+433|    quiet: bool,
+434|
+435|    #[clap(long, help = "Print affected document keys (one per line)")]
+436|    keys: bool,
+437|}
+438|
+439|#[derive(Debug, Args)]
+440|#[clap(
+441|    about = help::update::ABOUT,
+442|    long_about = help::update::LONG_ABOUT,
+443|    after_help = help::update::AFTER_HELP
+444|)]
+445|struct Update {
+446|    #[clap(long, short = 'k', help = "Document key to update")]
+447|    key: String,
+448|
+449|    #[clap(
+450|        long,
+451|        short = 'c',
+452|        help = "New full markdown content. Use '-' to read from stdin."
+453|    )]
+454|    content: String,
+455|
+456|    #[clap(long, help = "Preview without writing")]
+457|    dry_run: bool,
+458|
+459|    #[clap(long, help = "Suppress progress output")]
+460|    quiet: bool,
+461|}
+462|
+463|#[derive(Debug, Args)]
+464|#[clap(
+465|    about = help::attach::ABOUT,
+466|    long_about = help::attach::LONG_ABOUT,
+467|    after_help = help::attach::AFTER_HELP
+468|)]
+469|struct Attach {
+470|    #[clap(
+471|        long,
+472|        help = "Configured attach action(s) to attach to. Repeatable for multiple targets."
+473|    )]
+474|    to: Vec<String>,
+475|
+476|    #[clap(long, short = 'k', help = "Source document key to attach")]
+477|    key: Option<String>,
+478|
+479|    #[clap(long, help = "List configured attach actions")]
+480|    list: bool,
+481|
+482|    #[clap(long, help = "Preview without writing")]
+483|    dry_run: bool,
+484|
+485|    #[clap(long, help = "Suppress progress output")]
+486|    quiet: bool,
+487|}
+488|
+489|#[derive(Debug, Args)]
+490|#[clap(
+491|    about = help::inline::ABOUT,
+492|    long_about = help::inline::LONG_ABOUT,
+493|    after_help = help::inline::AFTER_HELP
+494|)]
+495|struct Inline {
+496|    #[clap(help = "Document key containing the reference to inline")]
+497|    key: String,
+498|
+499|    #[clap(long, help = "Reference key or title to inline")]
+500|    reference: Option<String>,
+501|
+502|    #[clap(long, help = "Block number to inline (1-indexed)")]
+503|    block: Option<usize>,
+504|
+505|    #[clap(long, help = "List all block references with numbers")]
+506|    list: bool,
+507|
+508|    #[clap(long, help = "Action name from config to use for inlining")]
+509|    action: Option<String>,
+510|
+511|    #[clap(long, help = "Inline as blockquote instead of section")]
+512|    as_quote: bool,
+513|
+514|    #[clap(long, help = "Keep the target document after inlining")]
+515|    keep_target: bool,
+516|
+517|    #[clap(long, help = "Preview changes without writing to disk")]
+518|    dry_run: bool,
+519|
+520|    #[clap(long, help = "Suppress progress output")]
+521|    quiet: bool,
+522|
+523|    #[clap(long, help = "Print affected document keys (one per line)")]
+524|    keys: bool,
+525|}
+526|
+527|fn main() {
+528|    debug!("parsing arguments");
+529|    let app = App::parse();
+530|
+531|    if app.global_opts.verbose > 1 {
+532|        tracing_subscriber::fmt()
+533|            .with_max_level(tracing::Level::DEBUG)
+534|            .with_writer(std::io::stderr)
+535|            .init();
+536|    } else if app.global_opts.verbose > 0 {
+537|        tracing_subscriber::fmt()
+538|            .with_max_level(tracing::Level::INFO)
+539|            .with_writer(std::io::stderr)
+540|            .init();
+541|    }
+542|
+543|    debug!("starting command processing");
+544|    match app.command {
+545|        Command::Normalize(normalize) => {
+546|            normalize_command(normalize);
+547|        }
+548|        Command::Tree(tree) => {
+549|            tree_command(tree);
+550|        }
+551|        Command::Squash(squash) => {
+552|            squash_command(squash);
+553|        }
+554|        Command::Init(init) => init_command(init),
+555|        Command::New(new) => new_command(new),
+556|        Command::Retrieve(retrieve) => retrieve_command(retrieve),
+557|        Command::Find(find) => find_command(find),
+558|        Command::Export(export) => export_command(export),
+559|        Command::Stats(stats) => stats_command(stats),
+560|        Command::Rename(rename) => rename_command(rename),
+561|        Command::Delete(delete) => delete_command(delete),
+562|        Command::Extract(extract) => extract_command(extract),
+563|        Command::Inline(inline) => inline_command(inline),
+564|        Command::Update(update) => update_command(update),
+565|        Command::Attach(attach) => attach_command(attach),
+566|    }
+567|}
+568|
+569|#[tracing::instrument(level = "debug")]
+570|fn retrieve_command(args: Retrieve) {
+571|    let config = get_configuration();
+572|    let graph = load_graph(&config);
+573|
+574|    let selector_args = args.selector.clone();
+575|    let selector_provided = !selector_args.in_.is_empty()
+576|        || !selector_args.in_any.is_empty()
+577|        || !selector_args.not_in.is_empty()
+578|        || selector_args.max_depth.is_some();
+579|
+580|    let key_strings: Vec<String> = if args.key.is_empty() {
+581|        let stdin_content = read_stdin_if_available();
+582|        let keys: Vec<String> = stdin_content
+583|            .lines()
+584|            .map(|s| s.trim().to_string())
+585|            .filter(|s| !s.is_empty())
+586|            .collect();
+587|        if keys.is_empty() && !selector_provided {
+588|            eprintln!("Error: No document key provided. Use -k <key>, --in <key>, or pipe keys via stdin.");
+589|            std::process::exit(1);
+590|        }
+591|        keys
+592|    } else {
+593|        args.key
+594|    };
+595|
+596|    let mut keys = Vec::new();
+597|    for key_str in &key_strings {
+598|        let key = Key::name(key_str);
+599|        if (&graph).get_node_id(&key).is_none() {
+600|            eprintln!("Error: Document '{}' not found", key_str);
+601|            std::process::exit(2);
+602|        }
+603|        keys.push(key);
+604|    }
+605|
+606|    let reader = DocumentReader::new(&graph);
+607|    let exclude: std::collections::HashSet<Key> = args
+608|        .exclude
+609|        .iter()
+610|        .map(|s| Key::name(s))
+611|        .collect();
+612|    let options = RetrieveOptions {
+613|        depth: args.depth,
+614|        context: args.context,
+615|        links: args.links,
+616|        backlinks: args.backlinks,
+617|        exclude,
+618|        no_content: args.no_content,
+619|        selector: args.selector.into(),
+620|    };
+621|
+622|    let output = reader.retrieve_many(&keys, &options);
+623|
+624|    if args.dry_run {
+625|        let doc_count = output.documents.len();
+626|        let total_lines: usize = output
+627|            .documents
+628|            .iter()
+629|            .map(|doc| doc.content.lines().count())
+630|            .sum();
+631|        println!("documents: {}", doc_count);
+632|        println!("lines: {}", total_lines);
+633|        return;
+634|    }
+635|
+636|    match args.format {
+637|        RetrieveFormat::Json => {
+638|            let json = serde_json::to_string_pretty(&output).expect("Failed to serialize to JSON");
+639|            println!("{}", json);
+640|        }
+641|        RetrieveFormat::Keys => {
+642|            for doc in &output.documents {
+643|                println!("{}", doc.key);
+644|            }
+645|        }
+646|        RetrieveFormat::Markdown => {
+647|            let options = graph.markdown_options();
+648|            let renderer = RetrieveRenderer::new(&output, &options, &graph);
+649|            print!("{}", renderer.render());
+650|        }
+651|    }
+652|}
+653|
+654|fn parse_meta_filter(s: &str) -> Result<(String, String), String> {
+655|    s.split_once('=')
+656|        .map(|(k, v)| (k.trim().to_string(), v.trim().to_string()))
+657|        .ok_or_else(|| format!("expected key=value, got `{}`", s))
+658|}
+659|
+660|#[tracing::instrument(level = "debug")]
+661|fn find_command(args: Find) {
+662|    let config = get_configuration();
+663|    let graph = load_graph(&config);
+664|
+665|    let finder = DocumentFinder::new(&graph);
+666|    let options = FindOptions {
+667|        query: args.query,
+668|        roots: args.roots,
+669|        refs_to: args.refs_to.map(|s| Key::name(&s)),
+670|        refs_from: args.refs_from.map(|s| Key::name(&s)),
+671|        selector: args.selector.into(),
+672|        limit: args.limit,
+673|        metadata_filters: args.meta,
+674|    };
+675|
+676|    let output = finder.find(&options);
+677|
+678|    match args.format {
+679|        FindFormat::Json => {
+680|            let json = serde_json::to_string_pretty(&output).expect("Failed to serialize to JSON");
+681|            println!("{}", json);
+682|        }
+683|        FindFormat::Keys => {
+684|            for result in &output.results {
+685|                println!("{}", result.key);
+686|            }
+687|        }
+688|        FindFormat::Markdown => {
+689|            let rendered = render_find_output(&output);
+690|            print!("{}", rendered);
+691|        }
+692|    }
+693|}
+694|
+695|fn render_find_output(output: &iwe::find::FindOutput) -> String {
+696|    let mut result = String::new();
+697|
+698|    result.push_str(&format!("Found {} results", output.total));
+699|    if let Some(ref query) = output.query {
+700|        result.push_str(&format!(" for \"{}\"", query));
+701|    }
+702|    if let Some(limit) = output.limit {
+703|        result.push_str(&format!(" (showing {})", limit));
+704|    }
+705|    result.push_str(":\n\n");
+706|
+707|    for r in &output.results {
+708|        result.push_str(&format!("{}   #{}\n", r.display_title, r.key));
+709|    }
+710|
+711|    result
+712|}
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge.db "select line_num, content from lines where file='crates/liwe/src/find.rs' order by line_num;"
+    timeout_secs: 20
+
+1|use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
+2|use itertools::Itertools;
+3|use serde::Serialize;
+4|use crate::graph::{Graph, GraphContext};
+5|use crate::model::node::{NodeIter, NodePointer};
+6|use crate::model::{Key, NodeId};
+7|use crate::selector::Selector;
+8|
+9|#[derive(Debug, Clone, Serialize)]
+10|pub struct ParentDocumentInfo {
+11|    pub key: String,
+12|    pub title: String,
+13|    pub section_path: Vec<String>,
+14|}
+15|
+16|#[derive(Debug, Clone, Serialize)]
+17|pub struct FindResult {
+18|    pub key: String,
+19|    pub title: String,
+20|    pub display_title: String,
+21|    pub is_root: bool,
+22|    pub incoming_refs: usize,
+23|    pub outgoing_refs: usize,
+24|    pub parent_documents: Vec<ParentDocumentInfo>,
+25|}
+26|
+27|#[derive(Debug, Clone, Serialize)]
+28|pub struct FindOutput {
+29|    pub query: Option<String>,
+30|    pub limit: Option<usize>,
+31|    pub total: usize,
+32|    pub results: Vec<FindResult>,
+33|}
+34|
+35|#[derive(Debug, Clone, Default)]
+36|pub struct FindOptions {
+37|    pub query: Option<String>,
+38|    pub roots: bool,
+39|    pub refs_to: Option<Key>,
+40|    pub refs_from: Option<Key>,
+41|    pub selector: Selector,
+42|    pub limit: Option<usize>,
+43|    pub metadata_filters: Vec<(String, String)>,
+44|}
+45|
+46|pub struct DocumentFinder<'a> {
+47|    graph: &'a Graph,
+48|}
+49|
+50|impl<'a> DocumentFinder<'a> {
+51|    pub fn new(graph: &'a Graph) -> Self {
+52|        Self { graph }
+53|    }
+54|
+55|    pub fn find(&self, options: &FindOptions) -> FindOutput {
+56|        let matcher = SkimMatcherV2::default();
+57|
+58|        let candidate_set = if options.selector.is_empty() {
+59|            None
+60|        } else {
+61|            Some(options.selector.resolve(self.graph))
+62|        };
+63|
+64|        let mut results: Vec<(Key, i64)> = self
+65|            .graph
+66|            .keys()
+67|            .into_iter()
+68|            .filter_map(|key| {
+69|                if let Some(set) = &candidate_set {
+70|                    if !set.contains(&key) {
+71|                        return None;
+72|                    }
+73|                }
+74|                if options.roots && !self.is_root(&key) {
+75|                    return None;
+76|                }
+77|                if let Some(ref target) = options.refs_to {
+78|                    if !self.references(&key, target) {
+79|                        return None;
+80|                    }
+81|                }
+82|                if let Some(ref source) = options.refs_from {
+83|                    if !self.references(source, &key) {
+84|                        return None;
+85|                    }
+86|                }
+87|
+88|                if !options.metadata_filters.is_empty()
+89|                    && !self.metadata_matches(&key, &options.metadata_filters)
+90|                {
+91|                    return None;
+92|                }
+93|
+94|                let title = self.graph.get_key_title(&key).unwrap_or_default();
+95|                let search_text = format!("{} {}", key, title);
+96|
+97|                let score = options
+98|                    .query
+99|                    .as_ref()
+100|                    .map(|q| matcher.fuzzy_match(&search_text, q).unwrap_or(0))
+101|                    .unwrap_or(self.node_rank(&key) as i64);
+102|
+103|                if options.query.is_some() && score == 0 {
+104|                    return None;
+105|                }
+106|
+107|                Some((key, score))
+108|            })
+109|            .collect();
+110|
+111|        results.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+112|
+113|        let total = results.len();
+114|        let results: Vec<FindResult> = if let Some(limit) = options.limit {
+115|            results
+116|                .into_iter()
+117|                .take(limit)
+118|                .map(|(key, _)| self.build_result(&key))
+119|                .collect()
+120|        } else {
+121|            results
+122|                .into_iter()
+123|                .map(|(key, _)| self.build_result(&key))
+124|                .collect()
+125|        };
+126|
+127|        let limit = options.limit.filter(|&l| l < total);
+128|
+129|        FindOutput {
+130|            query: options.query.clone(),
+131|            limit,
+132|            total,
+133|            results,
+134|        }
+135|    }
+136|
+137|    fn build_result(&self, key: &Key) -> FindResult {
+138|        let title = self.graph.get_key_title(key).unwrap_or_default();
+139|        let parent_documents = self.get_parent_documents(key);
+140|        let display_title = Self::render_display_title(&title, &parent_documents);
+141|
+142|        FindResult {
+143|            key: key.to_string(),
+144|            title,
+145|            display_title,
+146|            is_root: self.is_root(key),
+147|            incoming_refs: self.graph.get_block_references_to(key).len()
+148|                + self.graph.get_inline_references_to(key).len(),
+149|            outgoing_refs: self.graph.get_block_references_in(key).len(),
+150|            parent_documents,
+151|        }
+152|    }
+153|
+154|    fn render_display_title(title: &str, parent_documents: &[ParentDocumentInfo]) -> String {
+155|        if parent_documents.is_empty() {
+156|            title.to_string()
+157|        } else {
+158|            let parents = parent_documents
+159|                .iter()
+160|                .map(|p| format!("↖{}", p.title))
+161|                .collect::<Vec<_>>()
+162|                .join(" ");
+163|            format!("{} {}", title, parents)
+164|        }
+165|    }
+166|
+167|    fn is_root(&self, key: &Key) -> bool {
+168|        self.graph.get_block_references_to(key).is_empty()
+169|    }
+170|
+171|    fn node_rank(&self, key: &Key) -> usize {
+172|        self.graph.get_inline_references_to(key).len()
+173|            + self.graph.get_block_references_to(key).len()
+174|    }
+175|
+176|    fn references(&self, source: &Key, target: &Key) -> bool {
+177|        let block_refs = self.graph.get_block_references_in(source);
+178|        for ref_id in block_refs {
+179|            if let Some(ref_key) = self.graph.graph_node(ref_id).ref_key() {
+180|                if &ref_key == target {
+181|                    return true;
+182|                }
+183|            }
+184|        }
+185|
+186|        if let Some(node_id) = self.graph.get_node_id(source) {
+187|            let sub_nodes = self.graph.node(node_id).get_all_sub_nodes();
+188|            for sub_node_id in sub_nodes {
+189|                if let Some(line_id) = self.graph.graph_node(sub_node_id).line_id() {
+190|                    let line = self.graph.get_line(line_id);
+191|                    for ref_key in line.ref_keys() {
+192|                        if &ref_key == target {
+193|                            return true;
+194|                        }
+195|                    }
+196|                }
+197|            }
+198|        }
+199|
+200|        false
+201|    }
+202|
+203|    fn get_parent_documents(&self, key: &Key) -> Vec<ParentDocumentInfo> {
+204|        let refs = self.graph.get_block_references_to(key);
+205|        let mut parents = Vec::new();
+206|
+207|        for ref_id in refs {
+208|            let node = self.graph.node(ref_id);
+209|
+210|            if let Some(doc_node) = node.to_document() {
+211|                if let Some(doc_key) = doc_node.document_key() {
+212|                    let title = self
+213|                        .graph
+214|                        .get_key_title(&doc_key)
+215|                        .unwrap_or_else(|| doc_key.to_string());
+216|
+217|                    let section_path = self.get_section_path(ref_id);
+218|
+219|                    parents.push(ParentDocumentInfo {
+220|                        key: doc_key.to_string(),
+221|                        title,
+222|                        section_path,
+223|                    });
+224|                }
+225|            }
+226|        }
+227|
+228|        parents.into_iter().unique_by(|p| p.key.clone()).collect()
+229|    }
+230|
+231|    fn get_section_path(&self, node_id: NodeId) -> Vec<String> {
+232|        let mut path = Vec::new();
+233|        let mut current = self.graph.node(node_id);
+234|
+235|        while let Some(parent) = current.to_parent() {
+236|            if parent.is_section()
+237|                && parent
+238|                    .to_parent()
+239|                    .map(|p| p.is_document())
+240|                    .unwrap_or(true)
+241|            {
+242|                let text = parent.plain_text().trim().to_string();
+243|                path.push(text);
+244|            }
+245|            if parent.is_document() {
+246|                break;
+247|            }
+248|            current = parent;
+249|        }
+250|        path
+251|    }
+252|
+253|    fn metadata_matches(&self, key: &Key, filters: &[(String, String)]) -> bool {
+254|        let raw = match self.graph.get_metadata(key) {
+255|            Some(s) => s,
+256|            None => return false,
+257|        };
+258|        let val: serde_yaml::Value = match serde_yaml::from_str(raw) {
+259|            Ok(v) => v,
+260|            _ => return false,
+261|        };
+262|        filters.iter().all(|(k, v)| {
+263|            val.get(k.as_str())
+264|                .and_then(|node| match node {
+265|                    serde_yaml::Value::String(s) => Some(s.as_str() == v.as_str()),
+266|                    serde_yaml::Value::Bool(b) => Some(b.to_string() == *v),
+267|                    serde_yaml::Value::Number(n) => Some(n.to_string() == *v),
+268|                    serde_yaml::Value::Sequence(items) => Some(
+269|                        items
+270|                            .iter()
+271|                            .any(|i| i.as_str().map(|s| s == v.as_str()).unwrap_or(false)),
+272|                    ),
+273|                    _ => Some(false),
+274|                })
+275|                .unwrap_or(false)
+276|        })
+277|    }
+278|}
+  ────────────────────────────────────────
+  ▸ shell
+    command: sed -n '1,220p' crates/iwe/src/help.rs
+    timeout_secs: 20
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge.db ──
+query: SELECT line_num, content FROM lines WHERE file='crates/iwe/src/help.rs' AND line_num BETWEEN 1 AND 220;
+** STOP USING sed. Query the DB directly: sqlite3 /home/dangood/src/iwe/.indexnudge.db "SELECT content FROM lines WHERE file='crates/iwe/src/help.rs' AND line_num BETWEEN START AND END ORDER BY line_num;" **
+
+   1 │ pub mod init {
+   2 │     pub const ABOUT: &str = include_str!("../help/init/about.txt");
+   3 │     pub const LONG_ABOUT: &str = include_str!("../help/init/long_about.txt");
+   4 │     pub const AFTER_HELP: &str = include_str!("../help/init/after_help.txt");
+   5 │ }
+   6 │ 
+   7 │ pub mod new {
+   8 │     pub const ABOUT: &str = include_str!("../help/new/about.txt");
+   9 │     pub const LONG_ABOUT: &str = include_str!("../help/new/long_about.txt");
+  10 │     pub const AFTER_HELP: &str = include_str!("../help/new/after_help.txt");
+  11 │ }
+  12 │ 
+  13 │ pub mod retrieve {
+  14 │     pub const ABOUT: &str = include_str!("../help/retrieve/about.txt");
+  15 │     pub const LONG_ABOUT: &str = include_str!("../help/retrieve/long_about.txt");
+  16 │     pub const AFTER_HELP: &str = include_str!("../help/retrieve/after_help.txt");
+  17 │ }
+  18 │ 
+  19 │ pub mod find {
+  20 │     pub const ABOUT: &str = include_str!("../help/find/about.txt");
+  21 │     pub const LONG_ABOUT: &str = include_str!("../help/find/long_about.txt");
+  22 │     pub const AFTER_HELP: &str = include_str!("../help/find/after_help.txt");
+  23 │ }
+  24 │ 
+  25 │ pub mod normalize {
+  26 │     pub const ABOUT: &str = include_str!("../help/normalize/about.txt");
+  27 │     pub const LONG_ABOUT: &str = include_str!("../help/normalize/long_about.txt");
+  28 │     pub const AFTER_HELP: &str = include_str!("../help/normalize/after_help.txt");
+  29 │ }
+  30 │ 
+  31 │ pub mod tree {
+  32 │     pub const ABOUT: &str = include_str!("../help/tree/about.txt");
+  33 │     pub const LONG_ABOUT: &str = include_str!("../help/tree/long_about.txt");
+  34 │     pub const AFTER_HELP: &str = include_str!("../help/tree/after_help.txt");
+  35 │ }
+  36 │ 
+  37 │ pub mod squash {
+  38 │     pub const ABOUT: &str = include_str!("../help/squash/about.txt");
+  39 │     pub const LONG_ABOUT: &str = include_str!("../help/squash/long_about.txt");
+  40 │     pub const AFTER_HELP: &str = include_str!("../help/squash/after_help.txt");
+  41 │ }
+  42 │ 
+  43 │ pub mod export {
+  44 │     pub const ABOUT: &str = include_str!("../help/export/about.txt");
+  45 │     pub const LONG_ABOUT: &str = include_str!("../help/export/long_about.txt");
+  46 │     pub const AFTER_HELP: &str = include_str!("../help/export/after_help.txt");
+  47 │ }
+  48 │ 
+  49 │ pub mod stats {
+  50 │     pub const ABOUT: &str = include_str!("../help/stats/about.txt");
+  51 │     pub const LONG_ABOUT: &str = include_str!("../help/stats/long_about.txt");
+  52 │     pub const AFTER_HELP: &str = include_str!("../help/stats/after_help.txt");
+  53 │ }
+  54 │ 
+  55 │ pub mod rename {
+  56 │     pub const ABOUT: &str = include_str!("../help/rename/about.txt");
+  57 │     pub const LONG_ABOUT: &str = include_str!("../help/rename/long_about.txt");
+  58 │     pub const AFTER_HELP: &str = include_str!("../help/rename/after_help.txt");
+  59 │ }
+  60 │ 
+  61 │ pub mod delete {
+  62 │     pub const ABOUT: &str = include_str!("../help/delete/about.txt");
+  63 │     pub const LONG_ABOUT: &str = include_str!("../help/delete/long_about.txt");
+  64 │     pub const AFTER_HELP: &str = include_str!("../help/delete/after_help.txt");
+  65 │ }
+  66 │ 
+  67 │ pub mod extract {
+  68 │     pub const ABOUT: &str = include_str!("../help/extract/about.txt");
+  69 │     pub const LONG_ABOUT: &str = include_str!("../help/extract/long_about.txt");
+  70 │     pub const AFTER_HELP: &str = include_str!("../help/extract/after_help.txt");
+  71 │ }
+  72 │ 
+  73 │ pub mod inline {
+  74 │     pub const ABOUT: &str = include_str!("../help/inline/about.txt");
+  75 │     pub const LONG_ABOUT: &str = include_str!("../help/inline/long_about.txt");
+  76 │     pub const AFTER_HELP: &str = include_str!("../help/inline/after_help.txt");
+  77 │ }
+  78 │ 
+  79 │ pub mod update {
+  80 │     pub const ABOUT: &str = include_str!("../help/update/about.txt");
+  81 │     pub const LONG_ABOUT: &str = include_str!("../help/update/long_about.txt");
+  82 │     pub const AFTER_HELP: &str = include_str!("../help/update/after_help.txt");
+  83 │ }
+  84 │ 
+  85 │ pub mod attach {
+  86 │     pub const ABOUT: &str = include_str!("../help/attach/about.txt");
+  87 │     pub const LONG_ABOUT: &str = include_str!("../help/attach/long_about.txt");
+  88 │     pub const AFTER_HELP: &str = include_str!("../help/attach/after_help.txt");
+  89 │ }
+  ────────────────────────────────────────
+  ▸ tree
+    path: crates/iwe/help/find
+    depth: 2
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge.db ──
+query: SELECT path, file_count, total_lines FROM directories ORDER BY path;
+
+path             | files | lines
+-----------------+-------+------
+.                |   142 | 38452
+crates           |   142 | 38452
+crates/iwe       |    26 |  9580
+crates/iwe/src   |    12 |  2944
+crates/iwe/src/export |     4 |   640
+crates/iwe/tests |    14 |  6636
+crates/iwec      |    17 |  3452
+crates/iwec/src  |     3 |  1630
+crates/iwec/tests |    14 |  1822
+crates/iwes      |    44 | 10427
+crates/iwes/src  |    19 |  3544
+crates/iwes/src/router |    16 |  3047
+crates/iwes/src/router/server |    15 |  2191
+crates/iwes/src/router/server/actions |    11 |  1121
+crates/iwes/tests |    25 |  6883
+crates/liwe      |    55 | 14993
+crates/liwe/src  |    39 | 11340
+crates/liwe/src/graph |     9 |  2713
+crates/liwe/src/markdown |     2 |  1074
+crates/liwe/src/model |     7 |  3977
+crates/liwe/src/operations |     7 |   641
+crates/liwe/tests |    16 |  3653
+
+query: SELECT file, lines, language FROM files ORDER BY file;
+
+file                          | lines | language
+------------------------------+-------+---------
+crates/iwe/src/export.rs      |     4 | rust
+crates/iwe/src/export/dot_details_exporter.rs |   142 | rust
+crates/iwe/src/export/dot_exporter.rs |    67 | rust
+crates/iwe/src/export/graph_colors.rs |   101 | rust
+crates/iwe/src/export/graph_data.rs |   330 | rust
+crates/iwe/src/help.rs        |    89 | rust
+crates/iwe/src/lib.rs         |     8 | rust
+crates/iwe/src/main.rs        |  1734 | rust
+crates/iwe/src/new.rs         |   234 | rust
+crates/iwe/src/render.rs      |   165 | rust
+crates/iwe/src/selector.rs    |    56 | rust
+crates/iwe/src/stats.rs       |    14 | rust
+crates/iwe/tests/common.rs    |    20 | rust
+crates/iwe/tests/delete_test.rs |   261 | rust
+crates/iwe/tests/export_dot_test.rs |    98 | rust
+crates/iwe/tests/extract_test.rs |   380 | rust
+crates/iwe/tests/find_test.rs |   495 | rust
+crates/iwe/tests/init_test.rs |   220 | rust
+crates/iwe/tests/inline_test.rs |   392 | rust
+crates/iwe/tests/new_test.rs  |   483 | rust
+crates/iwe/tests/normalize_test.rs |   411 | rust
+crates/iwe/tests/rename_test.rs |   246 | rust
+crates/iwe/tests/retrieve_test.rs |  2249 | rust
+crates/iwe/tests/squash_test.rs |   512 | rust
+crates/iwe/tests/stats_test.rs |   394 | rust
+crates/iwe/tests/tree_test.rs |   475 | rust
+crates/iwec/src/lib.rs        |  1468 | rust
+crates/iwec/src/main.rs       |    49 | rust
+crates/iwec/src/watcher.rs    |   113 | rust
+crates/iwec/tests/attach_test.rs |   230 | rust
+crates/iwec/tests/extract_test.rs |   103 | rust
+crates/iwec/tests/find_test.rs |   195 | rust
+crates/iwec/tests/fixture.rs  |   161 | rust
+crates/iwec/tests/inline_test.rs |   133 | rust
+crates/iwec/tests/normalize_test.rs |    30 | rust
+crates/iwec/tests/prompt_test.rs |    65 | rust
+crates/iwec/tests/resource_test.rs |   114 | rust
+crates/iwec/tests/retrieve_test.rs |   174 | rust
+crates/iwec/tests/squash_test.rs |    42 | rust
+crates/iwec/tests/stats_test.rs |    59 | rust
+crates/iwec/tests/tree_test.rs |   110 | rust
+crates/iwec/tests/watcher_test.rs |   143 | rust
+crates/iwec/tests/write_test.rs |   263 | rust
+crates/iwes/src/lib.rs        |    61 | rust
+crates/iwes/src/main.rs       |   141 | rust
+crates/iwes/src/router.rs     |   295 | rust
+crates/iwes/src/router/server.rs |   856 | rust
+crates/iwes/src/router/server/actions.rs |   396 | rust
+crates/iwes/src/router/server/actions/attach.rs |   196 | rust
+crates/iwes/src/router/server/actions/delete.rs |    63 | rust
+crates/iwes/src/router/server/actions/extract.rs |    66 | rust
+crates/iwes/src/router/server/actions/extract_all.rs |    67 | rust
+crates/iwes/src/router/server/actions/inline.rs |    57 | rust
+crates/iwes/src/router/server/actions/link.rs |   222 | rust
+crates/iwes/src/router/server/actions/list.rs |   104 | rust
+crates/iwes/src/router/server/actions/section.rs |    54 | rust
+crates/iwes/src/router/server/actions/sort.rs |    60 | rust
+crates/iwes/src/router/server/actions/templates.rs |    26 | rust
+crates/iwes/src/router/server/actions/transform.rs |   206 | rust
+crates/iwes/src/router/server/base_path.rs |   120 | rust
+crates/iwes/src/router/server/extensions.rs |   389 | rust
+crates/iwes/src/router/server/search.rs |   165 | rust
+crates/iwes/tests/attach_test.rs |   457 | rust
+crates/iwes/tests/change_list_type_test.rs |    45 | rust
+crates/iwes/tests/completion_test.rs |   475 | rust
+crates/iwes/tests/custom_actions_test.rs |    43 | rust
+crates/iwes/tests/delete_test.rs |   244 | rust
+crates/iwes/tests/did_change_test.rs |    57 | rust
+crates/iwes/tests/did_save_test.rs |    54 | rust
+crates/iwes/tests/extract_all_test.rs |   397 | rust
+crates/iwes/tests/extract_test.rs |   691 | rust
+crates/iwes/tests/fixture.rs  |   891 | rust
+crates/iwes/tests/folding_range_test.rs |   205 | rust
+crates/iwes/tests/format_document_test.rs |   196 | rust
+crates/iwes/tests/go_to_definition_test.rs |   260 | rust
+crates/iwes/tests/hover_test.rs |    83 | rust
+crates/iwes/tests/inlay_hints_test.rs |   169 | rust
+crates/iwes/tests/inline_quote_test.rs |   182 | rust
+crates/iwes/tests/inline_section_test.rs |   393 | rust
+crates/iwes/tests/link_test.rs |   596 | rust
+crates/iwes/tests/list_to_sections_test.rs |   194 | rust
+crates/iwes/tests/references_test.rs |    58 | rust
+crates/iwes/tests/rename_test.rs |   182 | rust
+crates/iwes/tests/sections_to_list_test.rs |   138 | rust
+crates/iwes/tests/sort_test.rs |   179 | rust
+crates/iwes/tests/transform_test.rs |   472 | rust
+crates/iwes/tests/workspace_symbols_test.rs |   222 | rust
+crates/liwe/src/file.rs       |    22 | rust
+crates/liwe/src/find.rs       |   278 | rust
+crates/liwe/src/fs.rs         |   200 | rust
+crates/liwe/src/graph.rs      |   652 | rust
+crates/liwe/src/graph/arena.rs |    95 | rust
+crates/liwe/src/graph/basic_iter.rs |   129 | rust
+crates/liwe/src/graph/builder.rs |   553 | rust
+crates/liwe/src/graph/graph_line.rs |    36 | rust
+crates/liwe/src/graph/graph_node.rs |   670 | rust
+crates/liwe/src/graph/index.rs |   153 | rust
+crates/liwe/src/graph/path.rs |   356 | rust
+crates/liwe/src/graph/sections_builder.rs |   591 | rust
+crates/liwe/src/graph/squash_iter.rs |   130 | rust
+crates/liwe/src/lib.rs        |    13 | rust
+crates/liwe/src/locale.rs     |    76 | rust
+crates/liwe/src/markdown.rs   |    73 | rust
+crates/liwe/src/markdown/reader.rs |   703 | rust
+crates/liwe/src/markdown/writer.rs |   371 | rust
+crates/liwe/src/model.rs      |   168 | rust
+crates/liwe/src/model/config.rs |   800 | rust
+crates/liwe/src/model/document.rs |   947 | rust
+crates/liwe/src/model/graph.rs |   670 | rust
+crates/liwe/src/model/node.rs |   441 | rust
+crates/liwe/src/model/projector.rs |   193 | rust
+crates/liwe/src/model/reference.rs |    26 | rust
+crates/liwe/src/model/tree.rs |   900 | rust
+crates/liwe/src/operations.rs |    15 | rust
+crates/liwe/src/operations/changes.rs |    84 | rust
+crates/liwe/src/operations/config.rs |    37 | rust
+crates/liwe/src/operations/delete.rs |    40 | rust
+crates/liwe/src/operations/extract.rs |   260 | rust
+crates/liwe/src/operations/inline.rs |    92 | rust
+crates/liwe/src/operations/rename.rs |    46 | rust
+crates/liwe/src/operations/util.rs |    82 | rust
+crates/liwe/src/parser.rs     |   197 | rust
+crates/liwe/src/retrieve.rs   |   403 | rust
+crates/liwe/src/selector.rs   |   337 | rust
+crates/liwe/src/state.rs      |    72 | rust
+crates/liwe/src/stats.rs      |   429 | rust
+crates/liwe/tests/bare_frontmatter_test.rs |   208 | rust
+crates/liwe/tests/config_migration_test.rs |   326 | rust
+crates/liwe/tests/find_metadata_test.rs |   160 | rust
+crates/liwe/tests/formatting_test.rs |   425 | rust
+crates/liwe/tests/frontmatter_title_test.rs |   146 | rust
+crates/liwe/tests/gitignore_test.rs |    81 | rust
+crates/liwe/tests/links_test.rs |   332 | rust
+crates/liwe/tests/normalization_headers.rs |   370 | rust
+crates/liwe/tests/normalization_html.rs |    61 | rust
+crates/liwe/tests/normalization_lists.rs |   371 | rust
+crates/liwe/tests/normalization_metadata.rs |    52 | rust
+crates/liwe/tests/normalization_misc.rs |   344 | rust
+crates/liwe/tests/normalization_raw.rs |   163 | rust
+crates/liwe/tests/squash_test.rs |   313 | rust
+crates/liwe/tests/toc_test.rs |   133 | rust
+crates/liwe/tests/virtual_directories_test.rs |   168 | rust
+
+── .indexnudge.db has 7 tables: calls, defs, directories, files, imports, lines, symbols ──
+Every line of source is in `lines`. Every function call is in `calls`.
+Every symbol definition is in `symbols`. Full-text search via `lines_fts`.
+For deeper exploration: sqlite3 /home/dangood/src/iwe/.indexnudge.db .schema
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: find crates/iwe/help/find -maxdepth 2 -type f | sort | xargs -I{} sh -c 'echo --- {}; cat {}'
+    timeout_secs: 20
+
+--- crates/iwe/help/find/about.txt
+Search and discover documents--- crates/iwe/help/find/after_help.txt
+OUTPUT FORMATS:
+
+MARKDOWN (default, -f markdown):
+  ## Documents
+
+  Found 3 results:
+
+  - [Document A](doc-a) (root)
+  - [Document B](doc-b) <- [Document A](doc-a)
+
+  Each result shows:
+  - Document link
+  - (root) indicator if no parents
+  - Parent documents with <- notation (where this doc is embedded)
+
+KEYS (-f keys):
+  One key per line, suitable for piping:
+
+    doc-a
+    doc-b
+    doc-c
+
+JSON (-f json):
+  Structured output with metadata:
+
+    {"query": "...", "total": 3, "results": [
+      {"key": "...", "title": "...", "is_root": true,
+       "incoming_refs": 5, "outgoing_refs": 2, "parent_documents": [...]}]}
+
+STRUCTURAL SET SELECTOR (--in family):
+
+  --in KEY[:DEPTH]      Sub-documents of EVERY listed key (AND). Repeatable.
+                        KEY:DEPTH overrides --max-depth per entry.
+  --in-any KEY[:DEPTH]  Sub-documents of AT LEAST ONE listed key (OR).
+  --not-in KEY[:DEPTH]  Exclude sub-documents of any listed key (NOT).
+  --max-depth N         Default depth for entries without :DEPTH. Unbounded if omitted.
+
+EXAMPLES:
+
+  # Sub-documents of A AND B (intersection, unbounded)
+  iwe find --in projects/alpha --in people/dmytro
+
+  # Per-parent depth: A within 3 hops, Dmytro within 1
+  iwe find --in projects/alpha:3 --in people/dmytro:1
+
+  # Sub-documents of A OR B (union)
+  iwe find --in-any projects/alpha --in-any projects/beta
+
+  # Sub-documents of A but NOT in archive
+  iwe find --in projects/alpha --not-in archive
+--- crates/iwe/help/find/long_about.txt
+Search and discover documents in your knowledge base.
+
+Uses fuzzy matching on document title and key. Without a query, documents are
+sorted by popularity (incoming references count). Supports filtering by root
+documents, reference relationships, and structural sub-document membership
+via the --in / --in-any / --not-in / --max-depth selector.
+  ────────────────────────────────────────
+  ▸ shell
+    command: python3 - <<'PY'
+from pathlib import Path
+path = Path('crates/iwe/src/main.rs')
+text = path.read_text()
+old = '''struct Find {
+    #[clap(help = "Search query (fuzzy match on title and key)")]
+    query: Option<String>,
+
+    #[clap(long, help = "Only root documents (no incoming block refs)")]
+    roots: bool,
+
+    #[clap(long, help = "Documents that reference this key")]
+    refs_to: Option<String>,
+
+    #[clap(long, help = "Documents referenced by this key")]
+    refs_from: Option<String>,
+
+    #[clap(long, short = 'l', help = "Maximum results")]
+    limit: Option<usize>,
+
+    #[clap(long, short = 'f', value_enum, default_value = "markdown")]
+    format: FindFormat,
+
+    #[clap(long = "meta", value_parser = parse_meta_filter,
+           help = "Filter by front matter field (key=value); repeatable")]
+    meta: Vec<(String, String)>,
+
+    #[clap(flatten)]
+    selector: SelectorArgs,
+}
+'''
+new = '''struct Find {
+    #[clap(help = "Search query (fuzzy match on title and key)")]
+    query: Option<String>,
+
+    #[clap(long, help = "Only root documents (no incoming block refs)")]
+    roots: bool,
+
+    #[clap(long, help = "Documents that reference this key")]
+    refs_to: Option<String>,
+
+    #[clap(long, help = "Documents referenced by this key")]
+    refs_from: Option<String>,
+
+    #[clap(long, short = 'l', help = "Maximum results")]
+    limit: Option<usize>,
+
+    #[clap(long, help = "Print only the number of matching documents")]
+    count: bool,
+
+    #[clap(long, short = 'f', value_enum, default_value = "markdown")]
+    format: FindFormat,
+
+    #[clap(long = "meta", value_parser = parse_meta_filter,
+           help = "Filter by front matter field (key=value); repeatable")]
+    meta: Vec<(String, String)>,
+
+    #[clap(flatten)]
+    selector: SelectorArgs,
+}
+'''
+if old not in text:
+    raise SystemExit('old block not found')
+text = text.replace(old, new)
+old2 = '''    let output = finder.find(&options);
+
+    match args.format {
+        FindFormat::Json => {
+            let json = serde_json::to_string_pretty(&output).expect("Failed to serialize to JSON");
+            println!("{}", json);
+        }
+        FindFormat::Keys => {
+            for result in &output.results {
+                println!("{}", result.key);
+            }
+        }
+        FindFormat::Markdown => {
+            let rendered = render_find_output(&output);
+            print!("{}", rendered);
+        }
+    }
+}
+'''
+new2 = '''    let output = finder.find(&options);
+
+    if args.count {
+        println!("{}", output.total);
+        return;
+    }
+
+    match args.format {
+        FindFormat::Json => {
+            let json = serde_json::to_string_pretty(&output).expect("Failed to serialize to JSON");
+            println!("{}", json);
+        }
+        FindFormat::Keys => {
+            for result in &output.results {
+                println!("{}", result.key);
+            }
+        }
+        FindFormat::Markdown => {
+            let rendered = render_find_output(&output);
+            print!("{}", rendered);
+        }
+    }
+}
+'''
+if old2 not in text:
+    raise SystemExit('old2 block not found')
+text = text.replace(old2, new2)
+path.write_text(text)
+PY
+    timeout_secs: 20
+
+(no output)
+  ────────────────────────────────────────
+  ▸ shell
+    command: python3 - <<'PY'
+from pathlib import Path
+path = Path('crates/iwe/tests/find_test.rs')
+text = path.read_text()
+append = '''
+#[test]
+fn test_find_count_prints_total_only() {
+    let dir = setup_workspace();
+
+    write(dir.path().join("alpha.md"), "# Alpha\n\nContent.").unwrap();
+    write(dir.path().join("beta.md"), "# Beta\n\nContent.").unwrap();
+
+    let (stdout, stderr, success) = run_iwe(dir.path(), &["--count"]);
+
+    assert!(success, "stderr: {}", stderr);
+    assert_eq!(stdout, "2\n");
+}
+
+#[test]
+fn test_find_count_respects_filters() {
+    let dir = setup_workspace();
+
+    write(
+        dir.path().join("source.md"),
+        indoc! {"
+            ---
+            status: active
+            ---
+            # Source
+
+            [target](target)
+        "},
+    )
+    .unwrap();
+
+    write(
+        dir.path().join("other.md"),
+        indoc! {"
+            ---
+            status: inactive
+            ---
+            # Other
+
+            [target](target)
+        "},
+    )
+    .unwrap();
+
+    write(
+        dir.path().join("target.md"),
+        indoc! {"
+            ---
+            status: active
+            ---
+            # Target
+
+            Content.
+        "},
+    )
+    .unwrap();
+
+    let (stdout, stderr, success) = run_iwe(
+        dir.path(),
+        &["--count", "--refs-to", "target", "--meta", "status=active"],
+    );
+
+    assert!(success, "stderr: {}", stderr);
+    assert_eq!(stdout, "1\n");
+}
+'''
+if 'fn test_find_count_prints_total_only()' in text:
+    raise SystemExit('tests already added')
+path.write_text(text + append)
+PY
+    timeout_secs: 20
+
+(no output)
+  ────────────────────────────────────────
+  ▸ shell
+    command: python3 - <<'PY'
+from pathlib import Path
+path = Path('crates/iwe/help/find/after_help.txt')
+text = path.read_text()
+needle = '''KEYS (-f keys):
+  One key per line, suitable for piping:
+
+    doc-a
+    doc-b
+    doc-c
+
+JSON (-f json):
+'''
+replacement = '''KEYS (-f keys):
+  One key per line, suitable for piping:
+
+    doc-a
+    doc-b
+    doc-c
+
+COUNT (--count):
+  Print only the number of matching documents:
+
+    3
+
+JSON (-f json):
+'''
+if needle not in text:
+    raise SystemExit('needle not found')
+text = text.replace(needle, replacement)
+path.write_text(text)
+PY
+    timeout_secs: 20
+
+(no output)
+  ────────────────────────────────────────
+  ▸ shell
+    command: cargo build
+    timeout_secs: 1200
+
+   Compiling iwe v0.0.70 (/home/dangood/src/iwe/crates/iwe)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.70s
+  ────────────────────────────────────────
+  ▸ shell
+    command: cargo test
+    timeout_secs: 1200
+
+     Running tests/toc_test.rs (target/debug/deps/toc_test-05e67351921a2ac7)
+
+running 5 tests
+test toc_level_two ... ok
+test toc_multiple_items_on_level_two ... ok
+test toc_one_level ... ok
+test toc_one_level_two_items ... ok
+test toc_one_recusive ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/virtual_directories_test.rs (target/debug/deps/virtual_directories_test-968856b20a3ec651)
+
+running 9 tests
+test disabled_by_default ... ok
+test user_index_takes_precedence ... ok
+test underscore_stripped_from_key ... ok
+test children_alphabetical_order ... ok
+test directory_with_notes_generates_index ... ok
+test nested_directories_each_get_index ... ok
+test generated_index_deleted_when_user_creates_own ... ok
+test parent_dir_with_only_subdirs_gets_index ... ok
+test user_index_suppresses_generated ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+   Doc-tests iwe
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests iwec
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests iwes
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests liwe
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+[Output exceeded 50000 byte limit (52611 bytes total). Full output saved to /tmp/.tmpzgjtAN/output-4. Read it with shell commands like `head`, `tail`, or `sed -n '100,200p'` up to 2000 lines at a time.]
+  ────────────────────────────────────────
+  ▸ todo_write todo
+    content: - [x] Capture requirements in TODO immediately
+- [x] Inspect existing `iwe find` implementation and relevant tests
+- [x] Add `--count` flag to `iwe find`
+  - [x] Ensure it composes with existing filters (`--meta`, `--roots`, `--refs-to`, etc.)
+  - [x] Print only the number of matching documents
+- [x] Add or update tests for `--count`
+- [x] Verify `cargo build` passes
+- [x] Verify `cargo test` passes
+
+Implemented `iwe find --count`.
+
+### What changed
+- Added `--count` to the `Find` CLI args in `crates/iwe/src/main.rs`
+- Updated `find_command()` so `--count` prints only `output.total` and returns early
+- Left filtering behavior unchanged, so it works with all existing filters because it reuses the normal `FindOptions` + `finder.find()` path
+- Updated `crates/iwe/help/find/after_help.txt` to document count output
+- Added tests in `crates/iwe/tests/find_test.rs` for:
+  - plain count output
+  - count with combined filters (`--refs-to` + `--meta`)
+
+### Verification
+- `cargo build` ✅
+- `cargo test` ✅
+
+If you want, I can also add a test covering `--count` with `--roots` or selector flags specifically.
