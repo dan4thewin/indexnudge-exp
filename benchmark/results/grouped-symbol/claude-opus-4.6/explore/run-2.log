@@ -1,0 +1,432 @@
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && sqlite3 .codeindex.db "SELECT file, line, content FROM lines WHERE content LIKE '%meta%' AND (file LIKE '%cli%' OR file LIKE '%find%' OR file LIKE '%command%') ORDER BY file, line" 2>/dev/null | head -80
+
+(no output)
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && ls .codeindex.db 2>/dev/null; ls .indexnudge.db 2>/dev/null
+
+.codeindex.db
+.indexnudge.db
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && sqlite3 .indexnudge.db "SELECT file, line, content FROM lines WHERE content LIKE '%meta%' AND (file LIKE '%cli%' OR file LIKE '%find%' OR file LIKE '%command%' OR file LIKE '%arg%') ORDER BY file, line" | head -80
+
+Parse error in 2nd command line argument: no such column: line
+  SELECT file, line, content FROM lines WHERE content LIKE '%meta%' AND (file LI
+               ^--- error here
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && sqlite3 .indexnudge.db ".schema lines" | head -20
+
+CREATE TABLE lines (
+            file     TEXT,
+            line_num INTEGER,
+            content  TEXT,
+            symbol   TEXT,
+            PRIMARY KEY (file, line_num)
+        );
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && sqlite3 .indexnudge.db "SELECT file, line_num, content FROM lines WHERE content LIKE '%meta%' AND (file LIKE '%cli%' OR file LIKE '%find%' OR file LIKE '%command%' OR file LIKE '%arg%') ORDER BY file, line_num" | head -80
+
+crates/liwe/src/find.rs|43|    pub metadata_filters: Vec<(String, String)>,
+crates/liwe/src/find.rs|88|                if !options.metadata_filters.is_empty()
+crates/liwe/src/find.rs|89|                    && !self.metadata_matches(&key, &options.metadata_filters)
+crates/liwe/src/find.rs|253|    fn metadata_matches(&self, key: &Key, filters: &[(String, String)]) -> bool {
+crates/liwe/src/find.rs|254|        let raw = match self.graph.get_metadata(key) {
+crates/liwe/tests/find_metadata_test.rs|32|        metadata_filters: vec![("status".to_string(), "ready".to_string())],
+crates/liwe/tests/find_metadata_test.rs|62|        metadata_filters: vec![
+crates/liwe/tests/find_metadata_test.rs|86|        metadata_filters: vec![("status".to_string(), "ready".to_string())],
+crates/liwe/tests/find_metadata_test.rs|94|fn note_without_metadata_excluded() {
+crates/liwe/tests/find_metadata_test.rs|96|        # No Metadata
+crates/liwe/tests/find_metadata_test.rs|101|        metadata_filters: vec![("status".to_string(), "ready".to_string())],
+crates/liwe/tests/find_metadata_test.rs|123|        metadata_filters: vec![("tags".to_string(), "rust".to_string())],
+crates/liwe/tests/find_metadata_test.rs|154|        metadata_filters: vec![("status".to_string(), "ready".to_string())],
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && grep -n 'meta' crates/iwe/src/cli.rs 2>/dev/null || grep -rn 'meta' crates/iwe/src/main.rs 2>/dev/null | head -20
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db ──
+
+
+── crates/iwe/src/main.rs ──
+
+  (top-level)
+    153 │     #[clap(long = "meta", value_parser = parse_meta_filter,
+    155 │     meta: Vec<(String, String)>,
+
+  parse_meta_filter (L654-L658)
+    654 │ fn parse_meta_filter(s: &str) -> Result<(String, String), String> {
+
+  find_command (L661-L693)
+    673 │         metadata_filters: args.meta,
+
+── crates/iwec/src/lib.rs ──
+
+  (top-level)
+    116 │     pub meta: Option<Vec<(String, String)>>,
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && sed -n '145,165p' crates/iwe/src/main.rs && echo "---" && sed -n '650,695p' crates/iwe/src/main.rs
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db ──
+query: SELECT line_num, content FROM lines WHERE file='crates/iwe/src/main.rs' AND line_num BETWEEN 145 AND 165;
+** STOP USING sed. Query the DB directly: sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db "SELECT content FROM lines WHERE file='crates/iwe/src/main.rs' AND line_num BETWEEN START AND END ORDER BY line_num;" **
+
+ 145 │     refs_from: Option<String>,
+ 146 │ 
+ 147 │     #[clap(long, short = 'l', help = "Maximum results")]
+ 148 │     limit: Option<usize>,
+ 149 │ 
+ 150 │     #[clap(long, short = 'f', value_enum, default_value = "markdown")]
+ 151 │     format: FindFormat,
+ 152 │ 
+ 153 │     #[clap(long = "meta", value_parser = parse_meta_filter,
+ 154 │            help = "Filter by front matter field (key=value); repeatable")]
+ 155 │     meta: Vec<(String, String)>,
+ 156 │ 
+ 157 │     #[clap(flatten)]
+ 158 │     selector: SelectorArgs,
+ 159 │ }
+ 160 │ 
+ 161 │ #[derive(Debug, Clone, clap::ValueEnum)]
+ 162 │ enum FindFormat {
+ 163 │     Markdown,
+ 164 │     Keys,
+ 165 │     Json,
+---
+── sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db ──
+query: SELECT line_num, content FROM lines WHERE file='crates/iwe/src/main.rs' AND line_num BETWEEN 650 AND 695;
+** STOP USING sed. Query the DB directly: sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db "SELECT content FROM lines WHERE file='crates/iwe/src/main.rs' AND line_num BETWEEN START AND END ORDER BY line_num;" **
+
+ 650 │         }
+ 651 │     }
+ 652 │ }
+ 653 │ 
+ 654 │ fn parse_meta_filter(s: &str) -> Result<(String, String), String> {
+ 655 │     s.split_once('=')
+ 656 │         .map(|(k, v)| (k.trim().to_string(), v.trim().to_string()))
+ 657 │         .ok_or_else(|| format!("expected key=value, got `{}`", s))
+ 658 │ }
+ 659 │ 
+ 660 │ #[tracing::instrument(level = "debug")]
+ 661 │ fn find_command(args: Find) {
+ 662 │     let config = get_configuration();
+ 663 │     let graph = load_graph(&config);
+ 664 │ 
+ 665 │     let finder = DocumentFinder::new(&graph);
+ 666 │     let options = FindOptions {
+ 667 │         query: args.query,
+ 668 │         roots: args.roots,
+ 669 │         refs_to: args.refs_to.map(|s| Key::name(&s)),
+ 670 │         refs_from: args.refs_from.map(|s| Key::name(&s)),
+ 671 │         selector: args.selector.into(),
+ 672 │         limit: args.limit,
+ 673 │         metadata_filters: args.meta,
+ 674 │     };
+ 675 │ 
+ 676 │     let output = finder.find(&options);
+ 677 │ 
+ 678 │     match args.format {
+ 679 │         FindFormat::Json => {
+ 680 │             let json = serde_json::to_string_pretty(&output).expect("Failed to serialize to JSON");
+ 681 │             println!("{}", json);
+ 682 │         }
+ 683 │         FindFormat::Keys => {
+ 684 │             for result in &output.results {
+ 685 │                 println!("{}", result.key);
+ 686 │             }
+ 687 │         }
+ 688 │         FindFormat::Markdown => {
+ 689 │             let rendered = render_find_output(&output);
+ 690 │             print!("{}", rendered);
+ 691 │         }
+ 692 │     }
+ 693 │ }
+ 694 │ 
+ 695 │ fn render_find_output(output: &iwe::find::FindOutput) -> String {
+
+── enclosing: retrieve_command | function | lines 570-652
+parse_meta_filter | function | lines 654-658
+find_command | function | lines 661-693
+render_find_output | function | lines 695-712 ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db "SELECT content FROM lines WHERE file='crates/iwe/src/main.rs' AND line_num BETWEEN 570 AND 652 ORDER BY line_num;" ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db "SELECT content FROM lines WHERE file='crates/iwe/src/main.rs' AND line_num BETWEEN 654 AND 658 ORDER BY line_num;" ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db "SELECT content FROM lines WHERE file='crates/iwe/src/main.rs' AND line_num BETWEEN 661 AND 693 ORDER BY line_num;" ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db "SELECT content FROM lines WHERE file='crates/iwe/src/main.rs' AND line_num BETWEEN 695 AND 712 ORDER BY line_num;" ──
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && sed -n '30,110p' crates/liwe/src/find.rs 2>/dev/null | cat
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db ──
+query: SELECT line_num, content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN 30 AND 110;
+** STOP USING sed. Query the DB directly: sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db "SELECT content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN START AND END ORDER BY line_num;" **
+
+  30 │     pub limit: Option<usize>,
+  31 │     pub total: usize,
+  32 │     pub results: Vec<FindResult>,
+  33 │ }
+  34 │ 
+  35 │ #[derive(Debug, Clone, Default)]
+  36 │ pub struct FindOptions {
+  37 │     pub query: Option<String>,
+  38 │     pub roots: bool,
+  39 │     pub refs_to: Option<Key>,
+  40 │     pub refs_from: Option<Key>,
+  41 │     pub selector: Selector,
+  42 │     pub limit: Option<usize>,
+  43 │     pub metadata_filters: Vec<(String, String)>,
+  44 │ }
+  45 │ 
+  46 │ pub struct DocumentFinder<'a> {
+  47 │     graph: &'a Graph,
+  48 │ }
+  49 │ 
+  50 │ impl<'a> DocumentFinder<'a> {
+  51 │     pub fn new(graph: &'a Graph) -> Self {
+  52 │         Self { graph }
+  53 │     }
+  54 │ 
+  55 │     pub fn find(&self, options: &FindOptions) -> FindOutput {
+  56 │         let matcher = SkimMatcherV2::default();
+  57 │ 
+  58 │         let candidate_set = if options.selector.is_empty() {
+  59 │             None
+  60 │         } else {
+  61 │             Some(options.selector.resolve(self.graph))
+  62 │         };
+  63 │ 
+  64 │         let mut results: Vec<(Key, i64)> = self
+  65 │             .graph
+  66 │             .keys()
+  67 │             .into_iter()
+  68 │             .filter_map(|key| {
+  69 │                 if let Some(set) = &candidate_set {
+  70 │                     if !set.contains(&key) {
+  71 │                         return None;
+  72 │                     }
+  73 │                 }
+  74 │                 if options.roots && !self.is_root(&key) {
+  75 │                     return None;
+  76 │                 }
+  77 │                 if let Some(ref target) = options.refs_to {
+  78 │                     if !self.references(&key, target) {
+  79 │                         return None;
+  80 │                     }
+  81 │                 }
+  82 │                 if let Some(ref source) = options.refs_from {
+  83 │                     if !self.references(source, &key) {
+  84 │                         return None;
+  85 │                     }
+  86 │                 }
+  87 │ 
+  88 │                 if !options.metadata_filters.is_empty()
+  89 │                     && !self.metadata_matches(&key, &options.metadata_filters)
+  90 │                 {
+  91 │                     return None;
+  92 │                 }
+  93 │ 
+  94 │                 let title = self.graph.get_key_title(&key).unwrap_or_default();
+  95 │                 let search_text = format!("{} {}", key, title);
+  96 │ 
+  97 │                 let score = options
+  98 │                     .query
+  99 │                     .as_ref()
+ 100 │                     .map(|q| matcher.fuzzy_match(&search_text, q).unwrap_or(0))
+ 101 │                     .unwrap_or(self.node_rank(&key) as i64);
+ 102 │ 
+ 103 │                 if options.query.is_some() && score == 0 {
+ 104 │                     return None;
+ 105 │                 }
+ 106 │ 
+ 107 │                 Some((key, score))
+ 108 │             })
+ 109 │             .collect();
+ 110 │ 
+
+── enclosing: FindOptions | struct | lines 36-36
+DocumentFinder | struct | lines 46-46
+DocumentFinder | impl | lines 50-278
+new | method | lines 51-53
+find | method | lines 55-135 ──
+── full  struct : sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db "SELECT content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN 36 AND 36 ORDER BY line_num;" ──
+── full  struct : sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db "SELECT content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN 46 AND 46 ORDER BY line_num;" ──
+── full  impl : sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db "SELECT content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN 50 AND 278 ORDER BY line_num;" ──
+── full  method : sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db "SELECT content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN 51 AND 53 ORDER BY line_num;" ──
+── full  method : sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db "SELECT content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN 55 AND 135 ORDER BY line_num;" ──
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && sqlite3 .indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN 250 AND 278 ORDER BY line_num;"
+
+        path
+    }
+
+    fn metadata_matches(&self, key: &Key, filters: &[(String, String)]) -> bool {
+        let raw = match self.graph.get_metadata(key) {
+            Some(s) => s,
+            None => return false,
+        };
+        let val: serde_yaml::Value = match serde_yaml::from_str(raw) {
+            Ok(v) => v,
+            _ => return false,
+        };
+        filters.iter().all(|(k, v)| {
+            val.get(k.as_str())
+                .and_then(|node| match node {
+                    serde_yaml::Value::String(s) => Some(s.as_str() == v.as_str()),
+                    serde_yaml::Value::Bool(b) => Some(b.to_string() == *v),
+                    serde_yaml::Value::Number(n) => Some(n.to_string() == *v),
+                    serde_yaml::Value::Sequence(items) => Some(
+                        items
+                            .iter()
+                            .any(|i| i.as_str().map(|s| s == v.as_str()).unwrap_or(false)),
+                    ),
+                    _ => Some(false),
+                })
+                .unwrap_or(false)
+        })
+    }
+}
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && grep -n 'fn get_metadata' crates/liwe/src/graph/*.rs crates/liwe/src/graph.rs 2>/dev/null
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db ──
+
+
+── crates/liwe/src/graph.rs ──
+
+  Graph::get_metadata
+    223 │     pub fn get_metadata(&self, key: &Key) -> Option<&str> {
+
+── 1 matches across 1 file(s) ──
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && sqlite3 .indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/graph.rs' AND line_num BETWEEN 223 AND 240 ORDER BY line_num;"
+
+    pub fn build_key_and<F>(&mut self, key: &Key, f: F) -> &mut Self
+    where
+        F: FnOnce(&mut GraphBuilder),
+    {
+        let id = self.arena.new_node_id();
+        self.keys.insert(key.clone(), id);
+        self.arena
+            .set_node(id, GraphNode::new_root(key.clone(), id, None));
+        f(&mut GraphBuilder::new(self, id));
+
+        self.extract_ref_text(key)
+            .map(|text| self.keys_to_ref_text.insert(key.clone(), text));
+
+        let mut index = RefIndex::new();
+        index.index_node(self, id);
+        self.index.merge(index);
+
+        self
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && grep -n 'get_metadata' crates/liwe/src/graph.rs | head -5
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db ──
+
+
+── crates/iwe/src/render.rs ──
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && sqlite3 .indexnudge.db "SELECT file, line_num, content FROM lines WHERE content LIKE '%fn get_metadata%' ORDER BY file, line_num;"
+
+crates/liwe/src/graph.rs|219|    pub fn get_metadata(&self, key: &Key) -> Option<&str> {
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && sqlite3 .indexnudge.db "SELECT content FROM lines WHERE file='crates/liwe/src/graph.rs' AND line_num BETWEEN 219 AND 235 ORDER BY line_num;"
+
+    pub fn get_metadata(&self, key: &Key) -> Option<&str> {
+        self.metadata.get(key).map(|s| s.as_str())
+    }
+
+    pub fn build_key_and<F>(&mut self, key: &Key, f: F) -> &mut Self
+    where
+        F: FnOnce(&mut GraphBuilder),
+    {
+        let id = self.arena.new_node_id();
+        self.keys.insert(key.clone(), id);
+        self.arena
+            .set_node(id, GraphNode::new_root(key.clone(), id, None));
+        f(&mut GraphBuilder::new(self, id));
+
+        self.extract_ref_text(key)
+            .map(|text| self.keys_to_ref_text.insert(key.clone(), text));
+Here's the complete data flow for `iwe find --meta`:
+
+---
+
+## Data Flow: `--meta key=value`
+
+### 1. CLI Parsing — `parse_meta_filter` (`main.rs:654–658`)
+
+The `--meta` flag is declared with `value_parser = parse_meta_filter` and is repeatable. Each occurrence passes through `parse_meta_filter`, which splits on the first `=`, trims whitespace from key and value, and returns a `(String, String)` tuple. The `Find` struct accumulates these into `meta: Vec<(String, String)>`.
+
+### 2. Command Entry — `find_command` (`main.rs:661–693`)
+
+Loads the graph, constructs a `DocumentFinder`, and builds `FindOptions`. The `args.meta` vector is passed directly as `metadata_filters` (line 673). Then calls `finder.find(&options)`.
+
+### 3. Core Iteration — `DocumentFinder::find` (`find.rs:55–135`)
+
+Iterates over all keys in the graph via `self.graph.keys()`. Each key passes through a chain of `filter_map` predicates (selector, roots, refs_to, refs_from). The metadata filter is checked at **lines 88–92**:
+
+```rust
+if !options.metadata_filters.is_empty()
+    && !self.metadata_matches(&key, &options.metadata_filters)
+{
+    return None;
+}
+```
+
+If `metadata_filters` is non-empty and the document doesn't match, it's excluded. This runs *after* selector/roots/refs filters and *before* fuzzy query scoring.
+
+### 4. Metadata Matching — `DocumentFinder::metadata_matches` (`find.rs:253–278`)
+
+This is where the actual filtering logic lives:
+
+1. **Get raw metadata** — calls `self.graph.get_metadata(key)`. If `None` (no front matter), returns `false` → document excluded.
+
+2. **Parse YAML** — `serde_yaml::from_str(raw)` parses the front matter string into a `serde_yaml::Value`. Parse failure → `false` → excluded.
+
+3. **Check all filters** — uses `filters.iter().all(...)`, meaning **every** `--meta` filter must match (AND semantics). For each `(k, v)` pair, it looks up the key in the YAML mapping and matches based on the YAML node type:
+
+   | YAML Type | Match Logic |
+   |-----------|-------------|
+   | `String` | exact string equality |
+   | `Bool` | `bool.to_string() == v` (i.e., `"true"` or `"false"`) |
+   | `Number` | `number.to_string() == v` |
+   | `Sequence` (list) | **any** element's string value equals `v` (OR within the list) |
+   | anything else | `false` |
+
+   If the key is missing from the YAML, that filter fails (`unwrap_or(false)`).
+
+### 5. Raw Metadata Storage — `Graph::get_metadata` (`graph.rs:219–221`)
+
+A simple lookup: `self.metadata.get(key).map(|s| s.as_str())`. The `metadata` field is a `HashMap<Key, String>` populated during graph loading from each document's YAML front matter block.
+
+---
+
+## Function Call Chain (summary)
+
+```
+parse_meta_filter        — parse "key=value" string into tuple
+find_command             — wire CLI args into FindOptions, call finder
+DocumentFinder::find     — iterate all keys, apply filter chain
+DocumentFinder::metadata_matches  — parse YAML, check all (key,value) pairs
+Graph::get_metadata      — retrieve raw front matter string for a key
+```
+
+## Key Design Points
+
+- **AND semantics**: multiple `--meta` flags must *all* match.
+- **List containment**: if a YAML field is a sequence, the filter checks if *any* element matches — so `--meta tags=rust` matches `tags: [rust, go]`.
+- **No front matter = excluded**: documents without YAML front matter are filtered out when any `--meta` filter is active.
+- **String comparison only**: all comparisons are exact string equality (no regex, no case folding).

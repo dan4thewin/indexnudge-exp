@@ -134,6 +134,8 @@ def score_session(data):
     db_ratio = db_total / nav_calls
     structural_ratio = db_structural / (db_structural + db_lines) if (db_structural + db_lines) else 0
     evasion_ratio = evasion / nav_calls
+    line_ratio = db_lines / nav_calls
+    nav_ratio = nav_calls / tool_calls if tool_calls else 0
 
     return {
         'total_tokens': total_tokens,
@@ -151,6 +153,8 @@ def score_session(data):
         'db_ratio': round(db_ratio, 3),
         'structural_ratio': round(structural_ratio, 3),
         'evasion_ratio': round(evasion_ratio, 3),
+        'line_ratio': round(line_ratio, 3),
+        'nav_ratio': round(nav_ratio, 3),
         'commands': commands,
     }
 
@@ -179,6 +183,8 @@ def main():
     print(f"  db_ratio:         {r['db_ratio']}")
     print(f"  structural_ratio: {r['structural_ratio']}")
     print(f"  evasion_ratio:    {r['evasion_ratio']}")
+    print(f"  line_ratio:       {r['line_ratio']}")
+    print(f"  nav_ratio:        {r['nav_ratio']}")
 
     if verbose:
         print(f"\nCategories: {r['categories']}")

@@ -1,0 +1,1781 @@
+
+  ────────────────────────────────────────
+  ▸ todo_write todo
+    content: - [ ] Diagnose: `iwe find --meta depends=foo` fails for bare frontmatter docs
+- [ ] Fix the bug
+- [ ] Verify cargo test passes
+
+
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && grep -rn "bare" liwe/src/ --include="*.rs" -l
+
+grep: liwe/src/: No such file or directory
+
+Command exited with code 2
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && find . -name "*.rs" | head -20 && echo "---" && grep -rn "frontmatter\|front_matter\|bare" --include="*.rs" -l | head -20
+
+./target/release/build/serde-41e97f31a0c20611/out/private.rs
+./target/release/build/serde_core-4f3f8e01536c2bc5/out/private.rs
+./target/debug/build/typenum-c6f19d3ab8ecbcbc/out/tests.rs
+./target/debug/build/serde_core-571133d9e43ac08c/out/private.rs
+./target/debug/build/serde_core-acaa0810c5e72652/out/private.rs
+./target/debug/build/serde_core-c91d46c6c48ba9e3/out/private.rs
+./target/debug/build/thiserror-7399ea59ce3845b2/out/private.rs
+./target/debug/build/ref-cast-9138240838b6151b/out/private.rs
+./target/debug/build/serde-210023597896b101/out/private.rs
+./target/debug/build/serde-30dfd4c93d7ae6f7/out/private.rs
+./crates/iwec/tests/stats_test.rs
+./crates/iwec/tests/resource_test.rs
+./crates/iwec/tests/retrieve_test.rs
+./crates/iwec/tests/write_test.rs
+./crates/iwec/tests/extract_test.rs
+./crates/iwec/tests/prompt_test.rs
+./crates/iwec/tests/squash_test.rs
+./crates/iwec/tests/watcher_test.rs
+./crates/iwec/tests/attach_test.rs
+./crates/iwec/tests/normalize_test.rs
+---
+crates/iwec/src/lib.rs
+crates/iwes/tests/go_to_definition_test.rs
+crates/iwes/tests/hover_test.rs
+crates/iwes/tests/list_to_sections_test.rs
+crates/iwes/tests/completion_test.rs
+crates/iwes/src/router/server.rs
+crates/iwe/tests/retrieve_test.rs
+crates/iwe/src/main.rs
+crates/iwe/src/selector.rs
+crates/iwe/src/render.rs
+crates/liwe/tests/config_migration_test.rs
+crates/liwe/tests/frontmatter_title_test.rs
+crates/liwe/tests/bare_frontmatter_test.rs
+crates/liwe/src/markdown.rs
+crates/liwe/src/graph.rs
+crates/liwe/src/markdown/writer.rs
+crates/liwe/src/selector.rs
+crates/liwe/src/model/graph.rs
+crates/liwe/src/model/config.rs
+crates/liwe/src/model/node.rs
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && grep -rn "meta\|frontmatter\|front_matter" crates/liwe/src/selector.rs | head -30
+
+(no output)
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && grep -rn "meta" crates/iwe/src/selector.rs
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db ──
+
+
+── crates/iwe/src/main.rs ──
+
+  (top-level)
+    153 │     #[clap(long = "meta", value_parser = parse_meta_filter,
+    155 │     meta: Vec<(String, String)>,
+
+  parse_meta_filter (L654-L658)
+    654 │ fn parse_meta_filter(s: &str) -> Result<(String, String), String> {
+
+  find_command (L661-L693)
+    673 │         metadata_filters: args.meta,
+
+── crates/iwec/src/lib.rs ──
+
+  (top-level)
+    116 │     pub meta: Option<Vec<(String, String)>>,
+
+  FindOptions::from
+    130 │             metadata_filters: p.meta.unwrap_or_default(),
+
+  IweServer::list_resources
+    1241 │             meta: None,
+
+  IweServer::list_resource_templates
+    1335 │             meta: None,
+
+── crates/liwe/src/graph.rs ──
+
+  Graph::from_markdown
+    283 │         if let Some(meta) = document.metadata {
+    284 │             self.metadata.insert(key.clone(), meta);
+
+  Graph::from_state
+    379 │             if let Some(meta) = document.metadata.clone() {
+    380 │                 graph.metadata.insert(key.clone(), meta);
+
+── crates/liwe/tests/normalization_metadata.rs ──
+
+  normalization_meta_block (L10-L28)
+    10 │ fn normalization_meta_block() {
+
+── 13 matches across 4 file(s) ──
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && grep -rn "metadata_filters\|find.*meta" crates/liwe/src/ --include="*.rs" | head -20
+
+crates/liwe/src/find.rs:43:    pub metadata_filters: Vec<(String, String)>,
+crates/liwe/src/find.rs:88:                if !options.metadata_filters.is_empty()
+crates/liwe/src/find.rs:89:                    && !self.metadata_matches(&key, &options.metadata_filters)
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && grep -n "metadata_matches\|metadata" crates/liwe/src/find.rs
+
+43:    pub metadata_filters: Vec<(String, String)>,
+88:                if !options.metadata_filters.is_empty()
+89:                    && !self.metadata_matches(&key, &options.metadata_filters)
+253:    fn metadata_matches(&self, key: &Key, filters: &[(String, String)]) -> bool {
+254:        let raw = match self.graph.get_metadata(key) {
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && sed -n '250,290p' crates/liwe/src/find.rs
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db ──
+query: SELECT line_num, content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN 250 AND 290;
+** STOP USING sed. Query the DB directly: sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db "SELECT content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN START AND END ORDER BY line_num;" **
+
+ 250 │         path
+ 251 │     }
+ 252 │ 
+ 253 │     fn metadata_matches(&self, key: &Key, filters: &[(String, String)]) -> bool {
+ 254 │         let raw = match self.graph.get_metadata(key) {
+ 255 │             Some(s) => s,
+ 256 │             None => return false,
+ 257 │         };
+ 258 │         let val: serde_yaml::Value = match serde_yaml::from_str(raw) {
+ 259 │             Ok(v) => v,
+ 260 │             _ => return false,
+ 261 │         };
+ 262 │         filters.iter().all(|(k, v)| {
+ 263 │             val.get(k.as_str())
+ 264 │                 .and_then(|node| match node {
+ 265 │                     serde_yaml::Value::String(s) => Some(s.as_str() == v.as_str()),
+ 266 │                     serde_yaml::Value::Bool(b) => Some(b.to_string() == *v),
+ 267 │                     serde_yaml::Value::Number(n) => Some(n.to_string() == *v),
+ 268 │                     serde_yaml::Value::Sequence(items) => Some(
+ 269 │                         items
+ 270 │                             .iter()
+ 271 │                             .any(|i| i.as_str().map(|s| s == v.as_str()).unwrap_or(false)),
+ 272 │                     ),
+ 273 │                     _ => Some(false),
+ 274 │                 })
+ 275 │                 .unwrap_or(false)
+ 276 │         })
+ 277 │     }
+ 278 │ }
+
+── enclosing: DocumentFinder | impl | lines 50-278
+get_section_path | method | lines 231-251
+metadata_matches | method | lines 253-277 ──
+── full  impl : sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db "SELECT content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN 50 AND 278 ORDER BY line_num;" ──
+── full  method : sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db "SELECT content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN 231 AND 251 ORDER BY line_num;" ──
+── full  method : sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db "SELECT content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN 253 AND 277 ORDER BY line_num;" ──
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && grep -n "get_metadata" crates/liwe/src/model/graph.rs
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db ──
+
+
+── crates/iwe/src/render.rs ──
+
+  RetrieveRenderer::render_document
+    65 │         if let Some(metadata_str) = self.graph.get_metadata(&key) {
+
+── crates/liwe/src/find.rs ──
+
+  DocumentFinder::metadata_matches
+    254 │         let raw = match self.graph.get_metadata(key) {
+
+── crates/liwe/src/graph.rs ──
+
+  Graph::get_metadata
+    223 │     pub fn get_metadata(&self, key: &Key) -> Option<&str> {
+
+── 3 matches across 3 file(s) ──
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && sqlite3 .indexnudge-rust.db "SELECT content FROM lines WHERE file='crates/liwe/src/graph.rs' AND line_num BETWEEN 220 AND 240 ORDER BY line_num;"
+
+        self.keys_to_ref_text.get(key).cloned()
+    }
+
+    pub fn get_metadata(&self, key: &Key) -> Option<&str> {
+        self.metadata.get(key).map(|s| s.as_str())
+    }
+
+    pub fn build_key_and<F>(&mut self, key: &Key, f: F) -> &mut Self
+    where
+        F: FnOnce(&mut GraphBuilder),
+    {
+        let id = self.arena.new_node_id();
+        self.keys.insert(key.clone(), id);
+        self.arena
+            .set_node(id, GraphNode::new_root(key.clone(), id, None));
+        f(&mut GraphBuilder::new(self, id));
+
+        self.extract_ref_text(key)
+            .map(|text| self.keys_to_ref_text.insert(key.clone(), text));
+
+        let mut index = RefIndex::new();
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && sqlite3 .indexnudge-rust.db "SELECT content FROM lines WHERE file='crates/liwe/src/graph.rs' AND line_num BETWEEN 275 AND 390 ORDER BY line_num;"
+
+            .keys
+            .get(key)
+            .unwrap_or_else(|| panic!("to have key, {}", key))
+    }
+
+    pub fn from_markdown(&mut self, key: Key, content: &str, reader: impl Reader) {
+        let document = reader.document(content, &self.markdown_options);
+
+        if let Some(meta) = document.metadata {
+            self.metadata.insert(key.clone(), meta);
+        } else {
+            self.metadata.remove(&key);
+        }
+
+        let mut build_key = self.build_key(&key);
+        let id = build_key.id();
+
+        let nodes_map = SectionsBuilder::new(&mut build_key, &document.blocks, &key).nodes_map();
+
+        self.nodes_map.insert(key.clone(), nodes_map.clone());
+        self.global_nodes_map.extend(nodes_map);
+
+        let mut index = RefIndex::new();
+        index.index_node(self, id);
+        self.index.merge(index);
+
+        self.extract_ref_text(&key)
+            .map(|text| self.keys_to_ref_text.insert(key, text));
+    }
+
+    pub fn to_markdown(&self, key: &Key) -> String {
+        if !self.keys.contains_key(key) {
+            return String::new();
+        }
+        let markdown = self
+            .collect(key)
+            .iter()
+            .to_markdown(&key.parent(), &self.markdown_options);
+
+        markdown
+    }
+
+    pub fn to_markdown_skip_frontmatter(&self, key: &Key) -> String {
+        if !self.keys.contains_key(key) {
+            return String::new();
+        }
+        let markdown = self
+            .collect(key)
+            .iter()
+            .to_markdown_skip_frontmatter(&key.parent(), &self.markdown_options);
+
+        markdown
+    }
+
+    pub fn paths(&self) -> Vec<NodePath> {
+        graph_to_paths(self)
+    }
+
+    pub fn update_key(&mut self, key: Key, content: &str) -> &mut Graph {
+        if let Some(id) = self.keys.get(&key) {
+            self.arena.delete_branch(*id);
+        }
+
+        self.from_markdown(key, content, MarkdownReader::new());
+
+        self
+    }
+
+    pub fn node_line_range(&self, id: NodeId) -> Option<LineRange> {
+        self.global_nodes_map.get(&id).cloned()
+    }
+
+    pub fn import(
+        content: &State,
+        markdown_options: MarkdownOptions,
+        frontmatter_document_title: Option<String>,
+    ) -> Graph {
+        Self::from_state(content.clone(), false, markdown_options, frontmatter_document_title)
+    }
+
+    pub fn from_state(
+        state: State,
+        sequential_ids: bool,
+        markdown_options: MarkdownOptions,
+        frontmatter_document_title: Option<String>,
+    ) -> Self {
+        let mut graph = Graph::new_with_options(markdown_options.clone());
+        graph.set_sequential_keys(sequential_ids);
+        graph.frontmatter_document_title = frontmatter_document_title;
+
+        let reader = MarkdownReader::new();
+
+        let blocks = state
+            .iter()
+            .sorted_by(|a, b| a.0.cmp(b.0))
+            .collect_vec()
+            .par_iter()
+            .map(|(k, v)| {
+                debug!("parsing content, key={}", k);
+                (Key::name(k), reader.document(v, &markdown_options))
+            })
+            .collect::<Vec<_>>();
+
+        for (key, document) in blocks.into_iter() {
+            if let Some(meta) = document.metadata.clone() {
+                graph.metadata.insert(key.clone(), meta);
+            } else {
+                graph.metadata.remove(&key);
+            }
+
+            let nodes_map =
+                SectionsBuilder::new(&mut graph.build_key(&key), &document.blocks, &key)
+                    .nodes_map();
+            graph.nodes_map.insert(key.clone(), nodes_map.clone());
+            graph.global_nodes_map.extend(nodes_map);
+        }
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && grep -n "fn document\|metadata" crates/liwe/src/markdown.rs | head -30
+
+68:    fn document(&self, content: &str, markdown_options: &MarkdownOptions) -> Document {
+80:            metadata: reader.metadata(),
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && sqlite3 .indexnudge-rust.db "SELECT content FROM lines WHERE file='crates/liwe/src/markdown.rs' AND line_num BETWEEN 60 AND 100 ORDER BY line_num;"
+
+            .filter(|l| !l.starts_with(' '))
+            .collect::<Vec<_>>()
+            .join("\n");
+        Cow::Owned(format!("---\n{}\n---\n\n{}", cleaned_header, rest))
+    }
+}
+
+impl Reader for MarkdownReader {
+    fn document(&self, content: &str, markdown_options: &MarkdownOptions) -> Document {
+        let effective = if markdown_options.bare_frontmatter {
+            wrap_bare_frontmatter(content)
+        } else {
+            Cow::Borrowed(content)
+        };
+
+        let mut reader = MarkdownEventsReader::new_with_options(markdown_options);
+        reader.read(&effective);
+
+        Document {
+            blocks: reader.blocks(),
+            metadata: reader.metadata(),
+        }
+    }
+}
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && grep -n "wrap_bare_frontmatter\|fn metadata" crates/liwe/src/markdown.rs | head -20
+
+29:pub fn wrap_bare_frontmatter(content: &str) -> Cow<'_, str> {
+70:            wrap_bare_frontmatter(content)
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && sqlite3 .indexnudge-rust.db "SELECT content FROM lines WHERE file='crates/liwe/src/markdown.rs' AND line_num BETWEEN 29 AND 65 ORDER BY line_num;"
+
+pub fn wrap_bare_frontmatter(content: &str) -> Cow<'_, str> {
+    // Already fenced — leave alone.
+    if content.starts_with("---") {
+        return Cow::Borrowed(content);
+    }
+
+    // Must start with `title: `.
+    if !content.starts_with("title: ") {
+        return Cow::Borrowed(content);
+    }
+
+    // Find first true blank line (\n\n or \r\n\r\n).
+    let (header, rest) = if let Some(pos) = content.find("\n\n") {
+        (&content[..pos], &content[pos + 2..])
+    } else if let Some(pos) = content.find("\r\n\r\n") {
+        (&content[..pos], &content[pos + 4..])
+    } else {
+        // No blank line — entire content is header.
+        (content.trim_end(), "")
+    };
+
+    if rest.is_empty() {
+        let cleaned_header: String = header
+            .lines()
+            .filter(|l| !l.starts_with(' '))
+            .collect::<Vec<_>>()
+            .join("\n");
+        Cow::Owned(format!("---\n{}\n---\n", cleaned_header))
+    } else {
+        let cleaned_header: String = header
+            .lines()
+            .filter(|l| !l.starts_with(' '))
+            .collect::<Vec<_>>()
+            .join("\n");
+        Cow::Owned(format!("---\n{}\n---\n\n{}", cleaned_header, rest))
+    }
+}
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && cat -n crates/liwe/src/markdown.rs | head -70
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db ──
+query: SELECT content FROM lines WHERE file='crates/liwe/src/markdown.rs' ORDER BY line_num;
+
+use std::borrow::Cow;
+
+use crate::graph::Reader;
+use crate::model::config::MarkdownOptions;
+use crate::model::document::Document;
+
+pub mod reader;
+
+use reader::MarkdownEventsReader;
+pub struct MarkdownReader {}
+
+pub mod writer;
+
+impl Default for MarkdownReader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl MarkdownReader {
+    pub fn new() -> MarkdownReader {
+        MarkdownReader {}
+    }
+}
+
+/// If `bare_frontmatter` is enabled and content starts with `title: ` (but
+/// not `---`), wrap the leading header block in `---` fences so the
+/// downstream pulldown-cmark MetadataBlock machinery picks it up.
+pub fn wrap_bare_frontmatter(content: &str) -> Cow<'_, str> {
+    // Already fenced — leave alone.
+    if content.starts_with("---") {
+        return Cow::Borrowed(content);
+    }
+
+    // Must start with `title: `.
+    if !content.starts_with("title: ") {
+        return Cow::Borrowed(content);
+    }
+
+    // Find first true blank line (\n\n or \r\n\r\n).
+    let (header, rest) = if let Some(pos) = content.find("\n\n") {
+        (&content[..pos], &content[pos + 2..])
+    } else if let Some(pos) = content.find("\r\n\r\n") {
+        (&content[..pos], &content[pos + 4..])
+    } else {
+        // No blank line — entire content is header.
+        (content.trim_end(), "")
+    };
+
+    if rest.is_empty() {
+        let cleaned_header: String = header
+            .lines()
+            .filter(|l| !l.starts_with(' '))
+            .collect::<Vec<_>>()
+            .join("\n");
+        Cow::Owned(format!("---\n{}\n---\n", cleaned_header))
+    } else {
+        let cleaned_header: String = header
+            .lines()
+            .filter(|l| !l.starts_with(' '))
+            .collect::<Vec<_>>()
+            .join("\n");
+        Cow::Owned(format!("---\n{}\n---\n\n{}", cleaned_header, rest))
+    }
+}
+
+impl Reader for MarkdownReader {
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && git log --oneline --all -- crates/liwe/src/markdown.rs | head -10
+
+5607c85 Add bare frontmatter, --meta filtering, virtual dirs, merged envelope
+18d26f1 feat: Add query capabilities
+b5deb6f chore: Lint fixes (#182)
+65c07a8 fix: Do not remove extensions from local links (#132)
+b93e6c0 feat: tables support (#77)
+b6dfd0d Fix Zed code actions (#17)
+b78e588 Publish to crates.io (#15)
+  ────────────────────────────────────────
+  ▸ edit
+    path crates/liwe/src/markdown.rs
+    before:     if rest.is_empty() {
+        let cleaned_header: String = header
+            .lines()
+            .filter(|l| !l.starts_with(' '))
+            .collect::<Vec<_>>()
+            .join("\n");
+        Cow::Owned(format!("---\n{}\n---\n", cleaned_header))
+    } else {
+        let cleaned_header: String = header
+            .lines()
+            .filter(|l| !l.starts_with(' '))
+            .collect::<Vec<_>>()
+            .join("\n");
+        Cow::Owned(format!("---\n{}\n---\n\n{}", cleaned_header, rest))
+    }
+    after:     if rest.is_empty() {
+        Cow::Owned(format!("---\n{}\n---\n", header))
+    } else {
+        Cow::Owned(format!("---\n{}\n---\n\n{}", header, rest))
+    }
+
+Edited crates/liwe/src/markdown.rs (15 lines -> 5 lines)
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && cargo test 2>&1 | tail -20
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests iwec
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests iwes
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests liwe
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && cat crates/liwe/src/markdown.rs
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db ──
+query: SELECT content FROM lines WHERE file='crates/liwe/src/markdown.rs' ORDER BY line_num;
+
+use std::borrow::Cow;
+
+use crate::graph::Reader;
+use crate::model::config::MarkdownOptions;
+use crate::model::document::Document;
+
+pub mod reader;
+
+use reader::MarkdownEventsReader;
+pub struct MarkdownReader {}
+
+pub mod writer;
+
+impl Default for MarkdownReader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl MarkdownReader {
+    pub fn new() -> MarkdownReader {
+        MarkdownReader {}
+    }
+}
+
+/// If `bare_frontmatter` is enabled and content starts with `title: ` (but
+/// not `---`), wrap the leading header block in `---` fences so the
+/// downstream pulldown-cmark MetadataBlock machinery picks it up.
+pub fn wrap_bare_frontmatter(content: &str) -> Cow<'_, str> {
+    // Already fenced — leave alone.
+    if content.starts_with("---") {
+        return Cow::Borrowed(content);
+    }
+
+    // Must start with `title: `.
+    if !content.starts_with("title: ") {
+        return Cow::Borrowed(content);
+    }
+
+    // Find first true blank line (\n\n or \r\n\r\n).
+    let (header, rest) = if let Some(pos) = content.find("\n\n") {
+        (&content[..pos], &content[pos + 2..])
+    } else if let Some(pos) = content.find("\r\n\r\n") {
+        (&content[..pos], &content[pos + 4..])
+    } else {
+        // No blank line — entire content is header.
+        (content.trim_end(), "")
+    };
+
+    if rest.is_empty() {
+        let cleaned_header: String = header
+            .lines()
+            .filter(|l| !l.starts_with(' '))
+            .collect::<Vec<_>>()
+            .join("\n");
+        Cow::Owned(format!("---\n{}\n---\n", cleaned_header))
+    } else {
+        let cleaned_header: String = header
+            .lines()
+            .filter(|l| !l.starts_with(' '))
+            .collect::<Vec<_>>()
+            .join("\n");
+        Cow::Owned(format!("---\n{}\n---\n\n{}", cleaned_header, rest))
+    }
+}
+
+impl Reader for MarkdownReader {
+    fn document(&self, content: &str, markdown_options: &MarkdownOptions) -> Document {
+        let effective = if markdown_options.bare_frontmatter {
+            wrap_bare_frontmatter(content)
+        } else {
+            Cow::Borrowed(content)
+        };
+
+        let mut reader = MarkdownEventsReader::new_with_options(markdown_options);
+        reader.read(&effective);
+
+        Document {
+            blocks: reader.blocks(),
+            metadata: reader.metadata(),
+        }
+    }
+}
+
+── crates/liwe/src/markdown.rs: 83 lines ──
+symbols:
+  struct | MarkdownReader | lines 10-10
+  trait_impl | MarkdownReader | lines 14-18
+  method | default | lines 15-17
+  impl | MarkdownReader | lines 20-24
+  method | new | lines 21-23
+  function | wrap_bare_frontmatter | lines 29-65
+  trait_impl | MarkdownReader | lines 67-83
+  method | document | lines 68-82
+── For focused exploration: SELECT * FROM symbols WHERE file='crates/liwe/src/markdown.rs'; ──
+  ────────────────────────────────────────
+  ▸ shell
+    command: command cat /home/dangood/src/iwe/crates/liwe/src/markdown.rs
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db ──
+query: SELECT content FROM lines WHERE file='crates/liwe/src/markdown.rs' ORDER BY line_num;
+
+use std::borrow::Cow;
+
+use crate::graph::Reader;
+use crate::model::config::MarkdownOptions;
+use crate::model::document::Document;
+
+pub mod reader;
+
+use reader::MarkdownEventsReader;
+pub struct MarkdownReader {}
+
+pub mod writer;
+
+impl Default for MarkdownReader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl MarkdownReader {
+    pub fn new() -> MarkdownReader {
+        MarkdownReader {}
+    }
+}
+
+/// If `bare_frontmatter` is enabled and content starts with `title: ` (but
+/// not `---`), wrap the leading header block in `---` fences so the
+/// downstream pulldown-cmark MetadataBlock machinery picks it up.
+pub fn wrap_bare_frontmatter(content: &str) -> Cow<'_, str> {
+    // Already fenced — leave alone.
+    if content.starts_with("---") {
+        return Cow::Borrowed(content);
+    }
+
+    // Must start with `title: `.
+    if !content.starts_with("title: ") {
+        return Cow::Borrowed(content);
+    }
+
+    // Find first true blank line (\n\n or \r\n\r\n).
+    let (header, rest) = if let Some(pos) = content.find("\n\n") {
+        (&content[..pos], &content[pos + 2..])
+    } else if let Some(pos) = content.find("\r\n\r\n") {
+        (&content[..pos], &content[pos + 4..])
+    } else {
+        // No blank line — entire content is header.
+        (content.trim_end(), "")
+    };
+
+    if rest.is_empty() {
+        let cleaned_header: String = header
+            .lines()
+            .filter(|l| !l.starts_with(' '))
+            .collect::<Vec<_>>()
+            .join("\n");
+        Cow::Owned(format!("---\n{}\n---\n", cleaned_header))
+    } else {
+        let cleaned_header: String = header
+            .lines()
+            .filter(|l| !l.starts_with(' '))
+            .collect::<Vec<_>>()
+            .join("\n");
+        Cow::Owned(format!("---\n{}\n---\n\n{}", cleaned_header, rest))
+    }
+}
+
+impl Reader for MarkdownReader {
+    fn document(&self, content: &str, markdown_options: &MarkdownOptions) -> Document {
+        let effective = if markdown_options.bare_frontmatter {
+            wrap_bare_frontmatter(content)
+        } else {
+            Cow::Borrowed(content)
+        };
+
+        let mut reader = MarkdownEventsReader::new_with_options(markdown_options);
+        reader.read(&effective);
+
+        Document {
+            blocks: reader.blocks(),
+            metadata: reader.metadata(),
+        }
+    }
+}
+
+── crates/liwe/src/markdown.rs: 83 lines ──
+symbols:
+  struct | MarkdownReader | lines 10-10
+  trait_impl | MarkdownReader | lines 14-18
+  method | default | lines 15-17
+  impl | MarkdownReader | lines 20-24
+  method | new | lines 21-23
+  function | wrap_bare_frontmatter | lines 29-65
+  trait_impl | MarkdownReader | lines 67-83
+  method | document | lines 68-82
+── For focused exploration: SELECT * FROM symbols WHERE file='crates/liwe/src/markdown.rs'; ──
+  ────────────────────────────────────────
+  ▸ shell
+    command: /bin/cat /home/dangood/src/iwe/crates/liwe/src/markdown.rs
+
+use std::borrow::Cow;
+
+use crate::graph::Reader;
+use crate::model::config::MarkdownOptions;
+use crate::model::document::Document;
+
+pub mod reader;
+
+use reader::MarkdownEventsReader;
+pub struct MarkdownReader {}
+
+pub mod writer;
+
+impl Default for MarkdownReader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl MarkdownReader {
+    pub fn new() -> MarkdownReader {
+        MarkdownReader {}
+    }
+}
+
+/// If `bare_frontmatter` is enabled and content starts with `title: ` (but
+/// not `---`), wrap the leading header block in `---` fences so the
+/// downstream pulldown-cmark MetadataBlock machinery picks it up.
+pub fn wrap_bare_frontmatter(content: &str) -> Cow<'_, str> {
+    // Already fenced — leave alone.
+    if content.starts_with("---") {
+        return Cow::Borrowed(content);
+    }
+
+    // Must start with `title: `.
+    if !content.starts_with("title: ") {
+        return Cow::Borrowed(content);
+    }
+
+    // Find first true blank line (\n\n or \r\n\r\n).
+    let (header, rest) = if let Some(pos) = content.find("\n\n") {
+        (&content[..pos], &content[pos + 2..])
+    } else if let Some(pos) = content.find("\r\n\r\n") {
+        (&content[..pos], &content[pos + 4..])
+    } else {
+        // No blank line — entire content is header.
+        (content.trim_end(), "")
+    };
+
+    if rest.is_empty() {
+        Cow::Owned(format!("---\n{}\n---\n", header))
+    } else {
+        Cow::Owned(format!("---\n{}\n---\n\n{}", header, rest))
+    }
+}
+
+impl Reader for MarkdownReader {
+    fn document(&self, content: &str, markdown_options: &MarkdownOptions) -> Document {
+        let effective = if markdown_options.bare_frontmatter {
+            wrap_bare_frontmatter(content)
+        } else {
+            Cow::Borrowed(content)
+        };
+
+        let mut reader = MarkdownEventsReader::new_with_options(markdown_options);
+        reader.read(&effective);
+
+        Document {
+            blocks: reader.blocks(),
+            metadata: reader.metadata(),
+        }
+    }
+}
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && cargo test 2>&1 | grep -E "^test |FAILED|^error|test result"
+
+test export::graph_data::tests::build_sections_one_doc ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test test_delete_nonexistent_key ... ok
+test test_delete_basic ... ok
+test test_delete_quiet_mode ... ok
+test test_delete_dry_run ... ok
+test test_delete_updates_multiple_files ... ok
+test test_delete_preserves_other_content ... ok
+test test_delete_removes_multiple_block_references ... ok
+test test_delete_keys_output ... ok
+test test_delete_updates_inline_references ... ok
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+test test_export_dot_basic ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test test_extract_block_out_of_range ... ok
+test test_extract_ambiguous_section_fails ... ok
+test test_extract_preserves_subsections ... ok
+test test_extract_nonexistent_key ... ok
+test test_extract_by_section_title ... ok
+test test_extract_list_sections ... ok
+test test_extract_keys_output ... ok
+test test_extract_section_not_found ... ok
+test test_extract_by_block_number ... ok
+test test_extract_quiet_mode ... ok
+test test_extract_dry_run ... ok
+test test_extract_top_level_not_allowed ... ok
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+test test_find_fuzzy_search ... ok
+test test_find_lists_all_documents ... ok
+test test_find_markdown_format ... ok
+test test_find_incoming_outgoing_refs ... ok
+test test_find_keys_format ... ok
+test test_find_refs_from ... ok
+test test_find_markdown_with_query ... ok
+test test_find_refs_to ... ok
+test test_find_empty_workspace ... ok
+test test_find_refs_to_inline_link ... ok
+test test_find_limit ... ok
+test test_find_limit_shown_in_markdown ... ok
+test test_find_is_root_flag ... ok
+test test_find_query_with_no_match ... ok
+test test_find_search_query_in_output ... ok
+test test_find_no_query_null_in_output ... ok
+test test_find_roots_only ... ok
+test test_find_with_parent_documents ... ok
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+test test_init_config_file_structure ... ok
+test test_init_existing_iwe_file ... ok
+test test_init_creates_config_file ... ok
+test test_init_nested_directory ... ok
+test test_init_with_verbose_flag ... ok
+test test_init_preserves_existing_config ... ok
+test test_init_creates_iwe_directory ... ok
+test test_init_already_initialized ... ok
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test test_inline_reference_not_found ... ok
+test test_inline_ambiguous_reference_fails ... ok
+test test_inline_keys_output ... ok
+test test_inline_as_quote ... ok
+test test_inline_list_references ... ok
+test test_inline_by_reference ... ok
+test test_inline_nonexistent_key ... ok
+test test_inline_by_block_number ... ok
+test test_inline_block_out_of_range ... ok
+test test_inline_dry_run ... ok
+test test_inline_keep_target ... ok
+test test_inline_cleans_other_references ... ok
+test test_inline_quiet_mode ... ok
+test test_inline_no_references ... ok
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+test test_new_with_slug_in_filename ... ok
+test test_new_creates_parent_directories ... ok
+test test_new_unknown_template_fails ... ok
+test test_new_with_stdin_content ... ok
+test test_new_creates_file_with_default_template ... ok
+test test_new_content_argument_takes_precedence_over_stdin ... ok
+test test_new_with_german_locale_formats_date ... ok
+test test_new_with_content_argument ... ok
+test test_new_if_exists_skip_does_nothing ... ok
+test test_new_default_appends_suffix_for_existing_file ... ok
+test test_new_if_exists_override_replaces_file ... ok
+test test_new_if_exists_suffix_appends_numbers ... ok
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+test test_normalize_without_config ... ok
+test test_normalize_with_links ... ok
+test test_normalize_preserves_content ... ok
+test test_normalize_with_lists ... ok
+test test_normalize_multiple_files ... ok
+test test_normalize_with_verbose_flag ... ok
+test test_normalize_basic_formatting ... ok
+test test_normalize_preserves_file_structure ... ok
+test test_normalize_updates_link_titles ... ok
+test test_normalize_empty_workspace ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+test test_rename_quiet_mode ... ok
+test test_rename_nonexistent_key ... ok
+test test_rename_keys_output ... ok
+test test_rename_basic ... ok
+test test_rename_to_existing_key ... ok
+test test_rename_dry_run ... ok
+test test_rename_multiple_references ... ok
+test test_rename_updates_multiple_files ... ok
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+test test_retrieve_basic_document ... ok
+test test_retrieve_context_one_level ... ok
+test test_retrieve_context_includes_parents_of_sub_documents ... ok
+test test_retrieve_bidirectional ... ok
+test test_retrieve_context_sub_document_parents_without_depth ... ok
+test test_retrieve_all_document_types_json ... ok
+test test_retrieve_context_multiple_parents ... ok
+test test_retrieve_context_no_parents ... ok
+test test_retrieve_context_only_direct_sub_document_parents ... ok
+test test_retrieve_deduplication_same_doc_multiple_paths ... ok
+test test_retrieve_depth_one_includes_referenced_docs ... ok
+test test_retrieve_context_json_format ... ok
+test test_retrieve_context_two_levels ... ok
+test test_retrieve_default_depth ... ok
+test test_retrieve_cyclic_references ... ok
+test test_retrieve_dry_run_basic ... ok
+test test_retrieve_envelope_frontmatter_without_title_config ... ok
+test test_retrieve_envelope_no_frontmatter ... ok
+test test_retrieve_depth_zero_excludes_referenced_docs ... ok
+test test_retrieve_envelope_reserved_keys_not_overwritten ... ok
+test test_retrieve_exclude_single_key ... ok
+test test_retrieve_envelope_bare_frontmatter_merged ... ok
+test test_retrieve_exclude_main_document ... ok
+test test_retrieve_depth_two_includes_nested_refs ... ok
+test test_retrieve_exclude_multiple_keys ... ok
+test test_retrieve_dry_run_multiple_documents ... ok
+test test_retrieve_json_format ... ok
+test test_retrieve_links_with_depth_and_context ... ok
+test test_retrieve_keys_format_with_context ... ok
+test test_retrieve_keys_format_output ... ok
+test test_retrieve_merges_frontmatter_into_envelope ... ok
+test test_retrieve_links_without_flag_excludes_inline_refs ... ok
+test test_retrieve_multiple_keys ... ok
+test test_retrieve_multiple_keys_with_deduplication ... ok
+test test_retrieve_nonexistent_document ... ok
+test test_retrieve_no_content_multiple_children ... ok
+test test_retrieve_no_content_flag ... ok
+test test_retrieve_no_content_preserves_parent_documents ... ok
+test test_retrieve_multiple_inline_links ... ok
+test test_retrieve_with_backlinks ... ok
+test test_retrieve_with_inline_links ... ok
+test test_retrieve_with_both_parent_and_backlinks ... ok
+test test_retrieve_parent_annotation_excludes_current_document ... ok
+test test_retrieve_with_parent_documents ... ok
+test test_retrieve_no_content_with_multiple_documents ... ok
+test test_retrieve_self_referencing_document ... ok
+test result: ok. 46 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+test test_squash_nonexistent_key ... ok
+test test_squash_key_with_spaces ... ok
+test test_squash_stderr_empty ... ok
+test test_squash_empty_workspace ... ok
+test test_squash_output_is_markdown ... ok
+test test_squash_default_depth ... ok
+test test_squash_complex_workspace ... ok
+test test_squash_zero_depth ... ok
+test test_squash_basic_functionality ... ok
+test test_squash_with_verbose_flag ... ok
+test test_squash_without_config ... ok
+test test_squash_preserves_markdown_structure ... ok
+test test_squash_with_higher_depth ... ok
+test test_squash_with_depth_limit ... ok
+test test_squash_with_links ... ok
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+test test_stats_with_various_elements ... ok
+test test_stats_csv_output ... ok
+test test_stats_broken_inline_links_in_table ... ok
+test test_stats_broken_links_external_excluded ... ok
+test test_stats_markdown_output ... ok
+test test_stats_broken_links_local_included ... ok
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+test test_tree_circular_inclusion_with_key_filter ... ok
+test test_tree_deep_nesting ... ok
+test test_tree_self_referencing_document ... ok
+test test_tree_empty_workspace ... ok
+test test_tree_keys_format ... ok
+test test_tree_shared_child_multiple_parents ... ok
+test test_tree_with_key_filter ... ok
+test test_tree_with_depth_limit ... ok
+test test_tree_circular_inclusion_no_roots ... ok
+test test_tree_default_format_is_markdown ... ok
+test test_tree_invalid_key ... ok
+test test_tree_with_multiple_key_filters ... ok
+test test_tree_json_format ... ok
+test test_tree_markdown_format ... ok
+test test_tree_multiple_roots ... ok
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test attach_errors_on_missing_source ... ok
+test attach_errors_when_to_missing ... ok
+test list_attach_actions ... ok
+test attach_errors_on_unknown_action ... ok
+test attach_appends_to_existing_target ... ok
+test attach_creates_new_target ... ok
+test attach_silently_skips_already_attached ... ok
+test attach_to_multiple_targets ... ok
+test attach_multiple_targets_one_already_attached_skips_one ... ok
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test extract_not_found ... ok
+test extract_list_sections ... ok
+test extract_by_block_number ... ok
+test extract_dry_run ... ok
+test extract_by_section_title ... ok
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test find_selector_per_key_depth ... ok
+test find_all_documents ... ok
+test find_selector_not_in_subtracts ... ok
+test find_selector_max_depth ... ok
+test find_selector_in_any_unions_parents ... ok
+test find_selector_in_intersects_two_parents ... ok
+test find_with_limit ... ok
+test find_by_query ... ok
+test find_root_documents ... ok
+test find_selector_combines_with_query ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test inline_list_references ... ok
+test inline_keep_target ... ok
+test inline_dry_run ... ok
+test inline_by_reference ... ok
+test extract_then_inline_round_trip ... ok
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test normalize_empty_graph ... ok
+test normalize_returns_counts ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test list_prompts ... ok
+test review_prompt ... ok
+test refactor_prompt ... ok
+test explore_prompt ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test read_document_resource ... ok
+test list_resources_includes_documents ... ok
+test list_resources_includes_config ... ok
+test read_tree_resource ... ok
+test read_stats_resource ... ok
+test read_config_resource ... ok
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test retrieve_multiple_keys ... ok
+test retrieve_empty_intersection_yields_empty ... ok
+test retrieve_with_depth_expansion ... ok
+test retrieve_no_content ... ok
+test retrieve_explicit_keys_intersected_with_selector ... ok
+test retrieve_selector_only_uses_selected_set ... ok
+test retrieve_single_document ... ok
+test retrieve_with_backlinks ... ok
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test squash_not_found ... ok
+test squash_single_document ... ok
+test squash_expands_references ... ok
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test stats_not_found ... ok
+test stats_per_document ... ok
+test stats_broken_links ... ok
+test stats_aggregate ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test tree_from_specific_key ... ok
+test tree_explicit_key_intersects_selector ... ok
+test tree_selector_uses_selected_set_as_roots ... ok
+test tree_respects_depth_limit ... ok
+test tree_shows_root_documents ... ok
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test watcher_picks_up_new_file ... ok
+test watcher_picks_up_deletion ... ok
+test watcher_picks_up_modification ... ok
+test watcher_ignores_non_md_files ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.31s
+test rename_not_found ... ok
+test create_with_content ... ok
+test delete_not_found ... ok
+test update_not_found ... ok
+test create_duplicate_fails ... ok
+test update_document ... ok
+test delete_dry_run ... ok
+test round_trip_create_retrieve_update_delete ... ok
+test create_document ... ok
+test rename_dry_run ... ok
+test delete_document ... ok
+test rename_document ... ok
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test router::server::base_path::tests::test_url_to_key_with_danish_characters ... ok
+test router::server::base_path::tests::test_key_to_url_with_spaces_in_key ... ok
+test router::server::base_path::tests::test_url_to_key_with_spaces_in_key ... ok
+test router::server::base_path::tests::test_key_to_url_with_spaces_in_base_path ... ok
+test router::server::base_path::tests::test_url_to_key_with_spaces_in_base_path ... ok
+test router::server::base_path::tests::test_url_to_key_with_regular_characters ... ok
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test fixture::tests::test_create_code_action ... ok
+test fixture::tests::test_url_to_edit ... ok
+test fixture::tests::test_create_workspace_edit ... ok
+test attach_inline_link_no_action_outside_link ... ok
+test attach_with_time_format ... ok
+test attach_no_key ... ok
+test alreary_attached ... ok
+test basic_attach_no_header ... ok
+test basic_attach_pre_header ... ok
+test attach_to_date_template ... ok
+test basic_attach_pre_header_multiple ... ok
+test attach_inline_link ... ok
+test attach_with_separate_time_format ... ok
+test basic_attach_non_empty ... ok
+test attach_with_separate_locales ... ok
+test basic_attach ... ok
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test fixture::tests::test_url_to_edit ... ok
+test fixture::tests::test_create_workspace_edit ... ok
+test fixture::tests::test_create_code_action ... ok
+test change_to_bullet ... ok
+test change_to_ordered ... ok
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test fixture::tests::test_create_code_action ... ok
+test fixture::tests::test_create_workspace_edit ... ok
+test fixture::tests::test_url_to_edit ... ok
+test completion_with_wikilink_and_refs_extension ... ok
+test completion_with_wikilink_format ... ok
+test completion_returns_results_when_prefix_long_enough ... ok
+test completion_relative_test_with_refs_extension ... ok
+test completion_with_markdown_format_explicit ... ok
+test completion_returns_empty_when_prefix_too_short ... ok
+test completion_test ... ok
+test completion_fallback_to_header_when_frontmatter_missing ... ok
+test completion_respects_custom_min_prefix_length ... ok
+test completion_test_with_refs_extension ... ok
+test completion_after_file_deleted ... ok
+test completion_relative_test ... ok
+test completion_with_wikilink_format_multiple_documents ... ok
+test completion_uses_frontmatter_title ... ok
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test fixture::tests::test_create_code_action ... ok
+test fixture::tests::test_create_workspace_edit ... ok
+test fixture::tests::test_url_to_edit ... ok
+test block_action_target ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test fixture::tests::test_create_code_action ... ok
+test fixture::tests::test_url_to_edit ... ok
+test fixture::tests::test_create_workspace_edit ... ok
+test delete_non_block_reference_no_action ... ok
+test delete_multiple_block_references ... ok
+test delete_updates_other_files ... ok
+test delete_block_reference_no_other_references ... ok
+test delete_inline_link_no_action_outside_link ... ok
+test delete_updates_all_references ... ok
+test delete_inline_link ... ok
+test delete_updates_inline_references ... ok
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test fixture::tests::test_create_code_action ... ok
+test fixture::tests::test_create_workspace_edit ... ok
+test fixture::tests::test_url_to_edit ... ok
+test new_file ... ok
+test did_change_test_once ... ok
+test did_change_test_two_times ... ok
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test fixture::tests::test_create_code_action ... ok
+test fixture::tests::test_create_workspace_edit ... ok
+test fixture::tests::test_url_to_edit ... ok
+test new_file ... ok
+test did_save_test_once ... ok
+test did_save_test_two_times ... ok
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test fixture::tests::test_create_code_action ... ok
+test fixture::tests::test_create_workspace_edit ... ok
+test fixture::tests::test_url_to_edit ... ok
+test extract_sub_section_after_para_test ... ok
+test extract_sub_sections_with_slug_template ... ok
+test extract_multiple_sub_sections ... ok
+test extract_sub_sections_wiki_link ... ok
+test extract_sub_sections_with_date_template ... ok
+test extract_sub_sections_with_parent_slug_template ... ok
+test extract_sub_sections_with_title_template ... ok
+test extract_sub_sections_test ... ok
+test extract_multiple_sub_sections_with_title_template ... ok
+test extract_sub_sections_with_source_slug_template ... ok
+test no_sub_sections_to_extract ... ok
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test extract_helix_section ... ok
+test extract_middle_section_wiki_link ... ok
+test extract_section_with_multiple_simple_collisions ... ok
+test extract_one_of_sub_level_section ... ok
+test extract_after_para ... ok
+test extract_section_with_slug_template ... ok
+test extract_section_with_date_template ... ok
+test fixture::tests::test_create_code_action ... ok
+test fixture::tests::test_create_workspace_edit ... ok
+test fixture::tests::test_url_to_edit ... ok
+test extract_section_with_simple_key_collision ... ok
+test extract_section_with_parent_title_template ... ok
+test extract_section_wiki_link ... ok
+test extract_after_list ... ok
+test extract_section ... ok
+test extract_middle_section_test ... ok
+test extract_section_with_parent_slug_template ... ok
+test extract_section_with_title_template ... ok
+test extract_section_with_source_slug_template ... ok
+test extract_section_with_path_template ... ok
+test extract_section_with_source_title_template ... ok
+test extract_section_with_source_template ... ok
+test no_action_on_list ... ok
+test extract_third_level_section_test ... ok
+test extract_section_with_special_characters_in_title ... ok
+test test_extracted_relative ... ok
+test to_level_extract_not_allowed ... ok
+test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+test tests::test_create_code_action ... ok
+test tests::test_url_to_edit ... ok
+test tests::test_create_workspace_edit ... ok
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test fixture::tests::test_create_workspace_edit ... ok
+test fixture::tests::test_create_code_action ... ok
+test fixture::tests::test_url_to_edit ... ok
+test folding_range_empty_document ... ok
+test folding_range_single_line_section ... ok
+test folding_range_for_tables ... ok
+test folding_range_for_code_blocks ... ok
+test folding_range_for_lists ... ok
+test folding_range_for_quotes ... ok
+test folding_range_for_nested_sections ... ok
+test folding_range_last_section_no_trailing_newline ... ok
+test folding_range_last_section_with_reference_and_nested_list ... ok
+test folding_range_last_section_without_content ... ok
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test fixture::tests::test_create_code_action ... ok
+test fixture::tests::test_url_to_edit ... ok
+test fixture::tests::test_create_workspace_edit ... ok
+test update_ref_titles ... ok
+test metadata_format ... ok
+test update_link_titles ... ok
+test format_extension_inline ... ok
+test custom_ref_text ... ok
+test basic_format ... ok
+test format_extension ... ok
+test update_ref_titles_after_change ... ok
+test update_ref_titles_after_new_file_change ... ok
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test fixture::tests::test_create_code_action ... ok
+test fixture::tests::test_create_workspace_edit ... ok
+test fixture::tests::test_url_to_edit ... ok
+test definition_external_https_url ... ok
+test definition_in_paragraph_piped_wiki_link ... ok
+test definition_external_mailto_url ... ok
+test definition_with_relative_path ... ok
+test definition ... ok
+test no_definition ... ok
+test definition_in_list ... ok
+test definition_with_md_extension ... ok
+test definition_in_nested_list ... ok
+test definition_in_paragraph_wiki_link ... ok
+test definition_bare_mailto_url ... ok
+test definition_bare_https_url ... ok
+test definition_bare_http_url ... ok
+test definition_in_paragraph ... ok
+test definition_in_paragraph_wiki_link_with_space ... ok
+test definition_external_http_url ... ok
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test fixture::tests::test_create_code_action ... ok
+test fixture::tests::test_create_workspace_edit ... ok
+test fixture::tests::test_url_to_edit ... ok
+test hover_missing_target_returns_none ... ok
+test hover_outside_link_returns_none ... ok
+test hover_preview_for_markdown_link ... ok
+test hover_preview_for_wiki_link_strips_frontmatter ... ok
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test fixture::tests::test_create_code_action ... ok
+test fixture::tests::test_url_to_edit ... ok
+test fixture::tests::test_create_workspace_edit ... ok
+test non_existent_key ... ok
+test single_ref ... ok
+test non_existent_ref ... ok
+test block_reference_multiple_from_the_same_key ... ok
+test multiple_refs ... ok
+test block_reference ... ok
+test no_refs ... ok
+test block_reference_2 ... ok
+test single_multiple_refs_from_same_key ... ok
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test fixture::tests::test_create_workspace_edit ... ok
+test fixture::tests::test_create_code_action ... ok
+test fixture::tests::test_url_to_edit ... ok
+test inline_quote_with_keep_target_true_keeps_other_references ... ok
+test inline_with_content_after_ref ... ok
+test inline_quote_with_keep_target_true_basic ... ok
+test inline_quote_test ... ok
+test inline_quote_default_removes_all_references ... ok
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test fixture::tests::test_create_code_action ... ok
+test fixture::tests::test_create_workspace_edit ... ok
+test fixture::tests::test_url_to_edit ... ok
+test inline_after_list ... ok
+test inline_middle_section_test ... ok
+test inline_with_keep_target_true_basic_section ... ok
+test inline_with_keep_target_true_keeps_other_references ... ok
+test no_action_on_list ... ok
+test inline_one_of_sub_level_section ... ok
+test inline_para_and_header ... ok
+test inline_para_and_header_before_para ... ok
+test inline_after_other_refs ... ok
+test inline_after_para ... ok
+test inline_third_level_section_test ... ok
+test inline_section_default_removes_all_references ... ok
+test inline_basic_section ... ok
+test inline_two_paras ... ok
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test fixture::tests::test_create_code_action ... ok
+test fixture::tests::test_create_workspace_edit ... ok
+test fixture::tests::test_url_to_edit ... ok
+test link_selected_text_multi_word_phrase ... ok
+test link_word_with_cursor_in_middle ... ok
+test link_word_in_list_item ... ok
+test link_selected_text_at_start ... ok
+test link_word_wiki_link ... ok
+test link_word_at_start_of_line ... ok
+test link_word_with_collision ... ok
+test link_selected_text_wiki_link ... ok
+test link_word_in_header ... ok
+test link_unicode_word ... ok
+test link_selected_text_at_end ... ok
+test link_selected_text_with_punctuation ... ok
+test link_word_with_hyphen ... ok
+test link_word_in_middle_of_line ... ok
+test link_selected_text_simple ... ok
+test link_word_at_end_of_line ... ok
+test link_selected_text_with_spaces ... ok
+test no_action_on_empty_space ... ok
+test no_action_on_multiline_selection ... ok
+test link_word_with_title_template ... ok
+test link_word_with_slug_template ... ok
+test link_word_with_underscore ... ok
+test result: ok. 25 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+test fixture::tests::test_create_workspace_edit ... ok
+test fixture::tests::test_create_code_action ... ok
+test fixture::tests::test_url_to_edit ... ok
+test keep_frontmatter ... ok
+test unwrap_list_with_items_after_para_test ... ok
+test unwrap_list_with_items_test ... ok
+test unwrap_list_prior_to_level_two_header_test ... ok
+test unwrap_list_between_para_and_para_test ... ok
+test unwrap_middle_list_test ... ok
+test unwrap_list_after_para_test ... ok
+test unwrap_single_item_list_test ... ok
+test unwrap_sub_list_test ... ok
+test unwrap_list_takes_top_level_list ... ok
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test fixture::tests::test_create_workspace_edit ... ok
+test fixture::tests::test_create_code_action ... ok
+test fixture::tests::test_url_to_edit ... ok
+test link ... ok
+test single_reference ... ok
+test two_references ... ok
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test fixture::tests::test_create_code_action ... ok
+test fixture::tests::test_url_to_edit ... ok
+test fixture::tests::test_create_workspace_edit ... ok
+test basic_prepare_rename ... ok
+test rename_inline_references ... ok
+test rename_updates_affected_files ... ok
+test basic_rename ... ok
+test rename_both_references ... ok
+test rename_to_an_existing_key ... ok
+test rename_with_empty_link_text ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test fixture::tests::test_create_workspace_edit ... ok
+test fixture::tests::test_create_code_action ... ok
+test fixture::tests::test_url_to_edit ... ok
+test wrap_list_something ... ok
+test wrap_list_after_para_test ... ok
+test wrap_list_after_para_with_para_test ... ok
+test wrap_section_with_para ... ok
+test wrap_single_section ... ok
+test wrap_nested_section ... ok
+test wrap_parent_section ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test fixture::tests::test_create_workspace_edit ... ok
+test fixture::tests::test_create_code_action ... ok
+test fixture::tests::test_url_to_edit ... ok
+test sort_not_offered_when_already_sorted_ascending ... ok
+test sort_not_offered_when_already_sorted_descending ... ok
+test sort_simple_list ... ok
+test sort_offered_when_partially_sorted ... ok
+test sort_ordered_list ... ok
+test sort_list_descending ... ok
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test fixture::tests::test_create_code_action ... ok
+test fixture::tests::test_url_to_edit ... ok
+test fixture::tests::test_create_workspace_edit ... ok
+test transform_action_with_missing_command_shows_in_menu ... ok
+test transform_action_appears_in_code_action_menu ... ok
+test transform_action_with_empty_command_shows_in_menu_but_no_resolution ... ok
+test transform_action_with_timeout ... ok
+test transform_action_with_multiline_content ... ok
+test transform_action_executes_command_with_cat ... ok
+test transform_action_with_static_output ... ok
+test transform_action_with_env_vars ... ok
+test transform_action_with_shell_false_and_args ... ok
+test transform_action_processes_input_template ... ok
+test transform_action_with_cwd ... ok
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+test fixture::tests::test_create_code_action ... ok
+test fixture::tests::test_url_to_edit ... ok
+test fixture::tests::test_create_workspace_edit ... ok
+test one_file ... ok
+test sub_one_file ... ok
+test fuzzy_one_file ... ok
+test two_nested_files ... ok
+test dual_nested_files ... ok
+test page_rank_applied_after_fuzzy_score ... ok
+test one_file_two_headers ... ok
+test one_file_two_headers_same_level ... ok
+test two_files ... ok
+test search_by_key ... ok
+test fuzzy_two_files ... ok
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test graph::builder::test::add_new_node_leaf ... ok
+test graph::builder::test::add_new_node_list_list ... ok
+test graph::builder::test::graph_form_tree ... ok
+test graph::builder::test::add_new_node_one_list ... ok
+test graph::builder::test::nested_tree ... ok
+test graph::builder::test::simple_tree ... ok
+test graph::path::test::empty_path_returns_none ... ok
+test graph::path::test::drop_first_on_single_element_creates_empty ... ok
+test graph::sections_builder::test::code_block_no_lang ... ok
+test graph::sections_builder::test::header_position ... ok
+test graph::sections_builder::test::headers_level_normalization ... ok
+test graph::sections_builder::test::headers_at_top_level ... ok
+test graph::sections_builder::test::multiline_code ... ok
+test graph::sections_builder::test::list_item_item ... ok
+test graph::sections_builder::test::code_block_with_lang ... ok
+test graph::sections_builder::test::header_2_position ... ok
+test graph::sections_builder::test::header2 ... ok
+test graph::sections_builder::test::multiline_list ... ok
+test graph::sections_builder::test::para_position ... ok
+test graph::sections_builder::test::multiline_para ... ok
+test graph::sections_builder::test::multiline_list_nested ... ok
+test graph::sections_builder::test::para_in_header_position ... ok
+test graph::sections_builder::test::sub_header_and_header_after ... ok
+test locale::tests::test_bcp47_format_conversion ... ok
+test graph::sections_builder::test::two_items_list ... ok
+test graph::sections_builder::test::sub_header_before_top_level_header ... ok
+test graph::path::test::one_parent_two_sections ... ok
+test graph::path::test::list ... ok
+test graph::path::test::no_parents ... ok
+test graph::path::test::infinite_recursion ... ok
+test graph::path::test::three_segments ... ok
+test graph::path::test::two_level_infinite_recursion_references ... ok
+test graph::path::test::two_parents ... ok
+test graph::path::test::reference_parent ... ok
+test graph::path::test::two_level_references ... ok
+test graph::path::test::two_sections ... ok
+test locale::tests::test_config_locale_override ... ok
+test locale::tests::test_datetime_with_time_components ... ok
+test locale::tests::test_german_date_formatting ... ok
+test locale::tests::test_invalid_locale_falls_back_to_posix ... ok
+test locale::tests::test_encoding_suffix_stripped ... ok
+test graph::sections_builder::test::sub_header_section ... ok
+test markdown::reader::tests::test_block_line_positions ... ok
+test markdown::reader::tests::test_header_positions ... ok
+test markdown::reader::tests::test_link_positions ... ok
+test markdown::reader::tests::test_one_header_position ... ok
+test markdown::reader::tests::test_link_position_inside_text ... ok
+test model::tree::tests::get_top_level_surrounding_list_id_tests::test_with_list_containing_node ... ok
+test model::graph::tests::test_sub_sub_list ... ok
+test model::tree::tests::test_find ... ok
+test model::tree::tests::get_top_level_surrounding_list_id_tests::test_with_no_list_containing_node ... ok
+test model::tree::tests::test_get ... ok
+test model::graph::tests::test_list_to_markdown ... ok
+test markdown::reader::tests::test_list_item_positions ... ok
+test model::graph::tests::test_list_with_para ... ok
+test markdown::reader::tests::test_ranges ... ok
+test markdown::reader::tests::test_list_nested_item_positions ... ok
+test model::graph::tests::test_ordered_list_to_markdown ... ok
+test model::graph::tests::test_ordered_list_with_para ... ok
+test model::graph::tests::test_sub_list ... ok
+test model::graph::tests::test_list_with_para2 ... ok
+test model::tree::tests::test_is_list ... ok
+test model::tree::tests::test_is_section ... ok
+test model::tree::tests::test_replace ... ok
+test model::tree::tests::test_update_node ... ok
+test parser::tests::bare_http_url ... ok
+test parser::tests::bare_https_url ... ok
+test parser::tests::bare_url_with_path ... ok
+test parser::tests::markdown_link_preferred_over_bare_url ... ok
+test parser::tests::bare_mailto_url ... ok
+test parser::tests::multiple_bare_urls ... ok
+test parser::tests::link_in_paragraph ... ok
+test selector::tests::descendants_missing_key_returns_empty ... ok
+test selector::tests::descendants_handle_cycles ... ok
+test selector::tests::selector_empty_intersection_returns_empty ... ok
+test selector::tests::descendants_depth_zero_is_empty ... ok
+test selector::tests::selector_per_key_depth_overrides_max_depth ... ok
+test selector::tests::descendants_depth_one ... ok
+test selector::tests::descendants_unbounded ... ok
+test selector::tests::descendants_short_path_does_not_starve_long_path ... ok
+test selector::tests::selector_empty_returns_all_keys ... ok
+test selector::tests::descendants_diamond_visits_each_once ... ok
+test selector::tests::selector_not_in_subtracts ... ok
+test selector::tests::selector_max_depth_applies_when_no_per_key_override ... ok
+test state::test_store_new_form_indoc ... ok
+test selector::tests::selector_missing_parent_yields_empty_intersection ... ok
+test selector::tests::selector_in_intersects_two_parents ... ok
+test selector::tests::selector_in_any_unions_two_parents ... ok
+test result: ok. 88 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test reader_detects_bare_title_block ... ok
+test reader_does_not_misparse_prose ... ok
+test reader_skips_when_disabled ... ok
+test writer_emits_bare_when_enabled ... ok
+test writer_emits_fenced_when_disabled ... ok
+test reader_skips_when_no_title_first_line ... ok
+test reader_still_handles_fenced ... ok
+test frontmatter_title_works_with_bare ... ok
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test parses_virtual_directories_true ... ok
+test parses_bare_frontmatter_true ... ok
+test migrates_v3_to_v4_adds_no_keys ... ok
+test test_config_with_version_1_parses_correctly ... ok
+test test_default_configuration_has_version_1 ... ok
+test test_config_with_extract_action_parses_correctly ... ok
+test test_config_without_version_gets_parsed_correctly ... ok
+test test_migrate_v2_to_v3_preserves_non_transform_actions ... ok
+test test_migrate_v2_to_v3_renames_transform_action_fields ... ok
+test test_migrate_v2_to_v3_renames_models_to_commands ... ok
+test test_template_configuration_has_version_4 ... ok
+test test_migrated_v2_config_parses_correctly ... ok
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test note_without_metadata_excluded ... ok
+test non_matching_value_excluded ... ok
+test value_in_yaml_sequence_matches ... ok
+test combines_with_roots_flag ... ok
+test filters_by_single_string_value ... ok
+test combines_filters_with_and ... ok
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test code_block_with_custom_count ... ok
+test code_block_with_tilde ... ok
+test all_custom_tokens ... ok
+test asterisk_list ... ok
+test custom_rule_token ... ok
+test default_list_uses_dash ... ok
+test code_block_with_backtick ... ok
+test default_emphasis_uses_asterisk ... ok
+test default_rule_token ... ok
+test default_strong_uses_double_asterisk ... ok
+test increment_ordered_list_bullets_false ... ok
+test invalid_code_block_token_count_falls_back_to_default ... ok
+test increment_ordered_list_bullets_true ... ok
+test invalid_emphasis_token_falls_back_to_default ... ok
+test invalid_list_token_falls_back_to_default ... ok
+test invalid_rule_token_count_falls_back_to_default ... ok
+test ordered_list_with_dot ... ok
+test ordered_list_with_paren ... ok
+test rule_with_underscore ... ok
+test underscore_emphasis ... ok
+test invalid_strong_token_falls_back_to_default ... ok
+test plus_list ... ok
+test valid_values_preserved_after_validation ... ok
+test underscore_strong ... ok
+test result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test use_header_when_frontmatter_title_not_configured ... ok
+test fallback_to_header_when_no_frontmatter ... ok
+test links_text_updated_from_frontmatter_title ... ok
+test fallback_to_header_when_frontmatter_key_missing ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test test_gitignore_excludes_files ... ok
+test test_hidden_files_and_directories_excluded ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test normalization_of_refs_extensions ... ok
+test normalization_preserves_other_extensions ... ok
+test normalization_ref_existing_extension ... ok
+test normalization_ref_extension ... ok
+test keep_unknown_wiki_refs_as_is ... ok
+test keep_unknown_refs_as_is ... ok
+test normalization_drop_extension ... ok
+test keep_unknown_piped_wiki_refs_as_is ... ok
+test keep_title_there_is_no_title_in_referenced_file ... ok
+test sub_links_text_updated_from_referenced_header ... ok
+test sub_dir_relative_inline_link_resolved ... ok
+test ref_links_updated_two_ways ... ok
+test piped_wiki_links_text_not_updated_from_referenced_header ... ok
+test parent_dir_relative_inline_link_resolved ... ok
+test nested_parent_dir_relative_inline_link_resolved ... ok
+test links_text_updated_from_referenced_header ... ok
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test empty_document ... ok
+test empty_line_document ... ok
+test normalization_happy_path ... ok
+test normalization_header_and_text ... ok
+test multiple_headers ... ok
+test normalization_headers_2 ... ok
+test normalization_header_and_quate_zero_level ... ok
+test normalization_header_zero_level ... ok
+test normalization_headers_3 ... ok
+test normalization_headers_5 ... ok
+test normalization_headers_and_para ... ok
+test normalization_headers_4 ... ok
+test normalization_headers_and_lists ... ok
+test normalization_headers_to_same_zero_level ... ok
+test normalization_other ... ok
+test normalization_paragraph ... ok
+test normalization_paragraph_and_headers ... ok
+test normalization_three_headers_different_levels ... ok
+test normalization_single_header ... ok
+test normalization_paragraph_and_nested_headers ... ok
+test normalization_two_headers_different_levels ... ok
+test normalization_two_headers ... ok
+test normalization_three_headers_different_levels_extra_level ... ok
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test normalization_drop_html_block ... ok
+test normalization_preserve_inline_html ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test normalization_dual_dash_list_item ... ok
+test checkmark_list ... ok
+test normalization_dual_dash_two_items_ordered_list_item ... ok
+test normalization_dual_dash_two_items_list_item ... ok
+test normalization_list_after_para ... ok
+test normalization_dual_dash_three_items_list_item ... ok
+test normalization_dual_dash_list_item2 ... ok
+test normalization_list_item ... ok
+test normalization_list_item_with_line ... ok
+test normalization_list_item_with_quote ... ok
+test normalization_numbered_list_2_items ... ok
+test normalization_list_items_with_text ... ok
+test normalization_numbered_list_with_para ... ok
+test normalization_ordered_list ... ok
+test normalization_numbered_list_in_list ... ok
+test normalization_ordered_list_and_bullet_list ... ok
+test normalization_sub_list_item ... ok
+test normalization_numbered_list_item ... ok
+test normalization_three_sub_lists_item ... ok
+test normalization_two_list_items ... ok
+test normalization_ordered_list_with_sub_list ... ok
+test normalization_two_list_with_sub_items ... ok
+test normalization_two_sub_list_item ... ok
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test normalization_meta_block ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test definitions_list ... ok
+test header_line_header ... ok
+test dual_para_quate ... ok
+test github_notes ... ok
+test normalization_excaping ... ok
+test normalization_dashes ... ok
+test normalization_one_paragraph ... ok
+test normalization_math ... ok
+test normalization_quoted ... ok
+test normalization_rule ... ok
+test normalization_two_paragraphs ... ok
+test normalization_url ... ok
+test normalization_soft_break ... ok
+test normalization_style ... ok
+test one_quote ... ok
+test rule_and_text ... ok
+test table ... ok
+test table_with_alignment ... ok
+test two_column_table ... ok
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test normalization_code_block ... ok
+test normalization_raw_inline ... ok
+test raw_trim_keeps_spaces ... ok
+test raw_in_a_list_item ... ok
+test raw_trim ... ok
+test normalization_inline_code ... ok
+test normalization_just_code ... ok
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test squash_invalid_ref_text ... ok
+test squash_before_text ... ok
+test squash_text ... ok
+test squash_two_refs ... ok
+test squash_single_child_with_text ... ok
+test squash_two_levels ... ok
+test squash_no_text ... ok
+test squash_after_text ... ok
+test squash_three_refs ... ok
+test squash_single_next_with_text ... ok
+test squash_depth_counter ... ok
+test squash_infinite_recursion ... ok
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test toc_level_two ... ok
+test toc_multiple_items_on_level_two ... ok
+test toc_one_level ... ok
+test toc_one_recusive ... ok
+test toc_one_level_two_items ... ok
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test disabled_by_default ... ok
+test directory_with_notes_generates_index ... ok
+test children_alphabetical_order ... ok
+test underscore_stripped_from_key ... ok
+test user_index_takes_precedence ... ok
+test parent_dir_with_only_subdirs_gets_index ... ok
+test nested_directories_each_get_index ... ok
+test user_index_suppresses_generated ... ok
+test generated_index_deleted_when_user_creates_own ... ok
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00sAll tests pass. Here's the diagnosis and fix:
+
+**Root cause:** `wrap_bare_frontmatter()` in `crates/liwe/src/markdown.rs` was stripping all lines starting with a space:
+
+```rust
+.filter(|l| !l.starts_with(' '))
+```
+
+In YAML, list values are indented:
+```yaml
+depends:
+  - foo
+```
+
+The `  - foo` line starts with a space, so it was silently dropped. The wrapped result became just `depends:` with no items — valid YAML (null value), but no match for `depends=foo`.
+
+Fenced frontmatter (`---`) bypassed `wrap_bare_frontmatter` entirely, so it was unaffected.
+
+**Fix:** Removed the `cleaned_header` filtering, preserving the original header content including indented continuation lines. The diff:
+
+```diff
+-    if rest.is_empty() {
+-        let cleaned_header: String = header
+-            .lines()
+-            .filter(|l| !l.starts_with(' '))
+-            .collect::<Vec<_>>()
+-            .join("\n");
+-        Cow::Owned(format!("---\n{}\n---\n", cleaned_header))
+-    } else {
+-        let cleaned_header: String = header
+-            .lines()
+-            .filter(|l| !l.starts_with(' '))
+-            .collect::<Vec<_>>()
+-            .join("\n");
+-        Cow::Owned(format!("---\n{}\n---\n\n{}", cleaned_header, rest))
+-    }
++    if rest.is_empty() {
++        Cow::Owned(format!("---\n{}\n---\n", header))
++    } else {
++        Cow::Owned(format!("---\n{}\n---\n\n{}", header, rest))
++    }
+```

@@ -1,0 +1,2628 @@
+
+  ────────────────────────────────────────
+  ▸ todo_write todo
+    content: - [ ] Explain how `iwe find --meta` filters documents
+  - [ ] Trace CLI argument parsing
+  - [ ] Trace data flow through functions to filtered result set
+  - [ ] List every function involved
+  - [ ] Explain filtering logic
+  - [ ] Do not modify project files
+
+I’ll trace it read-only through the code path and report the functions and filtering semantics without modifying files.
+  ────────────────────────────────────────
+  ▸ shell
+    command: pwd; sqlite3 .indexnudge.db '.schema' | head -120
+    timeout_secs: 10
+
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge.db "select path from files where path regexp '(^|/)src/|(^|/)crates/|(^|/)cli/' order by path limit 200;"
+    timeout_secs: 10
+
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge.db "select path,line_number,line from lines where line like '%--meta%' or line like '%meta:%' or line like '%Meta%' order by path,line_number limit 200;"
+    timeout_secs: 10
+
+/home/dangood/src/iwe
+CREATE TABLE lines (
+            file     TEXT,
+            line_num INTEGER,
+            content  TEXT,
+            symbol   TEXT,
+            PRIMARY KEY (file, line_num)
+        );
+CREATE VIRTUAL TABLE lines_fts USING fts5(file, line_num, content, symbol)
+/* lines_fts(file,line_num,content,symbol) */;
+CREATE TABLE 'lines_fts_data'(id INTEGER PRIMARY KEY, block BLOB);
+CREATE TABLE 'lines_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
+CREATE TABLE 'lines_fts_content'(id INTEGER PRIMARY KEY, c0, c1, c2, c3);
+CREATE TABLE 'lines_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
+CREATE TABLE 'lines_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID;
+CREATE TABLE symbols (
+            id             INTEGER PRIMARY KEY,
+            name           TEXT,
+            qualified_name TEXT,
+            kind           TEXT,
+            file           TEXT,
+            start_line     INTEGER,
+            end_line       INTEGER,
+            parent         TEXT,
+            signature      TEXT
+        );
+CREATE TABLE calls (
+            caller_file   TEXT,
+            caller_symbol TEXT,
+            callee        TEXT,
+            callee_qname  TEXT,
+            kind          TEXT,
+            line_num      INTEGER
+        );
+CREATE TABLE defs (
+            symbol TEXT,
+            file   TEXT,
+            line_num INTEGER,
+            var    TEXT,
+            kind   TEXT
+        );
+CREATE TABLE imports (
+            file   TEXT,
+            module TEXT,
+            line_num INTEGER
+        );
+CREATE INDEX idx_symbols_name ON symbols(name);
+CREATE INDEX idx_symbols_qualified ON symbols(qualified_name);
+CREATE INDEX idx_symbols_file ON symbols(file);
+CREATE INDEX idx_calls_callee ON calls(callee);
+CREATE INDEX idx_calls_caller ON calls(caller_symbol);
+CREATE INDEX idx_defs_var ON defs(var);
+CREATE INDEX idx_imports_module ON imports(module);
+CREATE TABLE files (
+            file           TEXT PRIMARY KEY,
+            lines          INTEGER,
+            language       TEXT,
+            indexed_mtime  REAL,
+            parse_error    INTEGER DEFAULT 0
+        );
+CREATE TABLE directories (
+            path        TEXT PRIMARY KEY,
+            file_count  INTEGER,
+            total_lines INTEGER
+        );Parse error in 2nd command line argument: no such column: path
+  select path from files where path regexp '(^|/)src/|(^|/)crates/|(^|/)cli/' or
+         ^--- error here
+
+Command exited with code 1Parse error in 2nd command line argument: no such column: path
+  select path,line_number,line from lines where line like '%--meta%' or line lik
+         ^--- error here
+
+Command exited with code 1
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge.db "select file,line_num,content from lines where content like '%--meta%' or content like '%meta:%' or content like '%Meta%' order by file,line_num limit 300;"
+    timeout_secs: 10
+
+crates/iwe/src/main.rs|108|    #[clap(long, help = "Exclude document content from results (metadata only)")]
+crates/iwe/src/main.rs|153|    #[clap(long = "meta", value_parser = parse_meta_filter,
+crates/iwe/src/main.rs|155|    meta: Vec<(String, String)>,
+crates/iwe/src/main.rs|654|fn parse_meta_filter(s: &str) -> Result<(String, String), String> {
+crates/iwe/src/main.rs|673|        metadata_filters: args.meta,
+crates/iwe/src/render.rs|13|    document: DocumentMeta,
+crates/iwe/src/render.rs|17|struct DocumentMeta {
+crates/iwe/src/render.rs|21|    parents: Vec<LinkMeta>,
+crates/iwe/src/render.rs|23|    back_links: Vec<LinkMeta>,
+crates/iwe/src/render.rs|27|struct LinkMeta {
+crates/iwe/src/render.rs|60|            document: DocumentMeta {
+crates/iwe/src/render.rs|66|                    .map(|p| LinkMeta {
+crates/iwe/src/render.rs|74|                    .map(|b| LinkMeta {
+crates/iwec/src/lib.rs|114|    #[schemars(description = "Filter by front matter metadata (list of key=value strings)")]
+crates/iwec/src/lib.rs|116|    pub meta: Option<Vec<(String, String)>>,
+crates/iwec/src/lib.rs|130|            metadata_filters: p.meta.unwrap_or_default(),
+crates/iwec/src/lib.rs|150|    #[schemars(description = "Return metadata only without document content. Default: false")]
+crates/iwec/src/lib.rs|1241|            meta: None,
+crates/iwec/src/lib.rs|1335|            meta: None,
+crates/iwes/tests/format_document_test.rs|24|fn metadata_format() {
+crates/liwe/src/find.rs|43|    pub metadata_filters: Vec<(String, String)>,
+crates/liwe/src/find.rs|88|                if !options.metadata_filters.is_empty()
+crates/liwe/src/find.rs|89|                    && !self.metadata_matches(&key, &options.metadata_filters)
+crates/liwe/src/find.rs|253|    fn metadata_matches(&self, key: &Key, filters: &[(String, String)]) -> bool {
+crates/liwe/src/find.rs|254|        let raw = match self.graph.get_metadata(key) {
+crates/liwe/src/graph.rs|55|    metadata: HashMap<Key, String>,
+crates/liwe/src/graph.rs|98|            metadata: self.metadata.clone(),
+crates/liwe/src/graph.rs|137|        self.metadata.remove(&key);
+crates/liwe/src/graph.rs|219|    pub fn get_metadata(&self, key: &Key) -> Option<&str> {
+crates/liwe/src/graph.rs|220|        self.metadata.get(key).map(|s| s.as_str())
+crates/liwe/src/graph.rs|258|        let metadata = self.metadata.get(key)?;
+crates/liwe/src/graph.rs|259|        let yaml_value: serde_yaml::Value = serde_yaml::from_str(metadata).ok()?;
+crates/liwe/src/graph.rs|279|        if let Some(meta) = document.metadata {
+crates/liwe/src/graph.rs|280|            self.metadata.insert(key.clone(), meta);
+crates/liwe/src/graph.rs|282|            self.metadata.remove(&key);
+crates/liwe/src/graph.rs|375|            if let Some(meta) = document.metadata.clone() {
+crates/liwe/src/graph.rs|376|                graph.metadata.insert(key.clone(), meta);
+crates/liwe/src/graph.rs|378|                graph.metadata.remove(&key);
+crates/liwe/src/graph/basic_iter.rs|81|                self.graph.metadata.get(document.key()).cloned(),
+crates/liwe/src/graph/graph_node.rs|26|    metadata: Option<String>,
+crates/liwe/src/graph/graph_node.rs|38|    pub fn metadata(&self) -> Option<String> {
+crates/liwe/src/graph/graph_node.rs|39|        self.metadata.clone()
+crates/liwe/src/graph/graph_node.rs|591|    pub fn new_root(key: Key, id: NodeId, metadata: Option<String>) -> GraphNode {
+crates/liwe/src/graph/graph_node.rs|596|            metadata,
+crates/liwe/src/markdown.rs|28|/// downstream pulldown-cmark MetadataBlock machinery picks it up.
+crates/liwe/src/markdown.rs|70|            metadata: reader.metadata(),
+crates/liwe/src/markdown/reader.rs|19|    metadata_block: bool,
+crates/liwe/src/markdown/reader.rs|20|    metadata: Option<String>,
+crates/liwe/src/markdown/reader.rs|39|            metadata_block: false,
+crates/liwe/src/markdown/reader.rs|40|            metadata: None,
+crates/liwe/src/markdown/reader.rs|53|            metadata_block: false,
+crates/liwe/src/markdown/reader.rs|54|            metadata: None,
+crates/liwe/src/markdown/reader.rs|63|    pub fn metadata(&self) -> Option<String> {
+crates/liwe/src/markdown/reader.rs|64|        self.metadata.clone()
+crates/liwe/src/markdown/reader.rs|80|            Options::ENABLE_YAML_STYLE_METADATA_BLOCKS
+crates/liwe/src/markdown/reader.rs|96|                    if !self.metadata_block {
+crates/liwe/src/markdown/reader.rs|111|                        self.metadata = Some(text.to_string());
+crates/liwe/src/markdown/reader.rs|356|            Tag::MetadataBlock(_) => self.metadata_block = true,
+crates/liwe/src/markdown/reader.rs|386|            TagEnd::MetadataBlock(_) => self.metadata_block = false,
+crates/liwe/src/markdown/writer.rs|1|use pulldown_cmark::{Event, HeadingLevel, MetadataBlockKind, Tag, TagEnd};
+crates/liwe/src/markdown/writer.rs|74|                events.push(Event::Start(Tag::MetadataBlock(
+crates/liwe/src/markdown/writer.rs|75|                    MetadataBlockKind::YamlStyle,
+crates/liwe/src/markdown/writer.rs|78|                events.push(Event::End(TagEnd::MetadataBlock(
+crates/liwe/src/markdown/writer.rs|79|                    MetadataBlockKind::YamlStyle,
+crates/liwe/src/model/config.rs|143|            newlines_after_metadata: 1,
+crates/liwe/src/model/document.rs|10|    pub metadata: Option<String>,
+crates/liwe/src/model/projector.rs|72|            Node::Document(_, metadata) => {
+crates/liwe/src/model/projector.rs|73|                if let Some(metadata_content) = metadata {
+crates/liwe/src/model/projector.rs|74|                    blocks.push(GraphBlock::Frontmatter(metadata_content.clone()));
+crates/liwe/tests/bare_frontmatter_test.rs|44|    // The metadata should have been parsed — the output should have fenced front matter
+crates/liwe/tests/bare_frontmatter_test.rs|66|    // Without bare_frontmatter, "title: Foo" is just body text, no metadata parsed
+crates/liwe/tests/bare_frontmatter_test.rs|88|    // First line isn't "title: " so no metadata parsed
+crates/liwe/tests/find_metadata_test.rs|32|        metadata_filters: vec![("status".to_string(), "ready".to_string())],
+crates/liwe/tests/find_metadata_test.rs|62|        metadata_filters: vec![
+crates/liwe/tests/find_metadata_test.rs|86|        metadata_filters: vec![("status".to_string(), "ready".to_string())],
+crates/liwe/tests/find_metadata_test.rs|94|fn note_without_metadata_excluded() {
+crates/liwe/tests/find_metadata_test.rs|96|        # No Metadata
+crates/liwe/tests/find_metadata_test.rs|101|        metadata_filters: vec![("status".to_string(), "ready".to_string())],
+crates/liwe/tests/find_metadata_test.rs|123|        metadata_filters: vec![("tags".to_string(), "rust".to_string())],
+crates/liwe/tests/find_metadata_test.rs|154|        metadata_filters: vec![("status".to_string(), "ready".to_string())],
+crates/liwe/tests/normalization_metadata.rs|10|fn normalization_meta_block() {
+  ────────────────────────────────────────
+  ▸ shell
+    command: sed -n '130,180p;640,680p;660,690p' crates/iwe/src/main.rs && printf '\n--- find.rs ---\n' && sed -n '1,130p;240,310p' crates/liwe/src/find.rs && printf '\n--- graph.rs metadata ---\n' && sed -n '210,285p;360,382p' crates/liwe/src/graph.rs && printf '\n--- markdown parse metadata ---\n' && sed -n '1,80p' crates/liwe/src/markdown.rs && sed -n '80,120p;350,390p' crates/liwe/src/markdown/reader.rs
+    timeout_secs: 10
+
+    about = help::find::ABOUT,
+    long_about = help::find::LONG_ABOUT,
+    after_help = help::find::AFTER_HELP
+)]
+struct Find {
+    #[clap(help = "Search query (fuzzy match on title and key)")]
+    query: Option<String>,
+
+    #[clap(long, help = "Only root documents (no incoming block refs)")]
+    roots: bool,
+
+    #[clap(long, help = "Documents that reference this key")]
+    refs_to: Option<String>,
+
+    #[clap(long, help = "Documents referenced by this key")]
+    refs_from: Option<String>,
+
+    #[clap(long, short = 'l', help = "Maximum results")]
+    limit: Option<usize>,
+
+    #[clap(long, short = 'f', value_enum, default_value = "markdown")]
+    format: FindFormat,
+
+    #[clap(long = "meta", value_parser = parse_meta_filter,
+           help = "Filter by front matter field (key=value); repeatable")]
+    meta: Vec<(String, String)>,
+
+    #[clap(flatten)]
+    selector: SelectorArgs,
+}
+
+#[derive(Debug, Clone, clap::ValueEnum)]
+enum FindFormat {
+    Markdown,
+    Keys,
+    Json,
+}
+
+#[derive(Debug, Args)]
+#[clap(
+    about = help::normalize::ABOUT,
+    long_about = help::normalize::LONG_ABOUT,
+    after_help = help::normalize::AFTER_HELP
+)]
+struct Normalize {}
+
+#[derive(Debug, Args)]
+#[clap(
+    about = help::init::ABOUT,
+    long_about = help::init::LONG_ABOUT,
+    after_help = help::init::AFTER_HELP
+        }
+        RetrieveFormat::Keys => {
+            for doc in &output.documents {
+                println!("{}", doc.key);
+            }
+        }
+        RetrieveFormat::Markdown => {
+            let options = graph.markdown_options();
+            let renderer = RetrieveRenderer::new(&output, &options, &graph);
+            print!("{}", renderer.render());
+        }
+    }
+}
+
+fn parse_meta_filter(s: &str) -> Result<(String, String), String> {
+    s.split_once('=')
+        .map(|(k, v)| (k.trim().to_string(), v.trim().to_string()))
+        .ok_or_else(|| format!("expected key=value, got `{}`", s))
+}
+
+#[tracing::instrument(level = "debug")]
+#[tracing::instrument(level = "debug")]
+fn find_command(args: Find) {
+fn find_command(args: Find) {
+    let config = get_configuration();
+    let config = get_configuration();
+    let graph = load_graph(&config);
+    let graph = load_graph(&config);
+
+
+    let finder = DocumentFinder::new(&graph);
+    let finder = DocumentFinder::new(&graph);
+    let options = FindOptions {
+    let options = FindOptions {
+        query: args.query,
+        query: args.query,
+        roots: args.roots,
+        roots: args.roots,
+        refs_to: args.refs_to.map(|s| Key::name(&s)),
+        refs_to: args.refs_to.map(|s| Key::name(&s)),
+        refs_from: args.refs_from.map(|s| Key::name(&s)),
+        refs_from: args.refs_from.map(|s| Key::name(&s)),
+        selector: args.selector.into(),
+        selector: args.selector.into(),
+        limit: args.limit,
+        limit: args.limit,
+        metadata_filters: args.meta,
+        metadata_filters: args.meta,
+    };
+    };
+
+
+    let output = finder.find(&options);
+    let output = finder.find(&options);
+
+
+    match args.format {
+    match args.format {
+        FindFormat::Json => {
+        FindFormat::Json => {
+            let json = serde_json::to_string_pretty(&output).expect("Failed to serialize to JSON");
+            let json = serde_json::to_string_pretty(&output).expect("Failed to serialize to JSON");
+            println!("{}", json);
+        }
+        FindFormat::Keys => {
+            for result in &output.results {
+                println!("{}", result.key);
+            }
+        }
+        FindFormat::Markdown => {
+            let rendered = render_find_output(&output);
+            print!("{}", rendered);
+
+--- find.rs ---
+use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
+use itertools::Itertools;
+use serde::Serialize;
+use crate::graph::{Graph, GraphContext};
+use crate::model::node::{NodeIter, NodePointer};
+use crate::model::{Key, NodeId};
+use crate::selector::Selector;
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ParentDocumentInfo {
+    pub key: String,
+    pub title: String,
+    pub section_path: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FindResult {
+    pub key: String,
+    pub title: String,
+    pub display_title: String,
+    pub is_root: bool,
+    pub incoming_refs: usize,
+    pub outgoing_refs: usize,
+    pub parent_documents: Vec<ParentDocumentInfo>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FindOutput {
+    pub query: Option<String>,
+    pub limit: Option<usize>,
+    pub total: usize,
+    pub results: Vec<FindResult>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct FindOptions {
+    pub query: Option<String>,
+    pub roots: bool,
+    pub refs_to: Option<Key>,
+    pub refs_from: Option<Key>,
+    pub selector: Selector,
+    pub limit: Option<usize>,
+    pub metadata_filters: Vec<(String, String)>,
+}
+
+pub struct DocumentFinder<'a> {
+    graph: &'a Graph,
+}
+
+impl<'a> DocumentFinder<'a> {
+    pub fn new(graph: &'a Graph) -> Self {
+        Self { graph }
+    }
+
+    pub fn find(&self, options: &FindOptions) -> FindOutput {
+        let matcher = SkimMatcherV2::default();
+
+        let candidate_set = if options.selector.is_empty() {
+            None
+        } else {
+            Some(options.selector.resolve(self.graph))
+        };
+
+        let mut results: Vec<(Key, i64)> = self
+            .graph
+            .keys()
+            .into_iter()
+            .filter_map(|key| {
+                if let Some(set) = &candidate_set {
+                    if !set.contains(&key) {
+                        return None;
+                    }
+                }
+                if options.roots && !self.is_root(&key) {
+                    return None;
+                }
+                if let Some(ref target) = options.refs_to {
+                    if !self.references(&key, target) {
+                        return None;
+                    }
+                }
+                if let Some(ref source) = options.refs_from {
+                    if !self.references(source, &key) {
+                        return None;
+                    }
+                }
+
+                if !options.metadata_filters.is_empty()
+                    && !self.metadata_matches(&key, &options.metadata_filters)
+                {
+                    return None;
+                }
+
+                let title = self.graph.get_key_title(&key).unwrap_or_default();
+                let search_text = format!("{} {}", key, title);
+
+                let score = options
+                    .query
+                    .as_ref()
+                    .map(|q| matcher.fuzzy_match(&search_text, q).unwrap_or(0))
+                    .unwrap_or(self.node_rank(&key) as i64);
+
+                if options.query.is_some() && score == 0 {
+                    return None;
+                }
+
+                Some((key, score))
+            })
+            .collect();
+
+        results.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+
+        let total = results.len();
+        let results: Vec<FindResult> = if let Some(limit) = options.limit {
+            results
+                .into_iter()
+                .take(limit)
+                .map(|(key, _)| self.build_result(&key))
+                .collect()
+        } else {
+            results
+                .into_iter()
+                .map(|(key, _)| self.build_result(&key))
+                .collect()
+        };
+
+        let limit = options.limit.filter(|&l| l < total);
+
+        FindOutput {
+            query: options.query.clone(),
+                    .unwrap_or(true)
+            {
+                let text = parent.plain_text().trim().to_string();
+                path.push(text);
+            }
+            if parent.is_document() {
+                break;
+            }
+            current = parent;
+        }
+        path
+    }
+
+    fn metadata_matches(&self, key: &Key, filters: &[(String, String)]) -> bool {
+        let raw = match self.graph.get_metadata(key) {
+            Some(s) => s,
+            None => return false,
+        };
+        let val: serde_yaml::Value = match serde_yaml::from_str(raw) {
+            Ok(v) => v,
+            _ => return false,
+        };
+        filters.iter().all(|(k, v)| {
+            val.get(k.as_str())
+                .and_then(|node| match node {
+                    serde_yaml::Value::String(s) => Some(s.as_str() == v.as_str()),
+                    serde_yaml::Value::Bool(b) => Some(b.to_string() == *v),
+                    serde_yaml::Value::Number(n) => Some(n.to_string() == *v),
+                    serde_yaml::Value::Sequence(items) => Some(
+                        items
+                            .iter()
+                            .any(|i| i.as_str().map(|s| s == v.as_str()).unwrap_or(false)),
+                    ),
+                    _ => Some(false),
+                })
+                .unwrap_or(false)
+        })
+    }
+}
+
+--- graph.rs metadata ---
+
+    pub fn build_key_from_iter<'b>(&mut self, key: &Key, iter: impl NodeIter<'b>) {
+        self.build_key(key).insert_from_iter(iter);
+    }
+
+    pub fn builder(&mut self, id: NodeId) -> GraphBuilder<'_> {
+        GraphBuilder::new(self, id)
+    }
+
+    pub fn get_key_title(&self, key: &Key) -> Option<String> {
+        self.keys_to_ref_text.get(key).cloned()
+    }
+
+    pub fn get_metadata(&self, key: &Key) -> Option<&str> {
+        self.metadata.get(key).map(|s| s.as_str())
+    }
+
+    pub fn build_key_and<F>(&mut self, key: &Key, f: F) -> &mut Self
+    where
+        F: FnOnce(&mut GraphBuilder),
+    {
+        let id = self.arena.new_node_id();
+        self.keys.insert(key.clone(), id);
+        self.arena
+            .set_node(id, GraphNode::new_root(key.clone(), id, None));
+        f(&mut GraphBuilder::new(self, id));
+
+        self.extract_ref_text(key)
+            .map(|text| self.keys_to_ref_text.insert(key.clone(), text));
+
+        let mut index = RefIndex::new();
+        index.index_node(self, id);
+        self.index.merge(index);
+
+        self
+    }
+
+    fn extract_ref_text(&self, key: &Key) -> Option<String> {
+        if let Some(title) = self.extract_frontmatter_title(key) {
+            return Some(title);
+        }
+
+        self.graph_node(self.get_document_id(key))
+            .child_id()
+            .map(|id| self.graph_node(id))
+            .filter(|node| node.is_section())
+            .and_then(|node| node.line_id())
+            .map(|line_id| self.arena.get_line(line_id).to_plain_text())
+    }
+
+    fn extract_frontmatter_title(&self, key: &Key) -> Option<String> {
+        let title_key = self.frontmatter_document_title.as_ref()?;
+        let metadata = self.metadata.get(key)?;
+        let yaml_value: serde_yaml::Value = serde_yaml::from_str(metadata).ok()?;
+        yaml_value.get(title_key)?.as_str().map(|s| s.to_string())
+    }
+
+    pub fn maybe_key(&self, key: &Key) -> Option<impl NodePointer<'_>> {
+        self.keys
+            .get(key)
+            .map(|id| GraphNodePointer::new(self, *id))
+    }
+
+    pub fn get_document_id(&self, key: &Key) -> NodeId {
+        *self
+            .keys
+            .get(key)
+            .unwrap_or_else(|| panic!("to have key, {}", key))
+    }
+
+    pub fn from_markdown(&mut self, key: Key, content: &str, reader: impl Reader) {
+        let document = reader.document(content, &self.markdown_options);
+
+        if let Some(meta) = document.metadata {
+            self.metadata.insert(key.clone(), meta);
+        } else {
+    ) -> Self {
+        let mut graph = Graph::new_with_options(markdown_options.clone());
+        graph.set_sequential_keys(sequential_ids);
+        graph.frontmatter_document_title = frontmatter_document_title;
+
+        let reader = MarkdownReader::new();
+
+        let blocks = state
+            .iter()
+            .sorted_by(|a, b| a.0.cmp(b.0))
+            .collect_vec()
+            .par_iter()
+            .map(|(k, v)| {
+                debug!("parsing content, key={}", k);
+                (Key::name(k), reader.document(v, &markdown_options))
+            })
+            .collect::<Vec<_>>();
+
+        for (key, document) in blocks.into_iter() {
+            if let Some(meta) = document.metadata.clone() {
+                graph.metadata.insert(key.clone(), meta);
+            } else {
+                graph.metadata.remove(&key);
+
+--- markdown parse metadata ---
+── sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db ──
+query: SELECT line_num, content FROM lines WHERE file='crates/liwe/src/markdown.rs' AND line_num BETWEEN 1 AND 80;
+** STOP USING sed. Query the DB directly: sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db "SELECT content FROM lines WHERE file='crates/liwe/src/markdown.rs' AND line_num BETWEEN START AND END ORDER BY line_num;" **
+
+   1 │ use std::borrow::Cow;
+   2 │ 
+   3 │ use crate::graph::Reader;
+   4 │ use crate::model::config::MarkdownOptions;
+   5 │ use crate::model::document::Document;
+   6 │ 
+   7 │ pub mod reader;
+   8 │ 
+   9 │ use reader::MarkdownEventsReader;
+  10 │ pub struct MarkdownReader {}
+  11 │ 
+  12 │ pub mod writer;
+  13 │ 
+  14 │ impl Default for MarkdownReader {
+  15 │     fn default() -> Self {
+  16 │         Self::new()
+  17 │     }
+  18 │ }
+  19 │ 
+  20 │ impl MarkdownReader {
+  21 │     pub fn new() -> MarkdownReader {
+  22 │         MarkdownReader {}
+  23 │     }
+  24 │ }
+  25 │ 
+  26 │ /// If `bare_frontmatter` is enabled and content starts with `title: ` (but
+  27 │ /// not `---`), wrap the leading header block in `---` fences so the
+  28 │ /// downstream pulldown-cmark MetadataBlock machinery picks it up.
+  29 │ pub fn wrap_bare_frontmatter(content: &str) -> Cow<'_, str> {
+  30 │     // Already fenced — leave alone.
+  31 │     if content.starts_with("---") {
+  32 │         return Cow::Borrowed(content);
+  33 │     }
+  34 │ 
+  35 │     // Must start with `title: `.
+  36 │     if !content.starts_with("title: ") {
+  37 │         return Cow::Borrowed(content);
+  38 │     }
+  39 │ 
+  40 │     // Find first true blank line (\n\n or \r\n\r\n).
+  41 │     let (header, rest) = if let Some(pos) = content.find("\n\n") {
+  42 │         (&content[..pos], &content[pos + 2..])
+  43 │     } else if let Some(pos) = content.find("\r\n\r\n") {
+  44 │         (&content[..pos], &content[pos + 4..])
+  45 │     } else {
+  46 │         // No blank line — entire content is header.
+  47 │         (content.trim_end(), "")
+  48 │     };
+  49 │ 
+  50 │     if rest.is_empty() {
+  51 │         Cow::Owned(format!("---\n{}\n---\n", header))
+  52 │     } else {
+  53 │         Cow::Owned(format!("---\n{}\n---\n\n{}", header, rest))
+  54 │     }
+  55 │ }
+  56 │ 
+  57 │ impl Reader for MarkdownReader {
+  58 │     fn document(&self, content: &str, markdown_options: &MarkdownOptions) -> Document {
+  59 │         let effective = if markdown_options.bare_frontmatter {
+  60 │             wrap_bare_frontmatter(content)
+  61 │         } else {
+  62 │             Cow::Borrowed(content)
+  63 │         };
+  64 │ 
+  65 │         let mut reader = MarkdownEventsReader::new_with_options(markdown_options);
+  66 │         reader.read(&effective);
+  67 │ 
+  68 │         Document {
+  69 │             blocks: reader.blocks(),
+  70 │             metadata: reader.metadata(),
+  71 │         }
+  72 │     }
+  73 │ }
+
+── enclosing: MarkdownReader | struct | lines 10-10
+MarkdownReader | trait_impl | lines 14-18
+default | method | lines 15-17
+MarkdownReader | impl | lines 20-24
+new | method | lines 21-23
+wrap_bare_frontmatter | function | lines 29-55
+MarkdownReader | trait_impl | lines 57-73
+document | method | lines 58-72 ──
+── full  struct : sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db "SELECT content FROM lines WHERE file='crates/liwe/src/markdown.rs' AND line_num BETWEEN 10 AND 10 ORDER BY line_num;" ──
+── full  trait_impl : sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db "SELECT content FROM lines WHERE file='crates/liwe/src/markdown.rs' AND line_num BETWEEN 14 AND 18 ORDER BY line_num;" ──
+── full  method : sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db "SELECT content FROM lines WHERE file='crates/liwe/src/markdown.rs' AND line_num BETWEEN 15 AND 17 ORDER BY line_num;" ──
+── full  impl : sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db "SELECT content FROM lines WHERE file='crates/liwe/src/markdown.rs' AND line_num BETWEEN 20 AND 24 ORDER BY line_num;" ──
+── full  method : sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db "SELECT content FROM lines WHERE file='crates/liwe/src/markdown.rs' AND line_num BETWEEN 21 AND 23 ORDER BY line_num;" ──
+── full  function : sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db "SELECT content FROM lines WHERE file='crates/liwe/src/markdown.rs' AND line_num BETWEEN 29 AND 55 ORDER BY line_num;" ──
+── full  trait_impl : sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db "SELECT content FROM lines WHERE file='crates/liwe/src/markdown.rs' AND line_num BETWEEN 57 AND 73 ORDER BY line_num;" ──
+── full  method : sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db "SELECT content FROM lines WHERE file='crates/liwe/src/markdown.rs' AND line_num BETWEEN 58 AND 72 ORDER BY line_num;" ──
+            Options::ENABLE_YAML_STYLE_METADATA_BLOCKS
+                | Options::ENABLE_WIKILINKS
+                | Options::ENABLE_TABLES,
+        )
+        .into_offset_iter();
+        self.line_starts = line_starts(content);
+
+        for (event, range) in iter {
+            match event {
+                Start(tag) => {
+                    self.start_tag(tag, range);
+                }
+                End(tag) => {
+                    self.end_tag(tag, range);
+                }
+                Text(text) => {
+                    if !self.metadata_block {
+                        match self.top_block() {
+                            DocumentBlock::CodeBlock(code_block) => {
+                                code_block.text = format!("{}{}", code_block.text, text)
+                            }
+                            DocumentBlock::RawBlock(block) => block.text = text.to_string(),
+                            _ => {
+                                self.push_inline(
+                                    DocumentInline::Str(text.to_string()),
+                                    self.to_line_range(range),
+                                );
+                                self.pop_inline();
+                            }
+                        }
+                    } else {
+                        self.metadata = Some(text.to_string());
+                    }
+                }
+                Code(text) => {
+                    self.push_inline(
+                        DocumentInline::Code(document::Code {
+                            attr: Attributes::default(),
+                            text: text.to_string(),
+                            inline_range: self.to_inline_range(range.clone()),
+                        }),
+                        attr: Default::default(),
+                        inline_range: self.to_inline_range(range.clone()),
+                    }),
+                    self.to_line_range(range),
+                );
+            }
+            Tag::MetadataBlock(_) => self.metadata_block = true,
+            Tag::Superscript => {}
+            Tag::Subscript => {}
+        }
+    }
+
+    fn end_tag(&mut self, tag: TagEnd, _: Range<usize>) {
+        match tag {
+            TagEnd::Paragraph => {
+                self.pop_block();
+            }
+            TagEnd::Heading(_) => self.pop_block(),
+            TagEnd::BlockQuote(_) => self.pop_block(),
+            TagEnd::CodeBlock => {
+                self.pop_block();
+            }
+            TagEnd::HtmlBlock => {}
+            TagEnd::List(_) => {
+                self.pop_block();
+            }
+            TagEnd::Item => {}
+            TagEnd::Emphasis => self.pop_inline(),
+            TagEnd::Strong => self.pop_inline(),
+            TagEnd::Strikethrough => self.pop_inline(),
+            TagEnd::Link => self.pop_inline(),
+            TagEnd::DefinitionList => {}
+            TagEnd::DefinitionListDefinition => {}
+            TagEnd::DefinitionListTitle => {}
+            TagEnd::FootnoteDefinition => {}
+            TagEnd::Image => self.pop_inline(),
+            TagEnd::MetadataBlock(_) => self.metadata_block = false,
+            TagEnd::Table => {
+                self.pop_block();
+            }
+            TagEnd::TableCell => {}
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge.db "select file,line_num,content from lines where file='crates/iwe/src/main.rs' and (content like '%enum Commands%' or content like '%Find(Find)%' or content like '%find_command%' or content like '%parse_meta_filter%' or content like '%load_graph%' or content like '%get_configuration%') order by line_num;"
+    timeout_secs: 10
+
+crates/iwe/src/main.rs|53|    Find(Find),
+crates/iwe/src/main.rs|153|    #[clap(long = "meta", value_parser = parse_meta_filter,
+crates/iwe/src/main.rs|557|        Command::Find(find) => find_command(find),
+crates/iwe/src/main.rs|571|    let config = get_configuration();
+crates/iwe/src/main.rs|572|    let graph = load_graph(&config);
+crates/iwe/src/main.rs|654|fn parse_meta_filter(s: &str) -> Result<(String, String), String> {
+crates/iwe/src/main.rs|661|fn find_command(args: Find) {
+crates/iwe/src/main.rs|662|    let config = get_configuration();
+crates/iwe/src/main.rs|663|    let graph = load_graph(&config);
+crates/iwe/src/main.rs|737|    let config = get_configuration();
+crates/iwe/src/main.rs|792|    let config = get_configuration();
+crates/iwe/src/main.rs|793|    let graph = load_graph(&config);
+crates/iwe/src/main.rs|979|    let configuration = get_configuration();
+crates/iwe/src/main.rs|980|    let graph = load_graph(&configuration);
+crates/iwe/src/main.rs|986|    let config = get_configuration();
+crates/iwe/src/main.rs|987|    let graph = &load_graph(&config);
+crates/iwe/src/main.rs|1025|fn load_graph(configuration: &Configuration) -> Graph {
+crates/iwe/src/main.rs|1048|fn get_configuration() -> Configuration {
+crates/iwe/src/main.rs|1060|    let config = get_configuration();
+crates/iwe/src/main.rs|1061|    let graph = load_graph(&config);
+crates/iwe/src/main.rs|1106|    let config = get_configuration();
+crates/iwe/src/main.rs|1107|    let graph = load_graph(&config);
+crates/iwe/src/main.rs|1145|    let config = get_configuration();
+crates/iwe/src/main.rs|1146|    let graph = load_graph(&config);
+crates/iwe/src/main.rs|1190|    let config = get_configuration();
+crates/iwe/src/main.rs|1191|    let graph = load_graph(&config);
+crates/iwe/src/main.rs|1333|    let config = get_configuration();
+crates/iwe/src/main.rs|1334|    let graph = load_graph(&config);
+crates/iwe/src/main.rs|1446|    let config = get_configuration();
+crates/iwe/src/main.rs|1447|    let graph = load_graph(&config);
+crates/iwe/src/main.rs|1565|    let config = get_configuration();
+crates/iwe/src/main.rs|1566|    let graph = load_graph(&config);
+crates/iwe/src/main.rs|1606|    let config = get_configuration();
+crates/iwe/src/main.rs|1628|    let graph = load_graph(&config);
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge.db "select file,line_num,content from lines where file='crates/iwe/src/main.rs' and line_num between 1 and 70 order by line_num; select '---'; select file,line_num,content from lines where file='crates/iwe/src/main.rs' and line_num between 540 and 565 order by line_num; select '---'; select file,line_num,content from lines where file='crates/iwe/src/main.rs' and line_num between 1020 and 1058 order by line_num;"
+    timeout_secs: 10
+
+crates/iwe/src/main.rs|1|use std::env;
+crates/iwe/src/main.rs|2|use std::fs::create_dir;
+crates/iwe/src/main.rs|3|use std::path::PathBuf;
+crates/iwe/src/main.rs|4|use std::process::Command as ProcessCommand;
+crates/iwe/src/main.rs|5|
+crates/iwe/src/main.rs|6|use clap::{Args, Parser, Subcommand};
+crates/iwe/src/main.rs|7|
+crates/iwe/src/main.rs|8|mod help;
+crates/iwe/src/main.rs|9|use itertools::Itertools;
+crates/iwe/src/main.rs|10|
+crates/iwe/src/main.rs|11|use iwe::export::{dot_details_exporter, dot_exporter, graph_data};
+crates/iwe/src/main.rs|12|use iwe::find::{DocumentFinder, FindOptions};
+crates/iwe/src/main.rs|13|use iwe::new::{read_stdin_if_available, CreateOptions, DocumentCreator, IfExists};
+crates/iwe/src/main.rs|14|use iwe::render::RetrieveRenderer;
+crates/iwe/src/main.rs|15|use iwe::retrieve::{DocumentReader, RetrieveOptions};
+crates/iwe/src/main.rs|16|use iwe::selector::SelectorArgs;
+crates/iwe/src/main.rs|17|use iwe::stats::{render_stats, GraphStatistics};
+crates/iwe/src/main.rs|18|use liwe::fs::new_for_path_with_options;
+crates/iwe/src/main.rs|19|use liwe::graph::{Graph, GraphContext};
+crates/iwe/src/main.rs|20|use liwe::locale::get_locale;
+crates/iwe/src/main.rs|21|use liwe::model::config::{
+crates/iwe/src/main.rs|22|    load_config, ActionDefinition, Configuration, InlineType, LinkType,
+crates/iwe/src/main.rs|23|};
+crates/iwe/src/main.rs|24|use liwe::model::node::{Node, NodePointer};
+crates/iwe/src/main.rs|25|use liwe::model::tree::{Tree as ModelTree, TreeIter};
+crates/iwe/src/main.rs|26|use liwe::model::Key;
+crates/iwe/src/main.rs|27|use liwe::operations::{
+crates/iwe/src/main.rs|28|    delete as op_delete, extract as op_extract, inline as op_inline, rename as op_rename,
+crates/iwe/src/main.rs|29|    Changes, ExtractConfig, InlineConfig,
+crates/iwe/src/main.rs|30|};
+crates/iwe/src/main.rs|31|
+crates/iwe/src/main.rs|32|use std::io::{self, Write as IoWrite};
+crates/iwe/src/main.rs|33|use log::{debug, error, info};
+crates/iwe/src/main.rs|34|
+crates/iwe/src/main.rs|35|const CONFIG_FILE_NAME: &str = "config.toml";
+crates/iwe/src/main.rs|36|const IWE_MARKER: &str = ".iwe";
+crates/iwe/src/main.rs|37|
+crates/iwe/src/main.rs|38|#[derive(Debug, Parser)]
+crates/iwe/src/main.rs|39|#[clap(name = "iwe", version)]
+crates/iwe/src/main.rs|40|pub struct App {
+crates/iwe/src/main.rs|41|    #[clap(flatten)]
+crates/iwe/src/main.rs|42|    global_opts: GlobalOpts,
+crates/iwe/src/main.rs|43|
+crates/iwe/src/main.rs|44|    #[clap(subcommand)]
+crates/iwe/src/main.rs|45|    command: Command,
+crates/iwe/src/main.rs|46|}
+crates/iwe/src/main.rs|47|
+crates/iwe/src/main.rs|48|#[derive(Debug, Subcommand)]
+crates/iwe/src/main.rs|49|enum Command {
+crates/iwe/src/main.rs|50|    Init(Init),
+crates/iwe/src/main.rs|51|    New(New),
+crates/iwe/src/main.rs|52|    Retrieve(Retrieve),
+crates/iwe/src/main.rs|53|    Find(Find),
+crates/iwe/src/main.rs|54|    Normalize(Normalize),
+crates/iwe/src/main.rs|55|    Tree(TreeArgs),
+crates/iwe/src/main.rs|56|    Squash(Squash),
+crates/iwe/src/main.rs|57|    Export(Export),
+crates/iwe/src/main.rs|58|    Stats(Stats),
+crates/iwe/src/main.rs|59|    Rename(Rename),
+crates/iwe/src/main.rs|60|    Delete(Delete),
+crates/iwe/src/main.rs|61|    Extract(Extract),
+crates/iwe/src/main.rs|62|    Inline(Inline),
+crates/iwe/src/main.rs|63|    Update(Update),
+crates/iwe/src/main.rs|64|    Attach(Attach),
+crates/iwe/src/main.rs|65|}
+crates/iwe/src/main.rs|66|
+crates/iwe/src/main.rs|67|#[derive(Debug, Args)]
+crates/iwe/src/main.rs|68|#[clap(
+crates/iwe/src/main.rs|69|    about = help::retrieve::ABOUT,
+crates/iwe/src/main.rs|70|    long_about = help::retrieve::LONG_ABOUT,
+---
+crates/iwe/src/main.rs|540|            .init();
+crates/iwe/src/main.rs|541|    }
+crates/iwe/src/main.rs|542|
+crates/iwe/src/main.rs|543|    debug!("starting command processing");
+crates/iwe/src/main.rs|544|    match app.command {
+crates/iwe/src/main.rs|545|        Command::Normalize(normalize) => {
+crates/iwe/src/main.rs|546|            normalize_command(normalize);
+crates/iwe/src/main.rs|547|        }
+crates/iwe/src/main.rs|548|        Command::Tree(tree) => {
+crates/iwe/src/main.rs|549|            tree_command(tree);
+crates/iwe/src/main.rs|550|        }
+crates/iwe/src/main.rs|551|        Command::Squash(squash) => {
+crates/iwe/src/main.rs|552|            squash_command(squash);
+crates/iwe/src/main.rs|553|        }
+crates/iwe/src/main.rs|554|        Command::Init(init) => init_command(init),
+crates/iwe/src/main.rs|555|        Command::New(new) => new_command(new),
+crates/iwe/src/main.rs|556|        Command::Retrieve(retrieve) => retrieve_command(retrieve),
+crates/iwe/src/main.rs|557|        Command::Find(find) => find_command(find),
+crates/iwe/src/main.rs|558|        Command::Export(export) => export_command(export),
+crates/iwe/src/main.rs|559|        Command::Stats(stats) => stats_command(stats),
+crates/iwe/src/main.rs|560|        Command::Rename(rename) => rename_command(rename),
+crates/iwe/src/main.rs|561|        Command::Delete(delete) => delete_command(delete),
+crates/iwe/src/main.rs|562|        Command::Extract(extract) => extract_command(extract),
+crates/iwe/src/main.rs|563|        Command::Inline(inline) => inline_command(inline),
+crates/iwe/src/main.rs|564|        Command::Update(update) => update_command(update),
+crates/iwe/src/main.rs|565|        Command::Attach(attach) => attach_command(attach),
+---
+crates/iwe/src/main.rs|1020|        let file_path = library_path.join(format!("{}.md", key));
+crates/iwe/src/main.rs|1021|        std::fs::write(&file_path, markdown).expect("Failed to write document file");
+crates/iwe/src/main.rs|1022|    }
+crates/iwe/src/main.rs|1023|}
+crates/iwe/src/main.rs|1024|
+crates/iwe/src/main.rs|1025|fn load_graph(configuration: &Configuration) -> Graph {
+crates/iwe/src/main.rs|1026|    Graph::import(
+crates/iwe/src/main.rs|1027|        &new_for_path_with_options(
+crates/iwe/src/main.rs|1028|            &get_library_path(configuration),
+crates/iwe/src/main.rs|1029|            configuration.library.virtual_directories,
+crates/iwe/src/main.rs|1030|        ),
+crates/iwe/src/main.rs|1031|        configuration.markdown.clone(),
+crates/iwe/src/main.rs|1032|        configuration.library.frontmatter_document_title.clone(),
+crates/iwe/src/main.rs|1033|    )
+crates/iwe/src/main.rs|1034|}
+crates/iwe/src/main.rs|1035|
+crates/iwe/src/main.rs|1036|fn get_library_path(configuration: &Configuration) -> PathBuf {
+crates/iwe/src/main.rs|1037|    let current_dir = env::current_dir().expect("to get current dir");
+crates/iwe/src/main.rs|1038|
+crates/iwe/src/main.rs|1039|    let mut library_path = current_dir;
+crates/iwe/src/main.rs|1040|
+crates/iwe/src/main.rs|1041|    if !configuration.library.path.is_empty() {
+crates/iwe/src/main.rs|1042|        library_path.push(configuration.library.path.clone());
+crates/iwe/src/main.rs|1043|    }
+crates/iwe/src/main.rs|1044|
+crates/iwe/src/main.rs|1045|    library_path
+crates/iwe/src/main.rs|1046|}
+crates/iwe/src/main.rs|1047|
+crates/iwe/src/main.rs|1048|fn get_configuration() -> Configuration {
+crates/iwe/src/main.rs|1049|    let config = load_config();
+crates/iwe/src/main.rs|1050|    if log::log_enabled!(log::Level::Debug) {
+crates/iwe/src/main.rs|1051|        let formatted_config =
+crates/iwe/src/main.rs|1052|            toml::to_string_pretty(&config).unwrap_or_else(|_| format!("{:#?}", config));
+crates/iwe/src/main.rs|1053|        debug!("using config:\n{}", formatted_config);
+crates/iwe/src/main.rs|1054|    }
+crates/iwe/src/main.rs|1055|    config
+crates/iwe/src/main.rs|1056|}
+crates/iwe/src/main.rs|1057|
+crates/iwe/src/main.rs|1058|#[tracing::instrument(level = "debug")]
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge.db "select file,line_num,content from lines where file='crates/iwe/src/main.rs' and line_num between 650 and 690 order by line_num; select '--- lib find rest'; select file,line_num,content from lines where file='crates/liwe/src/find.rs' and line_num between 1 and 120 order by line_num; select '---'; select file,line_num,content from lines where file='crates/liwe/src/find.rs' and line_num between 120 and 275 order by line_num;"
+    timeout_secs: 10
+
+crates/iwe/src/main.rs|650|        }
+crates/iwe/src/main.rs|651|    }
+crates/iwe/src/main.rs|652|}
+crates/iwe/src/main.rs|653|
+crates/iwe/src/main.rs|654|fn parse_meta_filter(s: &str) -> Result<(String, String), String> {
+crates/iwe/src/main.rs|655|    s.split_once('=')
+crates/iwe/src/main.rs|656|        .map(|(k, v)| (k.trim().to_string(), v.trim().to_string()))
+crates/iwe/src/main.rs|657|        .ok_or_else(|| format!("expected key=value, got `{}`", s))
+crates/iwe/src/main.rs|658|}
+crates/iwe/src/main.rs|659|
+crates/iwe/src/main.rs|660|#[tracing::instrument(level = "debug")]
+crates/iwe/src/main.rs|661|fn find_command(args: Find) {
+crates/iwe/src/main.rs|662|    let config = get_configuration();
+crates/iwe/src/main.rs|663|    let graph = load_graph(&config);
+crates/iwe/src/main.rs|664|
+crates/iwe/src/main.rs|665|    let finder = DocumentFinder::new(&graph);
+crates/iwe/src/main.rs|666|    let options = FindOptions {
+crates/iwe/src/main.rs|667|        query: args.query,
+crates/iwe/src/main.rs|668|        roots: args.roots,
+crates/iwe/src/main.rs|669|        refs_to: args.refs_to.map(|s| Key::name(&s)),
+crates/iwe/src/main.rs|670|        refs_from: args.refs_from.map(|s| Key::name(&s)),
+crates/iwe/src/main.rs|671|        selector: args.selector.into(),
+crates/iwe/src/main.rs|672|        limit: args.limit,
+crates/iwe/src/main.rs|673|        metadata_filters: args.meta,
+crates/iwe/src/main.rs|674|    };
+crates/iwe/src/main.rs|675|
+crates/iwe/src/main.rs|676|    let output = finder.find(&options);
+crates/iwe/src/main.rs|677|
+crates/iwe/src/main.rs|678|    match args.format {
+crates/iwe/src/main.rs|679|        FindFormat::Json => {
+crates/iwe/src/main.rs|680|            let json = serde_json::to_string_pretty(&output).expect("Failed to serialize to JSON");
+crates/iwe/src/main.rs|681|            println!("{}", json);
+crates/iwe/src/main.rs|682|        }
+crates/iwe/src/main.rs|683|        FindFormat::Keys => {
+crates/iwe/src/main.rs|684|            for result in &output.results {
+crates/iwe/src/main.rs|685|                println!("{}", result.key);
+crates/iwe/src/main.rs|686|            }
+crates/iwe/src/main.rs|687|        }
+crates/iwe/src/main.rs|688|        FindFormat::Markdown => {
+crates/iwe/src/main.rs|689|            let rendered = render_find_output(&output);
+crates/iwe/src/main.rs|690|            print!("{}", rendered);
+--- lib find rest
+crates/liwe/src/find.rs|1|use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
+crates/liwe/src/find.rs|2|use itertools::Itertools;
+crates/liwe/src/find.rs|3|use serde::Serialize;
+crates/liwe/src/find.rs|4|use crate::graph::{Graph, GraphContext};
+crates/liwe/src/find.rs|5|use crate::model::node::{NodeIter, NodePointer};
+crates/liwe/src/find.rs|6|use crate::model::{Key, NodeId};
+crates/liwe/src/find.rs|7|use crate::selector::Selector;
+crates/liwe/src/find.rs|8|
+crates/liwe/src/find.rs|9|#[derive(Debug, Clone, Serialize)]
+crates/liwe/src/find.rs|10|pub struct ParentDocumentInfo {
+crates/liwe/src/find.rs|11|    pub key: String,
+crates/liwe/src/find.rs|12|    pub title: String,
+crates/liwe/src/find.rs|13|    pub section_path: Vec<String>,
+crates/liwe/src/find.rs|14|}
+crates/liwe/src/find.rs|15|
+crates/liwe/src/find.rs|16|#[derive(Debug, Clone, Serialize)]
+crates/liwe/src/find.rs|17|pub struct FindResult {
+crates/liwe/src/find.rs|18|    pub key: String,
+crates/liwe/src/find.rs|19|    pub title: String,
+crates/liwe/src/find.rs|20|    pub display_title: String,
+crates/liwe/src/find.rs|21|    pub is_root: bool,
+crates/liwe/src/find.rs|22|    pub incoming_refs: usize,
+crates/liwe/src/find.rs|23|    pub outgoing_refs: usize,
+crates/liwe/src/find.rs|24|    pub parent_documents: Vec<ParentDocumentInfo>,
+crates/liwe/src/find.rs|25|}
+crates/liwe/src/find.rs|26|
+crates/liwe/src/find.rs|27|#[derive(Debug, Clone, Serialize)]
+crates/liwe/src/find.rs|28|pub struct FindOutput {
+crates/liwe/src/find.rs|29|    pub query: Option<String>,
+crates/liwe/src/find.rs|30|    pub limit: Option<usize>,
+crates/liwe/src/find.rs|31|    pub total: usize,
+crates/liwe/src/find.rs|32|    pub results: Vec<FindResult>,
+crates/liwe/src/find.rs|33|}
+crates/liwe/src/find.rs|34|
+crates/liwe/src/find.rs|35|#[derive(Debug, Clone, Default)]
+crates/liwe/src/find.rs|36|pub struct FindOptions {
+crates/liwe/src/find.rs|37|    pub query: Option<String>,
+crates/liwe/src/find.rs|38|    pub roots: bool,
+crates/liwe/src/find.rs|39|    pub refs_to: Option<Key>,
+crates/liwe/src/find.rs|40|    pub refs_from: Option<Key>,
+crates/liwe/src/find.rs|41|    pub selector: Selector,
+crates/liwe/src/find.rs|42|    pub limit: Option<usize>,
+crates/liwe/src/find.rs|43|    pub metadata_filters: Vec<(String, String)>,
+crates/liwe/src/find.rs|44|}
+crates/liwe/src/find.rs|45|
+crates/liwe/src/find.rs|46|pub struct DocumentFinder<'a> {
+crates/liwe/src/find.rs|47|    graph: &'a Graph,
+crates/liwe/src/find.rs|48|}
+crates/liwe/src/find.rs|49|
+crates/liwe/src/find.rs|50|impl<'a> DocumentFinder<'a> {
+crates/liwe/src/find.rs|51|    pub fn new(graph: &'a Graph) -> Self {
+crates/liwe/src/find.rs|52|        Self { graph }
+crates/liwe/src/find.rs|53|    }
+crates/liwe/src/find.rs|54|
+crates/liwe/src/find.rs|55|    pub fn find(&self, options: &FindOptions) -> FindOutput {
+crates/liwe/src/find.rs|56|        let matcher = SkimMatcherV2::default();
+crates/liwe/src/find.rs|57|
+crates/liwe/src/find.rs|58|        let candidate_set = if options.selector.is_empty() {
+crates/liwe/src/find.rs|59|            None
+crates/liwe/src/find.rs|60|        } else {
+crates/liwe/src/find.rs|61|            Some(options.selector.resolve(self.graph))
+crates/liwe/src/find.rs|62|        };
+crates/liwe/src/find.rs|63|
+crates/liwe/src/find.rs|64|        let mut results: Vec<(Key, i64)> = self
+crates/liwe/src/find.rs|65|            .graph
+crates/liwe/src/find.rs|66|            .keys()
+crates/liwe/src/find.rs|67|            .into_iter()
+crates/liwe/src/find.rs|68|            .filter_map(|key| {
+crates/liwe/src/find.rs|69|                if let Some(set) = &candidate_set {
+crates/liwe/src/find.rs|70|                    if !set.contains(&key) {
+crates/liwe/src/find.rs|71|                        return None;
+crates/liwe/src/find.rs|72|                    }
+crates/liwe/src/find.rs|73|                }
+crates/liwe/src/find.rs|74|                if options.roots && !self.is_root(&key) {
+crates/liwe/src/find.rs|75|                    return None;
+crates/liwe/src/find.rs|76|                }
+crates/liwe/src/find.rs|77|                if let Some(ref target) = options.refs_to {
+crates/liwe/src/find.rs|78|                    if !self.references(&key, target) {
+crates/liwe/src/find.rs|79|                        return None;
+crates/liwe/src/find.rs|80|                    }
+crates/liwe/src/find.rs|81|                }
+crates/liwe/src/find.rs|82|                if let Some(ref source) = options.refs_from {
+crates/liwe/src/find.rs|83|                    if !self.references(source, &key) {
+crates/liwe/src/find.rs|84|                        return None;
+crates/liwe/src/find.rs|85|                    }
+crates/liwe/src/find.rs|86|                }
+crates/liwe/src/find.rs|87|
+crates/liwe/src/find.rs|88|                if !options.metadata_filters.is_empty()
+crates/liwe/src/find.rs|89|                    && !self.metadata_matches(&key, &options.metadata_filters)
+crates/liwe/src/find.rs|90|                {
+crates/liwe/src/find.rs|91|                    return None;
+crates/liwe/src/find.rs|92|                }
+crates/liwe/src/find.rs|93|
+crates/liwe/src/find.rs|94|                let title = self.graph.get_key_title(&key).unwrap_or_default();
+crates/liwe/src/find.rs|95|                let search_text = format!("{} {}", key, title);
+crates/liwe/src/find.rs|96|
+crates/liwe/src/find.rs|97|                let score = options
+crates/liwe/src/find.rs|98|                    .query
+crates/liwe/src/find.rs|99|                    .as_ref()
+crates/liwe/src/find.rs|100|                    .map(|q| matcher.fuzzy_match(&search_text, q).unwrap_or(0))
+crates/liwe/src/find.rs|101|                    .unwrap_or(self.node_rank(&key) as i64);
+crates/liwe/src/find.rs|102|
+crates/liwe/src/find.rs|103|                if options.query.is_some() && score == 0 {
+crates/liwe/src/find.rs|104|                    return None;
+crates/liwe/src/find.rs|105|                }
+crates/liwe/src/find.rs|106|
+crates/liwe/src/find.rs|107|                Some((key, score))
+crates/liwe/src/find.rs|108|            })
+crates/liwe/src/find.rs|109|            .collect();
+crates/liwe/src/find.rs|110|
+crates/liwe/src/find.rs|111|        results.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+crates/liwe/src/find.rs|112|
+crates/liwe/src/find.rs|113|        let total = results.len();
+crates/liwe/src/find.rs|114|        let results: Vec<FindResult> = if let Some(limit) = options.limit {
+crates/liwe/src/find.rs|115|            results
+crates/liwe/src/find.rs|116|                .into_iter()
+crates/liwe/src/find.rs|117|                .take(limit)
+crates/liwe/src/find.rs|118|                .map(|(key, _)| self.build_result(&key))
+crates/liwe/src/find.rs|119|                .collect()
+crates/liwe/src/find.rs|120|        } else {
+---
+crates/liwe/src/find.rs|120|        } else {
+crates/liwe/src/find.rs|121|            results
+crates/liwe/src/find.rs|122|                .into_iter()
+crates/liwe/src/find.rs|123|                .map(|(key, _)| self.build_result(&key))
+crates/liwe/src/find.rs|124|                .collect()
+crates/liwe/src/find.rs|125|        };
+crates/liwe/src/find.rs|126|
+crates/liwe/src/find.rs|127|        let limit = options.limit.filter(|&l| l < total);
+crates/liwe/src/find.rs|128|
+crates/liwe/src/find.rs|129|        FindOutput {
+crates/liwe/src/find.rs|130|            query: options.query.clone(),
+crates/liwe/src/find.rs|131|            limit,
+crates/liwe/src/find.rs|132|            total,
+crates/liwe/src/find.rs|133|            results,
+crates/liwe/src/find.rs|134|        }
+crates/liwe/src/find.rs|135|    }
+crates/liwe/src/find.rs|136|
+crates/liwe/src/find.rs|137|    fn build_result(&self, key: &Key) -> FindResult {
+crates/liwe/src/find.rs|138|        let title = self.graph.get_key_title(key).unwrap_or_default();
+crates/liwe/src/find.rs|139|        let parent_documents = self.get_parent_documents(key);
+crates/liwe/src/find.rs|140|        let display_title = Self::render_display_title(&title, &parent_documents);
+crates/liwe/src/find.rs|141|
+crates/liwe/src/find.rs|142|        FindResult {
+crates/liwe/src/find.rs|143|            key: key.to_string(),
+crates/liwe/src/find.rs|144|            title,
+crates/liwe/src/find.rs|145|            display_title,
+crates/liwe/src/find.rs|146|            is_root: self.is_root(key),
+crates/liwe/src/find.rs|147|            incoming_refs: self.graph.get_block_references_to(key).len()
+crates/liwe/src/find.rs|148|                + self.graph.get_inline_references_to(key).len(),
+crates/liwe/src/find.rs|149|            outgoing_refs: self.graph.get_block_references_in(key).len(),
+crates/liwe/src/find.rs|150|            parent_documents,
+crates/liwe/src/find.rs|151|        }
+crates/liwe/src/find.rs|152|    }
+crates/liwe/src/find.rs|153|
+crates/liwe/src/find.rs|154|    fn render_display_title(title: &str, parent_documents: &[ParentDocumentInfo]) -> String {
+crates/liwe/src/find.rs|155|        if parent_documents.is_empty() {
+crates/liwe/src/find.rs|156|            title.to_string()
+crates/liwe/src/find.rs|157|        } else {
+crates/liwe/src/find.rs|158|            let parents = parent_documents
+crates/liwe/src/find.rs|159|                .iter()
+crates/liwe/src/find.rs|160|                .map(|p| format!("↖{}", p.title))
+crates/liwe/src/find.rs|161|                .collect::<Vec<_>>()
+crates/liwe/src/find.rs|162|                .join(" ");
+crates/liwe/src/find.rs|163|            format!("{} {}", title, parents)
+crates/liwe/src/find.rs|164|        }
+crates/liwe/src/find.rs|165|    }
+crates/liwe/src/find.rs|166|
+crates/liwe/src/find.rs|167|    fn is_root(&self, key: &Key) -> bool {
+crates/liwe/src/find.rs|168|        self.graph.get_block_references_to(key).is_empty()
+crates/liwe/src/find.rs|169|    }
+crates/liwe/src/find.rs|170|
+crates/liwe/src/find.rs|171|    fn node_rank(&self, key: &Key) -> usize {
+crates/liwe/src/find.rs|172|        self.graph.get_inline_references_to(key).len()
+crates/liwe/src/find.rs|173|            + self.graph.get_block_references_to(key).len()
+crates/liwe/src/find.rs|174|    }
+crates/liwe/src/find.rs|175|
+crates/liwe/src/find.rs|176|    fn references(&self, source: &Key, target: &Key) -> bool {
+crates/liwe/src/find.rs|177|        let block_refs = self.graph.get_block_references_in(source);
+crates/liwe/src/find.rs|178|        for ref_id in block_refs {
+crates/liwe/src/find.rs|179|            if let Some(ref_key) = self.graph.graph_node(ref_id).ref_key() {
+crates/liwe/src/find.rs|180|                if &ref_key == target {
+crates/liwe/src/find.rs|181|                    return true;
+crates/liwe/src/find.rs|182|                }
+crates/liwe/src/find.rs|183|            }
+crates/liwe/src/find.rs|184|        }
+crates/liwe/src/find.rs|185|
+crates/liwe/src/find.rs|186|        if let Some(node_id) = self.graph.get_node_id(source) {
+crates/liwe/src/find.rs|187|            let sub_nodes = self.graph.node(node_id).get_all_sub_nodes();
+crates/liwe/src/find.rs|188|            for sub_node_id in sub_nodes {
+crates/liwe/src/find.rs|189|                if let Some(line_id) = self.graph.graph_node(sub_node_id).line_id() {
+crates/liwe/src/find.rs|190|                    let line = self.graph.get_line(line_id);
+crates/liwe/src/find.rs|191|                    for ref_key in line.ref_keys() {
+crates/liwe/src/find.rs|192|                        if &ref_key == target {
+crates/liwe/src/find.rs|193|                            return true;
+crates/liwe/src/find.rs|194|                        }
+crates/liwe/src/find.rs|195|                    }
+crates/liwe/src/find.rs|196|                }
+crates/liwe/src/find.rs|197|            }
+crates/liwe/src/find.rs|198|        }
+crates/liwe/src/find.rs|199|
+crates/liwe/src/find.rs|200|        false
+crates/liwe/src/find.rs|201|    }
+crates/liwe/src/find.rs|202|
+crates/liwe/src/find.rs|203|    fn get_parent_documents(&self, key: &Key) -> Vec<ParentDocumentInfo> {
+crates/liwe/src/find.rs|204|        let refs = self.graph.get_block_references_to(key);
+crates/liwe/src/find.rs|205|        let mut parents = Vec::new();
+crates/liwe/src/find.rs|206|
+crates/liwe/src/find.rs|207|        for ref_id in refs {
+crates/liwe/src/find.rs|208|            let node = self.graph.node(ref_id);
+crates/liwe/src/find.rs|209|
+crates/liwe/src/find.rs|210|            if let Some(doc_node) = node.to_document() {
+crates/liwe/src/find.rs|211|                if let Some(doc_key) = doc_node.document_key() {
+crates/liwe/src/find.rs|212|                    let title = self
+crates/liwe/src/find.rs|213|                        .graph
+crates/liwe/src/find.rs|214|                        .get_key_title(&doc_key)
+crates/liwe/src/find.rs|215|                        .unwrap_or_else(|| doc_key.to_string());
+crates/liwe/src/find.rs|216|
+crates/liwe/src/find.rs|217|                    let section_path = self.get_section_path(ref_id);
+crates/liwe/src/find.rs|218|
+crates/liwe/src/find.rs|219|                    parents.push(ParentDocumentInfo {
+crates/liwe/src/find.rs|220|                        key: doc_key.to_string(),
+crates/liwe/src/find.rs|221|                        title,
+crates/liwe/src/find.rs|222|                        section_path,
+crates/liwe/src/find.rs|223|                    });
+crates/liwe/src/find.rs|224|                }
+crates/liwe/src/find.rs|225|            }
+crates/liwe/src/find.rs|226|        }
+crates/liwe/src/find.rs|227|
+crates/liwe/src/find.rs|228|        parents.into_iter().unique_by(|p| p.key.clone()).collect()
+crates/liwe/src/find.rs|229|    }
+crates/liwe/src/find.rs|230|
+crates/liwe/src/find.rs|231|    fn get_section_path(&self, node_id: NodeId) -> Vec<String> {
+crates/liwe/src/find.rs|232|        let mut path = Vec::new();
+crates/liwe/src/find.rs|233|        let mut current = self.graph.node(node_id);
+crates/liwe/src/find.rs|234|
+crates/liwe/src/find.rs|235|        while let Some(parent) = current.to_parent() {
+crates/liwe/src/find.rs|236|            if parent.is_section()
+crates/liwe/src/find.rs|237|                && parent
+crates/liwe/src/find.rs|238|                    .to_parent()
+crates/liwe/src/find.rs|239|                    .map(|p| p.is_document())
+crates/liwe/src/find.rs|240|                    .unwrap_or(true)
+crates/liwe/src/find.rs|241|            {
+crates/liwe/src/find.rs|242|                let text = parent.plain_text().trim().to_string();
+crates/liwe/src/find.rs|243|                path.push(text);
+crates/liwe/src/find.rs|244|            }
+crates/liwe/src/find.rs|245|            if parent.is_document() {
+crates/liwe/src/find.rs|246|                break;
+crates/liwe/src/find.rs|247|            }
+crates/liwe/src/find.rs|248|            current = parent;
+crates/liwe/src/find.rs|249|        }
+crates/liwe/src/find.rs|250|        path
+crates/liwe/src/find.rs|251|    }
+crates/liwe/src/find.rs|252|
+crates/liwe/src/find.rs|253|    fn metadata_matches(&self, key: &Key, filters: &[(String, String)]) -> bool {
+crates/liwe/src/find.rs|254|        let raw = match self.graph.get_metadata(key) {
+crates/liwe/src/find.rs|255|            Some(s) => s,
+crates/liwe/src/find.rs|256|            None => return false,
+crates/liwe/src/find.rs|257|        };
+crates/liwe/src/find.rs|258|        let val: serde_yaml::Value = match serde_yaml::from_str(raw) {
+crates/liwe/src/find.rs|259|            Ok(v) => v,
+crates/liwe/src/find.rs|260|            _ => return false,
+crates/liwe/src/find.rs|261|        };
+crates/liwe/src/find.rs|262|        filters.iter().all(|(k, v)| {
+crates/liwe/src/find.rs|263|            val.get(k.as_str())
+crates/liwe/src/find.rs|264|                .and_then(|node| match node {
+crates/liwe/src/find.rs|265|                    serde_yaml::Value::String(s) => Some(s.as_str() == v.as_str()),
+crates/liwe/src/find.rs|266|                    serde_yaml::Value::Bool(b) => Some(b.to_string() == *v),
+crates/liwe/src/find.rs|267|                    serde_yaml::Value::Number(n) => Some(n.to_string() == *v),
+crates/liwe/src/find.rs|268|                    serde_yaml::Value::Sequence(items) => Some(
+crates/liwe/src/find.rs|269|                        items
+crates/liwe/src/find.rs|270|                            .iter()
+crates/liwe/src/find.rs|271|                            .any(|i| i.as_str().map(|s| s == v.as_str()).unwrap_or(false)),
+crates/liwe/src/find.rs|272|                    ),
+crates/liwe/src/find.rs|273|                    _ => Some(false),
+crates/liwe/src/find.rs|274|                })
+crates/liwe/src/find.rs|275|                .unwrap_or(false)
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge.db "select file,line_num,content from lines where file='crates/liwe/src/find.rs' and line_num between 262 and 282 order by line_num;"
+    timeout_secs: 10
+
+crates/liwe/src/find.rs|262|        filters.iter().all(|(k, v)| {
+crates/liwe/src/find.rs|263|            val.get(k.as_str())
+crates/liwe/src/find.rs|264|                .and_then(|node| match node {
+crates/liwe/src/find.rs|265|                    serde_yaml::Value::String(s) => Some(s.as_str() == v.as_str()),
+crates/liwe/src/find.rs|266|                    serde_yaml::Value::Bool(b) => Some(b.to_string() == *v),
+crates/liwe/src/find.rs|267|                    serde_yaml::Value::Number(n) => Some(n.to_string() == *v),
+crates/liwe/src/find.rs|268|                    serde_yaml::Value::Sequence(items) => Some(
+crates/liwe/src/find.rs|269|                        items
+crates/liwe/src/find.rs|270|                            .iter()
+crates/liwe/src/find.rs|271|                            .any(|i| i.as_str().map(|s| s == v.as_str()).unwrap_or(false)),
+crates/liwe/src/find.rs|272|                    ),
+crates/liwe/src/find.rs|273|                    _ => Some(false),
+crates/liwe/src/find.rs|274|                })
+crates/liwe/src/find.rs|275|                .unwrap_or(false)
+crates/liwe/src/find.rs|276|        })
+crates/liwe/src/find.rs|277|    }
+crates/liwe/src/find.rs|278|}
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge.db "select file,line_num,content from lines where file='crates/iwe/src/main.rs' and line_num between 500 and 545 order by line_num; select '--- graph import'; select file,line_num,content from lines where file='crates/liwe/src/graph.rs' and (content like '%pub fn import%' or content like '%from_markdown%' or content like '%reader.document%' or content like '%metadata.insert%' or content like '%metadata.remove%') order by line_num; select '--- fs'; select file,line_num,content from lines where content like '%new_for_path_with_options%' order by file,line_num;"
+    timeout_secs: 10
+
+crates/iwe/src/main.rs|500|    reference: Option<String>,
+crates/iwe/src/main.rs|501|
+crates/iwe/src/main.rs|502|    #[clap(long, help = "Block number to inline (1-indexed)")]
+crates/iwe/src/main.rs|503|    block: Option<usize>,
+crates/iwe/src/main.rs|504|
+crates/iwe/src/main.rs|505|    #[clap(long, help = "List all block references with numbers")]
+crates/iwe/src/main.rs|506|    list: bool,
+crates/iwe/src/main.rs|507|
+crates/iwe/src/main.rs|508|    #[clap(long, help = "Action name from config to use for inlining")]
+crates/iwe/src/main.rs|509|    action: Option<String>,
+crates/iwe/src/main.rs|510|
+crates/iwe/src/main.rs|511|    #[clap(long, help = "Inline as blockquote instead of section")]
+crates/iwe/src/main.rs|512|    as_quote: bool,
+crates/iwe/src/main.rs|513|
+crates/iwe/src/main.rs|514|    #[clap(long, help = "Keep the target document after inlining")]
+crates/iwe/src/main.rs|515|    keep_target: bool,
+crates/iwe/src/main.rs|516|
+crates/iwe/src/main.rs|517|    #[clap(long, help = "Preview changes without writing to disk")]
+crates/iwe/src/main.rs|518|    dry_run: bool,
+crates/iwe/src/main.rs|519|
+crates/iwe/src/main.rs|520|    #[clap(long, help = "Suppress progress output")]
+crates/iwe/src/main.rs|521|    quiet: bool,
+crates/iwe/src/main.rs|522|
+crates/iwe/src/main.rs|523|    #[clap(long, help = "Print affected document keys (one per line)")]
+crates/iwe/src/main.rs|524|    keys: bool,
+crates/iwe/src/main.rs|525|}
+crates/iwe/src/main.rs|526|
+crates/iwe/src/main.rs|527|fn main() {
+crates/iwe/src/main.rs|528|    debug!("parsing arguments");
+crates/iwe/src/main.rs|529|    let app = App::parse();
+crates/iwe/src/main.rs|530|
+crates/iwe/src/main.rs|531|    if app.global_opts.verbose > 1 {
+crates/iwe/src/main.rs|532|        tracing_subscriber::fmt()
+crates/iwe/src/main.rs|533|            .with_max_level(tracing::Level::DEBUG)
+crates/iwe/src/main.rs|534|            .with_writer(std::io::stderr)
+crates/iwe/src/main.rs|535|            .init();
+crates/iwe/src/main.rs|536|    } else if app.global_opts.verbose > 0 {
+crates/iwe/src/main.rs|537|        tracing_subscriber::fmt()
+crates/iwe/src/main.rs|538|            .with_max_level(tracing::Level::INFO)
+crates/iwe/src/main.rs|539|            .with_writer(std::io::stderr)
+crates/iwe/src/main.rs|540|            .init();
+crates/iwe/src/main.rs|541|    }
+crates/iwe/src/main.rs|542|
+crates/iwe/src/main.rs|543|    debug!("starting command processing");
+crates/iwe/src/main.rs|544|    match app.command {
+crates/iwe/src/main.rs|545|        Command::Normalize(normalize) => {
+--- graph import
+crates/liwe/src/graph.rs|137|        self.metadata.remove(&key);
+crates/liwe/src/graph.rs|276|    pub fn from_markdown(&mut self, key: Key, content: &str, reader: impl Reader) {
+crates/liwe/src/graph.rs|277|        let document = reader.document(content, &self.markdown_options);
+crates/liwe/src/graph.rs|280|            self.metadata.insert(key.clone(), meta);
+crates/liwe/src/graph.rs|282|            self.metadata.remove(&key);
+crates/liwe/src/graph.rs|334|        self.from_markdown(key, content, MarkdownReader::new());
+crates/liwe/src/graph.rs|343|    pub fn import(
+crates/liwe/src/graph.rs|370|                (Key::name(k), reader.document(v, &markdown_options))
+crates/liwe/src/graph.rs|376|                graph.metadata.insert(key.clone(), meta);
+crates/liwe/src/graph.rs|378|                graph.metadata.remove(&key);
+--- fs
+crates/iwe/src/main.rs|18|use liwe::fs::new_for_path_with_options;
+crates/iwe/src/main.rs|1027|        &new_for_path_with_options(
+crates/iwec/src/lib.rs|12|use liwe::fs::{new_for_path_with_options, new_from_hashmap};
+crates/iwec/src/lib.rs|1343|        let state = new_for_path_with_options(&path, configuration.library.virtual_directories);
+crates/iwes/src/lib.rs|10|use liwe::fs::{new_for_path_with_options, new_from_hashmap};
+crates/iwes/src/lib.rs|51|                state: new_for_path_with_options(&PathBuf::from_str(&params.base_path).expect("to work"), false),
+crates/liwe/src/fs.rs|14|    new_for_path_with_options(base_path, false)
+crates/liwe/src/fs.rs|17|pub fn new_for_path_with_options(base_path: &PathBuf, virtual_directories: bool) -> State {
+crates/liwe/tests/virtual_directories_test.rs|5|use liwe::fs::new_for_path_with_options;
+crates/liwe/tests/virtual_directories_test.rs|27|    let state = new_for_path_with_options(&base, true);
+crates/liwe/tests/virtual_directories_test.rs|46|    let state = new_for_path_with_options(&base, true);
+crates/liwe/tests/virtual_directories_test.rs|62|    let _ = new_for_path_with_options(&base, true);
+crates/liwe/tests/virtual_directories_test.rs|69|    let state = new_for_path_with_options(&base, true);
+crates/liwe/tests/virtual_directories_test.rs|82|    let _ = new_for_path_with_options(&base, true);
+crates/liwe/tests/virtual_directories_test.rs|87|    let _ = new_for_path_with_options(&base, true);
+crates/liwe/tests/virtual_directories_test.rs|99|    let state = new_for_path_with_options(&base, false);
+crates/liwe/tests/virtual_directories_test.rs|114|    let state = new_for_path_with_options(&base, true);
+crates/liwe/tests/virtual_directories_test.rs|132|    let state = new_for_path_with_options(&base, true);
+crates/liwe/tests/virtual_directories_test.rs|147|    let state = new_for_path_with_options(&base, true);
+crates/liwe/tests/virtual_directories_test.rs|162|    let state = new_for_path_with_options(&base, true);
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge.db "select file,line_num,content from lines where file='crates/liwe/src/graph.rs' and line_num between 330 and 382 order by line_num; select '--- fs'; select file,line_num,content from lines where file='crates/liwe/src/fs.rs' and line_num between 1 and 90 order by line_num;"
+    timeout_secs: 10
+
+crates/liwe/src/graph.rs|330|        if let Some(id) = self.keys.get(&key) {
+crates/liwe/src/graph.rs|331|            self.arena.delete_branch(*id);
+crates/liwe/src/graph.rs|332|        }
+crates/liwe/src/graph.rs|333|
+crates/liwe/src/graph.rs|334|        self.from_markdown(key, content, MarkdownReader::new());
+crates/liwe/src/graph.rs|335|
+crates/liwe/src/graph.rs|336|        self
+crates/liwe/src/graph.rs|337|    }
+crates/liwe/src/graph.rs|338|
+crates/liwe/src/graph.rs|339|    pub fn node_line_range(&self, id: NodeId) -> Option<LineRange> {
+crates/liwe/src/graph.rs|340|        self.global_nodes_map.get(&id).cloned()
+crates/liwe/src/graph.rs|341|    }
+crates/liwe/src/graph.rs|342|
+crates/liwe/src/graph.rs|343|    pub fn import(
+crates/liwe/src/graph.rs|344|        content: &State,
+crates/liwe/src/graph.rs|345|        markdown_options: MarkdownOptions,
+crates/liwe/src/graph.rs|346|        frontmatter_document_title: Option<String>,
+crates/liwe/src/graph.rs|347|    ) -> Graph {
+crates/liwe/src/graph.rs|348|        Self::from_state(content.clone(), false, markdown_options, frontmatter_document_title)
+crates/liwe/src/graph.rs|349|    }
+crates/liwe/src/graph.rs|350|
+crates/liwe/src/graph.rs|351|    pub fn from_state(
+crates/liwe/src/graph.rs|352|        state: State,
+crates/liwe/src/graph.rs|353|        sequential_ids: bool,
+crates/liwe/src/graph.rs|354|        markdown_options: MarkdownOptions,
+crates/liwe/src/graph.rs|355|        frontmatter_document_title: Option<String>,
+crates/liwe/src/graph.rs|356|    ) -> Self {
+crates/liwe/src/graph.rs|357|        let mut graph = Graph::new_with_options(markdown_options.clone());
+crates/liwe/src/graph.rs|358|        graph.set_sequential_keys(sequential_ids);
+crates/liwe/src/graph.rs|359|        graph.frontmatter_document_title = frontmatter_document_title;
+crates/liwe/src/graph.rs|360|
+crates/liwe/src/graph.rs|361|        let reader = MarkdownReader::new();
+crates/liwe/src/graph.rs|362|
+crates/liwe/src/graph.rs|363|        let blocks = state
+crates/liwe/src/graph.rs|364|            .iter()
+crates/liwe/src/graph.rs|365|            .sorted_by(|a, b| a.0.cmp(b.0))
+crates/liwe/src/graph.rs|366|            .collect_vec()
+crates/liwe/src/graph.rs|367|            .par_iter()
+crates/liwe/src/graph.rs|368|            .map(|(k, v)| {
+crates/liwe/src/graph.rs|369|                debug!("parsing content, key={}", k);
+crates/liwe/src/graph.rs|370|                (Key::name(k), reader.document(v, &markdown_options))
+crates/liwe/src/graph.rs|371|            })
+crates/liwe/src/graph.rs|372|            .collect::<Vec<_>>();
+crates/liwe/src/graph.rs|373|
+crates/liwe/src/graph.rs|374|        for (key, document) in blocks.into_iter() {
+crates/liwe/src/graph.rs|375|            if let Some(meta) = document.metadata.clone() {
+crates/liwe/src/graph.rs|376|                graph.metadata.insert(key.clone(), meta);
+crates/liwe/src/graph.rs|377|            } else {
+crates/liwe/src/graph.rs|378|                graph.metadata.remove(&key);
+crates/liwe/src/graph.rs|379|            }
+crates/liwe/src/graph.rs|380|
+crates/liwe/src/graph.rs|381|            let nodes_map =
+crates/liwe/src/graph.rs|382|                SectionsBuilder::new(&mut graph.build_key(&key), &document.blocks, &key)
+--- fs
+crates/liwe/src/fs.rs|1|use std::path::{Path, PathBuf};
+crates/liwe/src/fs.rs|2|use std::{collections::HashMap, fs};
+crates/liwe/src/fs.rs|3|
+crates/liwe/src/fs.rs|4|use ignore::WalkBuilder;
+crates/liwe/src/fs.rs|5|use log::error;
+crates/liwe/src/fs.rs|6|
+crates/liwe/src/fs.rs|7|use crate::model::{Content, State};
+crates/liwe/src/fs.rs|8|
+crates/liwe/src/fs.rs|9|pub fn write_file(key: &String, content: &Content, to: &Path) -> std::io::Result<()> {
+crates/liwe/src/fs.rs|10|    fs::write(to.join(format!("{}.md", key)), content.as_str())
+crates/liwe/src/fs.rs|11|}
+crates/liwe/src/fs.rs|12|
+crates/liwe/src/fs.rs|13|pub fn new_for_path(base_path: &PathBuf) -> State {
+crates/liwe/src/fs.rs|14|    new_for_path_with_options(base_path, false)
+crates/liwe/src/fs.rs|15|}
+crates/liwe/src/fs.rs|16|
+crates/liwe/src/fs.rs|17|pub fn new_for_path_with_options(base_path: &PathBuf, virtual_directories: bool) -> State {
+crates/liwe/src/fs.rs|18|    if !base_path.exists() {
+crates/liwe/src/fs.rs|19|        error!("path doesn't exist");
+crates/liwe/src/fs.rs|20|        return State::new();
+crates/liwe/src/fs.rs|21|    }
+crates/liwe/src/fs.rs|22|
+crates/liwe/src/fs.rs|23|    if virtual_directories {
+crates/liwe/src/fs.rs|24|        generate_virtual_indices(base_path);
+crates/liwe/src/fs.rs|25|    }
+crates/liwe/src/fs.rs|26|
+crates/liwe/src/fs.rs|27|    WalkBuilder::new(base_path)
+crates/liwe/src/fs.rs|28|        .follow_links(false)
+crates/liwe/src/fs.rs|29|        .hidden(true)
+crates/liwe/src/fs.rs|30|        .require_git(false)
+crates/liwe/src/fs.rs|31|        .build()
+crates/liwe/src/fs.rs|32|        .filter_map(|entry| {
+crates/liwe/src/fs.rs|33|            let entry = entry.ok()?;
+crates/liwe/src/fs.rs|34|            let path = entry.path();
+crates/liwe/src/fs.rs|35|
+crates/liwe/src/fs.rs|36|            if !path.is_file() || path.extension().is_none_or(|ext| ext != "md") {
+crates/liwe/src/fs.rs|37|                return None;
+crates/liwe/src/fs.rs|38|            }
+crates/liwe/src/fs.rs|39|
+crates/liwe/src/fs.rs|40|            let relative_path = path.strip_prefix(base_path).ok()?;
+crates/liwe/src/fs.rs|41|            let key = if let Some(parent) = relative_path.parent() {
+crates/liwe/src/fs.rs|42|                if parent == std::path::Path::new("") {
+crates/liwe/src/fs.rs|43|                    to_file_name(path)
+crates/liwe/src/fs.rs|44|                } else {
+crates/liwe/src/fs.rs|45|                    format!("{}/{}", parent.to_string_lossy(), to_file_name(path))
+crates/liwe/src/fs.rs|46|                }
+crates/liwe/src/fs.rs|47|            } else {
+crates/liwe/src/fs.rs|48|                to_file_name(path)
+crates/liwe/src/fs.rs|49|            };
+crates/liwe/src/fs.rs|50|
+crates/liwe/src/fs.rs|51|            fs::read_to_string(path).ok().map(|content| (key, content))
+crates/liwe/src/fs.rs|52|        })
+crates/liwe/src/fs.rs|53|        .collect()
+crates/liwe/src/fs.rs|54|}
+crates/liwe/src/fs.rs|55|
+crates/liwe/src/fs.rs|56|pub fn new_from_hashmap(map: HashMap<String, String>) -> State {
+crates/liwe/src/fs.rs|57|    map.into_iter().collect()
+crates/liwe/src/fs.rs|58|}
+crates/liwe/src/fs.rs|59|
+crates/liwe/src/fs.rs|60|pub fn write_store_at_path(store: &State, to: &Path) -> std::io::Result<()> {
+crates/liwe/src/fs.rs|61|    for (key, content) in store.iter() {
+crates/liwe/src/fs.rs|62|        write_file(key, content, to)?;
+crates/liwe/src/fs.rs|63|    }
+crates/liwe/src/fs.rs|64|    Ok(())
+crates/liwe/src/fs.rs|65|}
+crates/liwe/src/fs.rs|66|
+crates/liwe/src/fs.rs|67|fn to_file_name(path: &Path) -> String {
+crates/liwe/src/fs.rs|68|    let name = path
+crates/liwe/src/fs.rs|69|        .file_name()
+crates/liwe/src/fs.rs|70|        .map(|name| name.to_string_lossy().trim_end_matches(".md").to_string())
+crates/liwe/src/fs.rs|71|        .unwrap_or_default();
+crates/liwe/src/fs.rs|72|
+crates/liwe/src/fs.rs|73|    // Strip leading `_` for virtual directory index files
+crates/liwe/src/fs.rs|74|    if name.starts_with('_') {
+crates/liwe/src/fs.rs|75|        name[1..].to_string()
+crates/liwe/src/fs.rs|76|    } else {
+crates/liwe/src/fs.rs|77|        name
+crates/liwe/src/fs.rs|78|    }
+crates/liwe/src/fs.rs|79|}
+crates/liwe/src/fs.rs|80|
+crates/liwe/src/fs.rs|81|/// Scan `base_path` for directories that transitively contain `.md` files
+crates/liwe/src/fs.rs|82|/// and generate/maintain `_dirname.md` index files.
+crates/liwe/src/fs.rs|83|fn generate_virtual_indices(base_path: &Path) {
+crates/liwe/src/fs.rs|84|    use std::collections::{BTreeSet, HashSet};
+crates/liwe/src/fs.rs|85|
+crates/liwe/src/fs.rs|86|    // Collect all directories that transitively contain .md files.
+crates/liwe/src/fs.rs|87|    let mut dirs_with_md: HashSet<PathBuf> = HashSet::new();
+crates/liwe/src/fs.rs|88|
+crates/liwe/src/fs.rs|89|    for entry in WalkBuilder::new(base_path)
+crates/liwe/src/fs.rs|90|        .follow_links(false)
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge.db "select file,line_num,content from lines where file='crates/liwe/src/markdown/reader.rs' and line_num between 1 and 120 order by line_num; select '---'; select file,line_num,content from lines where file='crates/liwe/src/markdown/reader.rs' and line_num between 350 and 390 order by line_num;"
+    timeout_secs: 10
+
+crates/liwe/src/markdown/reader.rs|1|use std::iter::once;
+crates/liwe/src/markdown/reader.rs|2|use std::ops::Range;
+crates/liwe/src/markdown/reader.rs|3|
+crates/liwe/src/markdown/reader.rs|4|use crate::model::config::MarkdownOptions;
+crates/liwe/src/markdown/reader.rs|5|use crate::model::node::ColumnAlignment;
+crates/liwe/src/markdown/reader.rs|6|use pulldown_cmark::{Alignment, CodeBlockKind, LinkType, Options, Tag, TagEnd};
+crates/liwe/src/markdown/reader.rs|7|use pulldown_cmark::{Event::*, Parser};
+crates/liwe/src/markdown/reader.rs|8|
+crates/liwe/src/markdown/reader.rs|9|use crate::model::document::*;
+crates/liwe/src/markdown/reader.rs|10|use crate::model::*;
+crates/liwe/src/markdown/reader.rs|11|
+crates/liwe/src/markdown/reader.rs|12|pub struct MarkdownEventsReader {
+crates/liwe/src/markdown/reader.rs|13|    markdown_options: MarkdownOptions,
+crates/liwe/src/markdown/reader.rs|14|    inlines_pos_stack: Vec<LineRange>,
+crates/liwe/src/markdown/reader.rs|15|    inlines_stack: Vec<DocumentInline>,
+crates/liwe/src/markdown/reader.rs|16|    blocks_stack: Vec<DocumentBlock>,
+crates/liwe/src/markdown/reader.rs|17|    blocks: DocumentBlocks,
+crates/liwe/src/markdown/reader.rs|18|    line_starts: Vec<usize>,
+crates/liwe/src/markdown/reader.rs|19|    metadata_block: bool,
+crates/liwe/src/markdown/reader.rs|20|    metadata: Option<String>,
+crates/liwe/src/markdown/reader.rs|21|    content: Option<String>,
+crates/liwe/src/markdown/reader.rs|22|}
+crates/liwe/src/markdown/reader.rs|23|
+crates/liwe/src/markdown/reader.rs|24|impl Default for MarkdownEventsReader {
+crates/liwe/src/markdown/reader.rs|25|    fn default() -> Self {
+crates/liwe/src/markdown/reader.rs|26|        Self::new()
+crates/liwe/src/markdown/reader.rs|27|    }
+crates/liwe/src/markdown/reader.rs|28|}
+crates/liwe/src/markdown/reader.rs|29|
+crates/liwe/src/markdown/reader.rs|30|impl MarkdownEventsReader {
+crates/liwe/src/markdown/reader.rs|31|    pub fn new() -> MarkdownEventsReader {
+crates/liwe/src/markdown/reader.rs|32|        MarkdownEventsReader {
+crates/liwe/src/markdown/reader.rs|33|            markdown_options: MarkdownOptions::default(),
+crates/liwe/src/markdown/reader.rs|34|            inlines_pos_stack: Vec::new(),
+crates/liwe/src/markdown/reader.rs|35|            inlines_stack: Vec::new(),
+crates/liwe/src/markdown/reader.rs|36|            blocks_stack: Vec::new(),
+crates/liwe/src/markdown/reader.rs|37|            blocks: Vec::new(),
+crates/liwe/src/markdown/reader.rs|38|            line_starts: Vec::new(),
+crates/liwe/src/markdown/reader.rs|39|            metadata_block: false,
+crates/liwe/src/markdown/reader.rs|40|            metadata: None,
+crates/liwe/src/markdown/reader.rs|41|            content: None,
+crates/liwe/src/markdown/reader.rs|42|        }
+crates/liwe/src/markdown/reader.rs|43|    }
+crates/liwe/src/markdown/reader.rs|44|
+crates/liwe/src/markdown/reader.rs|45|    pub fn new_with_options(markdown_options: &MarkdownOptions) -> MarkdownEventsReader {
+crates/liwe/src/markdown/reader.rs|46|        MarkdownEventsReader {
+crates/liwe/src/markdown/reader.rs|47|            markdown_options: markdown_options.clone(),
+crates/liwe/src/markdown/reader.rs|48|            inlines_pos_stack: Vec::new(),
+crates/liwe/src/markdown/reader.rs|49|            inlines_stack: Vec::new(),
+crates/liwe/src/markdown/reader.rs|50|            blocks_stack: Vec::new(),
+crates/liwe/src/markdown/reader.rs|51|            blocks: Vec::new(),
+crates/liwe/src/markdown/reader.rs|52|            line_starts: Vec::new(),
+crates/liwe/src/markdown/reader.rs|53|            metadata_block: false,
+crates/liwe/src/markdown/reader.rs|54|            metadata: None,
+crates/liwe/src/markdown/reader.rs|55|            content: None,
+crates/liwe/src/markdown/reader.rs|56|        }
+crates/liwe/src/markdown/reader.rs|57|    }
+crates/liwe/src/markdown/reader.rs|58|
+crates/liwe/src/markdown/reader.rs|59|    pub fn blocks(&self) -> Vec<DocumentBlock> {
+crates/liwe/src/markdown/reader.rs|60|        self.blocks.clone()
+crates/liwe/src/markdown/reader.rs|61|    }
+crates/liwe/src/markdown/reader.rs|62|
+crates/liwe/src/markdown/reader.rs|63|    pub fn metadata(&self) -> Option<String> {
+crates/liwe/src/markdown/reader.rs|64|        self.metadata.clone()
+crates/liwe/src/markdown/reader.rs|65|    }
+crates/liwe/src/markdown/reader.rs|66|
+crates/liwe/src/markdown/reader.rs|67|    pub fn top_block(&mut self) -> &mut DocumentBlock {
+crates/liwe/src/markdown/reader.rs|68|        self.blocks_stack.last_mut().unwrap_or_else(|| {
+crates/liwe/src/markdown/reader.rs|69|            panic!(
+crates/liwe/src/markdown/reader.rs|70|                "parse markdown:\n{}",
+crates/liwe/src/markdown/reader.rs|71|                &self.content.clone().unwrap_or_default()
+crates/liwe/src/markdown/reader.rs|72|            )
+crates/liwe/src/markdown/reader.rs|73|        })
+crates/liwe/src/markdown/reader.rs|74|    }
+crates/liwe/src/markdown/reader.rs|75|
+crates/liwe/src/markdown/reader.rs|76|    pub fn read(&mut self, content: &str) -> DocumentBlocks {
+crates/liwe/src/markdown/reader.rs|77|        self.content = Some(content.to_string());
+crates/liwe/src/markdown/reader.rs|78|        let iter = Parser::new_ext(
+crates/liwe/src/markdown/reader.rs|79|            content,
+crates/liwe/src/markdown/reader.rs|80|            Options::ENABLE_YAML_STYLE_METADATA_BLOCKS
+crates/liwe/src/markdown/reader.rs|81|                | Options::ENABLE_WIKILINKS
+crates/liwe/src/markdown/reader.rs|82|                | Options::ENABLE_TABLES,
+crates/liwe/src/markdown/reader.rs|83|        )
+crates/liwe/src/markdown/reader.rs|84|        .into_offset_iter();
+crates/liwe/src/markdown/reader.rs|85|        self.line_starts = line_starts(content);
+crates/liwe/src/markdown/reader.rs|86|
+crates/liwe/src/markdown/reader.rs|87|        for (event, range) in iter {
+crates/liwe/src/markdown/reader.rs|88|            match event {
+crates/liwe/src/markdown/reader.rs|89|                Start(tag) => {
+crates/liwe/src/markdown/reader.rs|90|                    self.start_tag(tag, range);
+crates/liwe/src/markdown/reader.rs|91|                }
+crates/liwe/src/markdown/reader.rs|92|                End(tag) => {
+crates/liwe/src/markdown/reader.rs|93|                    self.end_tag(tag, range);
+crates/liwe/src/markdown/reader.rs|94|                }
+crates/liwe/src/markdown/reader.rs|95|                Text(text) => {
+crates/liwe/src/markdown/reader.rs|96|                    if !self.metadata_block {
+crates/liwe/src/markdown/reader.rs|97|                        match self.top_block() {
+crates/liwe/src/markdown/reader.rs|98|                            DocumentBlock::CodeBlock(code_block) => {
+crates/liwe/src/markdown/reader.rs|99|                                code_block.text = format!("{}{}", code_block.text, text)
+crates/liwe/src/markdown/reader.rs|100|                            }
+crates/liwe/src/markdown/reader.rs|101|                            DocumentBlock::RawBlock(block) => block.text = text.to_string(),
+crates/liwe/src/markdown/reader.rs|102|                            _ => {
+crates/liwe/src/markdown/reader.rs|103|                                self.push_inline(
+crates/liwe/src/markdown/reader.rs|104|                                    DocumentInline::Str(text.to_string()),
+crates/liwe/src/markdown/reader.rs|105|                                    self.to_line_range(range),
+crates/liwe/src/markdown/reader.rs|106|                                );
+crates/liwe/src/markdown/reader.rs|107|                                self.pop_inline();
+crates/liwe/src/markdown/reader.rs|108|                            }
+crates/liwe/src/markdown/reader.rs|109|                        }
+crates/liwe/src/markdown/reader.rs|110|                    } else {
+crates/liwe/src/markdown/reader.rs|111|                        self.metadata = Some(text.to_string());
+crates/liwe/src/markdown/reader.rs|112|                    }
+crates/liwe/src/markdown/reader.rs|113|                }
+crates/liwe/src/markdown/reader.rs|114|                Code(text) => {
+crates/liwe/src/markdown/reader.rs|115|                    self.push_inline(
+crates/liwe/src/markdown/reader.rs|116|                        DocumentInline::Code(document::Code {
+crates/liwe/src/markdown/reader.rs|117|                            attr: Attributes::default(),
+crates/liwe/src/markdown/reader.rs|118|                            text: text.to_string(),
+crates/liwe/src/markdown/reader.rs|119|                            inline_range: self.to_inline_range(range.clone()),
+crates/liwe/src/markdown/reader.rs|120|                        }),
+---
+crates/liwe/src/markdown/reader.rs|350|                        attr: Default::default(),
+crates/liwe/src/markdown/reader.rs|351|                        inline_range: self.to_inline_range(range.clone()),
+crates/liwe/src/markdown/reader.rs|352|                    }),
+crates/liwe/src/markdown/reader.rs|353|                    self.to_line_range(range),
+crates/liwe/src/markdown/reader.rs|354|                );
+crates/liwe/src/markdown/reader.rs|355|            }
+crates/liwe/src/markdown/reader.rs|356|            Tag::MetadataBlock(_) => self.metadata_block = true,
+crates/liwe/src/markdown/reader.rs|357|            Tag::Superscript => {}
+crates/liwe/src/markdown/reader.rs|358|            Tag::Subscript => {}
+crates/liwe/src/markdown/reader.rs|359|        }
+crates/liwe/src/markdown/reader.rs|360|    }
+crates/liwe/src/markdown/reader.rs|361|
+crates/liwe/src/markdown/reader.rs|362|    fn end_tag(&mut self, tag: TagEnd, _: Range<usize>) {
+crates/liwe/src/markdown/reader.rs|363|        match tag {
+crates/liwe/src/markdown/reader.rs|364|            TagEnd::Paragraph => {
+crates/liwe/src/markdown/reader.rs|365|                self.pop_block();
+crates/liwe/src/markdown/reader.rs|366|            }
+crates/liwe/src/markdown/reader.rs|367|            TagEnd::Heading(_) => self.pop_block(),
+crates/liwe/src/markdown/reader.rs|368|            TagEnd::BlockQuote(_) => self.pop_block(),
+crates/liwe/src/markdown/reader.rs|369|            TagEnd::CodeBlock => {
+crates/liwe/src/markdown/reader.rs|370|                self.pop_block();
+crates/liwe/src/markdown/reader.rs|371|            }
+crates/liwe/src/markdown/reader.rs|372|            TagEnd::HtmlBlock => {}
+crates/liwe/src/markdown/reader.rs|373|            TagEnd::List(_) => {
+crates/liwe/src/markdown/reader.rs|374|                self.pop_block();
+crates/liwe/src/markdown/reader.rs|375|            }
+crates/liwe/src/markdown/reader.rs|376|            TagEnd::Item => {}
+crates/liwe/src/markdown/reader.rs|377|            TagEnd::Emphasis => self.pop_inline(),
+crates/liwe/src/markdown/reader.rs|378|            TagEnd::Strong => self.pop_inline(),
+crates/liwe/src/markdown/reader.rs|379|            TagEnd::Strikethrough => self.pop_inline(),
+crates/liwe/src/markdown/reader.rs|380|            TagEnd::Link => self.pop_inline(),
+crates/liwe/src/markdown/reader.rs|381|            TagEnd::DefinitionList => {}
+crates/liwe/src/markdown/reader.rs|382|            TagEnd::DefinitionListDefinition => {}
+crates/liwe/src/markdown/reader.rs|383|            TagEnd::DefinitionListTitle => {}
+crates/liwe/src/markdown/reader.rs|384|            TagEnd::FootnoteDefinition => {}
+crates/liwe/src/markdown/reader.rs|385|            TagEnd::Image => self.pop_inline(),
+crates/liwe/src/markdown/reader.rs|386|            TagEnd::MetadataBlock(_) => self.metadata_block = false,
+crates/liwe/src/markdown/reader.rs|387|            TagEnd::Table => {
+crates/liwe/src/markdown/reader.rs|388|                self.pop_block();
+crates/liwe/src/markdown/reader.rs|389|            }
+crates/liwe/src/markdown/reader.rs|390|            TagEnd::TableCell => {}
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge.db "select file,line_num,content from lines where file='crates/liwe/src/model/document.rs' and line_num between 1 and 20 order by line_num; select '--- tests'; select file,line_num,content from lines where file='crates/liwe/tests/find_metadata_test.rs' and line_num between 1 and 180 order by line_num;"
+    timeout_secs: 10
+
+crates/liwe/src/model/document.rs|1|use super::{InlineRange, Position};
+crates/liwe/src/model/document.rs|2|use crate::model;
+crates/liwe/src/model/document.rs|3|use crate::model::graph::{to_plain_text, GraphInline};
+crates/liwe/src/model/document.rs|4|use crate::model::node::ColumnAlignment;
+crates/liwe/src/model/document.rs|5|use crate::model::reference::{Reference, ReferenceType};
+crates/liwe/src/model/document.rs|6|use crate::model::{Key, Lang, LineRange};
+crates/liwe/src/model/document.rs|7|
+crates/liwe/src/model/document.rs|8|pub struct Document {
+crates/liwe/src/model/document.rs|9|    pub blocks: DocumentBlocks,
+crates/liwe/src/model/document.rs|10|    pub metadata: Option<String>,
+crates/liwe/src/model/document.rs|11|}
+crates/liwe/src/model/document.rs|12|
+crates/liwe/src/model/document.rs|13|#[derive(Clone, Debug, PartialEq)]
+crates/liwe/src/model/document.rs|14|pub enum DocumentBlock {
+crates/liwe/src/model/document.rs|15|    Plain(Plain),
+crates/liwe/src/model/document.rs|16|    Para(Para),
+crates/liwe/src/model/document.rs|17|    CodeBlock(CodeBlock),
+crates/liwe/src/model/document.rs|18|    RawBlock(RawBlock),
+crates/liwe/src/model/document.rs|19|    BlockQuote(BlockQuote),
+crates/liwe/src/model/document.rs|20|    OrderedList(OrderedList),
+--- tests
+crates/liwe/tests/find_metadata_test.rs|1|use indoc::indoc;
+crates/liwe/tests/find_metadata_test.rs|2|
+crates/liwe/tests/find_metadata_test.rs|3|use liwe::find::{DocumentFinder, FindOptions};
+crates/liwe/tests/find_metadata_test.rs|4|use liwe::graph::Graph;
+crates/liwe/tests/find_metadata_test.rs|5|use liwe::model::config::MarkdownOptions;
+crates/liwe/tests/find_metadata_test.rs|6|use liwe::state::from_indoc;
+crates/liwe/tests/find_metadata_test.rs|7|
+crates/liwe/tests/find_metadata_test.rs|8|fn setup_graph(input: &str) -> Graph {
+crates/liwe/tests/find_metadata_test.rs|9|    Graph::import(&from_indoc(input), MarkdownOptions::default(), None)
+crates/liwe/tests/find_metadata_test.rs|10|}
+crates/liwe/tests/find_metadata_test.rs|11|
+crates/liwe/tests/find_metadata_test.rs|12|#[test]
+crates/liwe/tests/find_metadata_test.rs|13|fn filters_by_single_string_value() {
+crates/liwe/tests/find_metadata_test.rs|14|    let graph = setup_graph(indoc! {"
+crates/liwe/tests/find_metadata_test.rs|15|        ---
+crates/liwe/tests/find_metadata_test.rs|16|        title: Task A
+crates/liwe/tests/find_metadata_test.rs|17|        status: ready
+crates/liwe/tests/find_metadata_test.rs|18|        ---
+crates/liwe/tests/find_metadata_test.rs|19|
+crates/liwe/tests/find_metadata_test.rs|20|        # Task A
+crates/liwe/tests/find_metadata_test.rs|21|        _
+crates/liwe/tests/find_metadata_test.rs|22|        ---
+crates/liwe/tests/find_metadata_test.rs|23|        title: Task B
+crates/liwe/tests/find_metadata_test.rs|24|        status: done
+crates/liwe/tests/find_metadata_test.rs|25|        ---
+crates/liwe/tests/find_metadata_test.rs|26|
+crates/liwe/tests/find_metadata_test.rs|27|        # Task B
+crates/liwe/tests/find_metadata_test.rs|28|    "});
+crates/liwe/tests/find_metadata_test.rs|29|
+crates/liwe/tests/find_metadata_test.rs|30|    let finder = DocumentFinder::new(&graph);
+crates/liwe/tests/find_metadata_test.rs|31|    let options = FindOptions {
+crates/liwe/tests/find_metadata_test.rs|32|        metadata_filters: vec![("status".to_string(), "ready".to_string())],
+crates/liwe/tests/find_metadata_test.rs|33|        ..Default::default()
+crates/liwe/tests/find_metadata_test.rs|34|    };
+crates/liwe/tests/find_metadata_test.rs|35|    let output = finder.find(&options);
+crates/liwe/tests/find_metadata_test.rs|36|    assert_eq!(output.results.len(), 1);
+crates/liwe/tests/find_metadata_test.rs|37|    assert_eq!(output.results[0].title, "Task A");
+crates/liwe/tests/find_metadata_test.rs|38|}
+crates/liwe/tests/find_metadata_test.rs|39|
+crates/liwe/tests/find_metadata_test.rs|40|#[test]
+crates/liwe/tests/find_metadata_test.rs|41|fn combines_filters_with_and() {
+crates/liwe/tests/find_metadata_test.rs|42|    let graph = setup_graph(indoc! {"
+crates/liwe/tests/find_metadata_test.rs|43|        ---
+crates/liwe/tests/find_metadata_test.rs|44|        title: Note 1
+crates/liwe/tests/find_metadata_test.rs|45|        status: ready
+crates/liwe/tests/find_metadata_test.rs|46|        category: work
+crates/liwe/tests/find_metadata_test.rs|47|        ---
+crates/liwe/tests/find_metadata_test.rs|48|
+crates/liwe/tests/find_metadata_test.rs|49|        # Note 1
+crates/liwe/tests/find_metadata_test.rs|50|        _
+crates/liwe/tests/find_metadata_test.rs|51|        ---
+crates/liwe/tests/find_metadata_test.rs|52|        title: Note 2
+crates/liwe/tests/find_metadata_test.rs|53|        status: ready
+crates/liwe/tests/find_metadata_test.rs|54|        category: personal
+crates/liwe/tests/find_metadata_test.rs|55|        ---
+crates/liwe/tests/find_metadata_test.rs|56|
+crates/liwe/tests/find_metadata_test.rs|57|        # Note 2
+crates/liwe/tests/find_metadata_test.rs|58|    "});
+crates/liwe/tests/find_metadata_test.rs|59|
+crates/liwe/tests/find_metadata_test.rs|60|    let finder = DocumentFinder::new(&graph);
+crates/liwe/tests/find_metadata_test.rs|61|    let options = FindOptions {
+crates/liwe/tests/find_metadata_test.rs|62|        metadata_filters: vec![
+crates/liwe/tests/find_metadata_test.rs|63|            ("status".to_string(), "ready".to_string()),
+crates/liwe/tests/find_metadata_test.rs|64|            ("category".to_string(), "work".to_string()),
+crates/liwe/tests/find_metadata_test.rs|65|        ],
+crates/liwe/tests/find_metadata_test.rs|66|        ..Default::default()
+crates/liwe/tests/find_metadata_test.rs|67|    };
+crates/liwe/tests/find_metadata_test.rs|68|    let output = finder.find(&options);
+crates/liwe/tests/find_metadata_test.rs|69|    assert_eq!(output.results.len(), 1);
+crates/liwe/tests/find_metadata_test.rs|70|    assert_eq!(output.results[0].title, "Note 1");
+crates/liwe/tests/find_metadata_test.rs|71|}
+crates/liwe/tests/find_metadata_test.rs|72|
+crates/liwe/tests/find_metadata_test.rs|73|#[test]
+crates/liwe/tests/find_metadata_test.rs|74|fn non_matching_value_excluded() {
+crates/liwe/tests/find_metadata_test.rs|75|    let graph = setup_graph(indoc! {"
+crates/liwe/tests/find_metadata_test.rs|76|        ---
+crates/liwe/tests/find_metadata_test.rs|77|        title: Task A
+crates/liwe/tests/find_metadata_test.rs|78|        status: done
+crates/liwe/tests/find_metadata_test.rs|79|        ---
+crates/liwe/tests/find_metadata_test.rs|80|
+crates/liwe/tests/find_metadata_test.rs|81|        # Task A
+crates/liwe/tests/find_metadata_test.rs|82|    "});
+crates/liwe/tests/find_metadata_test.rs|83|
+crates/liwe/tests/find_metadata_test.rs|84|    let finder = DocumentFinder::new(&graph);
+crates/liwe/tests/find_metadata_test.rs|85|    let options = FindOptions {
+crates/liwe/tests/find_metadata_test.rs|86|        metadata_filters: vec![("status".to_string(), "ready".to_string())],
+crates/liwe/tests/find_metadata_test.rs|87|        ..Default::default()
+crates/liwe/tests/find_metadata_test.rs|88|    };
+crates/liwe/tests/find_metadata_test.rs|89|    let output = finder.find(&options);
+crates/liwe/tests/find_metadata_test.rs|90|    assert_eq!(output.results.len(), 0);
+crates/liwe/tests/find_metadata_test.rs|91|}
+crates/liwe/tests/find_metadata_test.rs|92|
+crates/liwe/tests/find_metadata_test.rs|93|#[test]
+crates/liwe/tests/find_metadata_test.rs|94|fn note_without_metadata_excluded() {
+crates/liwe/tests/find_metadata_test.rs|95|    let graph = setup_graph(indoc! {"
+crates/liwe/tests/find_metadata_test.rs|96|        # No Metadata
+crates/liwe/tests/find_metadata_test.rs|97|    "});
+crates/liwe/tests/find_metadata_test.rs|98|
+crates/liwe/tests/find_metadata_test.rs|99|    let finder = DocumentFinder::new(&graph);
+crates/liwe/tests/find_metadata_test.rs|100|    let options = FindOptions {
+crates/liwe/tests/find_metadata_test.rs|101|        metadata_filters: vec![("status".to_string(), "ready".to_string())],
+crates/liwe/tests/find_metadata_test.rs|102|        ..Default::default()
+crates/liwe/tests/find_metadata_test.rs|103|    };
+crates/liwe/tests/find_metadata_test.rs|104|    let output = finder.find(&options);
+crates/liwe/tests/find_metadata_test.rs|105|    assert_eq!(output.results.len(), 0);
+crates/liwe/tests/find_metadata_test.rs|106|}
+crates/liwe/tests/find_metadata_test.rs|107|
+crates/liwe/tests/find_metadata_test.rs|108|#[test]
+crates/liwe/tests/find_metadata_test.rs|109|fn value_in_yaml_sequence_matches() {
+crates/liwe/tests/find_metadata_test.rs|110|    let graph = setup_graph(indoc! {"
+crates/liwe/tests/find_metadata_test.rs|111|        ---
+crates/liwe/tests/find_metadata_test.rs|112|        title: Task A
+crates/liwe/tests/find_metadata_test.rs|113|        tags:
+crates/liwe/tests/find_metadata_test.rs|114|          - rust
+crates/liwe/tests/find_metadata_test.rs|115|          - iwe
+crates/liwe/tests/find_metadata_test.rs|116|        ---
+crates/liwe/tests/find_metadata_test.rs|117|
+crates/liwe/tests/find_metadata_test.rs|118|        # Task A
+crates/liwe/tests/find_metadata_test.rs|119|    "});
+crates/liwe/tests/find_metadata_test.rs|120|
+crates/liwe/tests/find_metadata_test.rs|121|    let finder = DocumentFinder::new(&graph);
+crates/liwe/tests/find_metadata_test.rs|122|    let options = FindOptions {
+crates/liwe/tests/find_metadata_test.rs|123|        metadata_filters: vec![("tags".to_string(), "rust".to_string())],
+crates/liwe/tests/find_metadata_test.rs|124|        ..Default::default()
+crates/liwe/tests/find_metadata_test.rs|125|    };
+crates/liwe/tests/find_metadata_test.rs|126|    let output = finder.find(&options);
+crates/liwe/tests/find_metadata_test.rs|127|    assert_eq!(output.results.len(), 1);
+crates/liwe/tests/find_metadata_test.rs|128|    assert_eq!(output.results[0].title, "Task A");
+crates/liwe/tests/find_metadata_test.rs|129|}
+crates/liwe/tests/find_metadata_test.rs|130|
+crates/liwe/tests/find_metadata_test.rs|131|#[test]
+crates/liwe/tests/find_metadata_test.rs|132|fn combines_with_roots_flag() {
+crates/liwe/tests/find_metadata_test.rs|133|    let graph = setup_graph(indoc! {"
+crates/liwe/tests/find_metadata_test.rs|134|        ---
+crates/liwe/tests/find_metadata_test.rs|135|        title: Root
+crates/liwe/tests/find_metadata_test.rs|136|        status: ready
+crates/liwe/tests/find_metadata_test.rs|137|        ---
+crates/liwe/tests/find_metadata_test.rs|138|
+crates/liwe/tests/find_metadata_test.rs|139|        # Root
+crates/liwe/tests/find_metadata_test.rs|140|
+crates/liwe/tests/find_metadata_test.rs|141|        [child](2)
+crates/liwe/tests/find_metadata_test.rs|142|        _
+crates/liwe/tests/find_metadata_test.rs|143|        ---
+crates/liwe/tests/find_metadata_test.rs|144|        title: Child
+crates/liwe/tests/find_metadata_test.rs|145|        status: ready
+crates/liwe/tests/find_metadata_test.rs|146|        ---
+crates/liwe/tests/find_metadata_test.rs|147|
+crates/liwe/tests/find_metadata_test.rs|148|        # Child
+crates/liwe/tests/find_metadata_test.rs|149|    "});
+crates/liwe/tests/find_metadata_test.rs|150|
+crates/liwe/tests/find_metadata_test.rs|151|    let finder = DocumentFinder::new(&graph);
+crates/liwe/tests/find_metadata_test.rs|152|    let options = FindOptions {
+crates/liwe/tests/find_metadata_test.rs|153|        roots: true,
+crates/liwe/tests/find_metadata_test.rs|154|        metadata_filters: vec![("status".to_string(), "ready".to_string())],
+crates/liwe/tests/find_metadata_test.rs|155|        ..Default::default()
+crates/liwe/tests/find_metadata_test.rs|156|    };
+crates/liwe/tests/find_metadata_test.rs|157|    let output = finder.find(&options);
+crates/liwe/tests/find_metadata_test.rs|158|    assert_eq!(output.results.len(), 1);
+crates/liwe/tests/find_metadata_test.rs|159|    assert_eq!(output.results[0].title, "Root");
+crates/liwe/tests/find_metadata_test.rs|160|}
+  ────────────────────────────────────────
+  ▸ todo_write todo
+    content: - [x] Explain how `iwe find --meta` filters documents
+  - [x] Trace CLI argument parsing
+  - [x] Trace data flow through functions to filtered result set
+  - [x] List every function involved
+  - [x] Explain filtering logic
+  - [x] Do not modify project files
+
+## Short answer
+
+`iwe find --meta key=value` is parsed by clap into `Find.meta: Vec<(String, String)>`, copied into `FindOptions.metadata_filters`, and applied inside `DocumentFinder::find()` as one of the candidate-document filters.
+
+A document is included only if:
+
+1. all non-meta filters also pass (`selector`, `--roots`, `--refs-to`, `--refs-from`, query), and
+2. if any `--meta` filters were supplied, `metadata_matches()` returns `true`.
+
+`metadata_matches()`:
+
+- requires the document to have front matter stored in `Graph.metadata`;
+- parses that raw front matter as YAML with `serde_yaml::from_str`;
+- requires **every** requested `key=value` pair to match;
+- supports top-level YAML fields only;
+- supports values of type string, bool, number, and string sequences.
+
+## CLI path
+
+### 1. `main()` parses CLI args
+
+**Function:** `main()`  
+**File:** `crates/iwe/src/main.rs:527`
+
+Relevant flow:
+
+```rust
+let app = App::parse();
+...
+match app.command {
+    ...
+    Command::Find(find) => find_command(find),
+    ...
+}
+```
+
+`App::parse()` is clap’s generated parser. It constructs:
+
+```rust
+pub struct App {
+    global_opts: GlobalOpts,
+    command: Command,
+}
+```
+
+and then the `Command::Find(Find)` branch calls `find_command(find)`.
+
+### 2. `Command::Find` carries a `Find` struct
+
+**Type:** `Command`  
+**File:** `crates/iwe/src/main.rs:48`
+
+Relevant variant:
+
+```rust
+enum Command {
+    ...
+    Find(Find),
+    ...
+}
+```
+
+### 3. `Find.meta` is parsed from repeatable `--meta`
+
+**Type:** `Find`  
+**File:** `crates/iwe/src/main.rs:132`
+
+Relevant field:
+
+```rust
+#[clap(long = "meta", value_parser = parse_meta_filter,
+       help = "Filter by front matter field (key=value); repeatable")]
+meta: Vec<(String, String)>,
+```
+
+So each `--meta ...` argument is passed through `parse_meta_filter`.
+
+Examples:
+
+```bash
+iwe find --meta status=ready
+iwe find --meta status=ready --meta category=work
+```
+
+produce approximately:
+
+```rust
+vec![
+    ("status".to_string(), "ready".to_string()),
+]
+```
+
+or:
+
+```rust
+vec![
+    ("status".to_string(), "ready".to_string()),
+    ("category".to_string(), "work".to_string()),
+]
+```
+
+### 4. `parse_meta_filter()` turns `key=value` text into a tuple
+
+**Function:** `parse_meta_filter`  
+**File:** `crates/iwe/src/main.rs:654`
+
+```rust
+fn parse_meta_filter(s: &str) -> Result<(String, String), String> {
+    s.split_once('=')
+        .map(|(k, v)| (k.trim().to_string(), v.trim().to_string()))
+        .ok_or_else(|| format!("expected key=value, got `{}`", s))
+}
+```
+
+Filtering implications:
+
+- argument must contain an equals sign;
+- only the **first** equals sign splits the string because `split_once('=')` is used;
+- key and value are trimmed;
+- empty key/value are not explicitly rejected;
+- malformed input like `--meta status` fails clap parsing with `expected key=value`.
+
+Examples:
+
+| CLI arg | Parsed tuple |
+|---|---|
+| `--meta status=ready` | `("status", "ready")` |
+| `--meta ' status = ready '` | `("status", "ready")` |
+| `--meta a=b=c` | `("a", "b=c")` |
+| `--meta status=` | `("status", "")` |
+| `--meta =ready` | `("", "ready")` |
+
+## Graph/data loading path
+
+The metadata filter operates against metadata already stored in `Graph.metadata`.
+
+### 5. `find_command()` loads config and graph
+
+**Function:** `find_command`  
+**File:** `crates/iwe/src/main.rs:661`
+
+```rust
+fn find_command(args: Find) {
+    let config = get_configuration();
+    let graph = load_graph(&config);
+
+    let finder = DocumentFinder::new(&graph);
+    let options = FindOptions {
+        query: args.query,
+        roots: args.roots,
+        refs_to: args.refs_to.map(|s| Key::name(&s)),
+        refs_from: args.refs_from.map(|s| Key::name(&s)),
+        selector: args.selector.into(),
+        limit: args.limit,
+        metadata_filters: args.meta,
+    };
+
+    let output = finder.find(&options);
+    ...
+}
+```
+
+The important transfer is:
+
+```rust
+metadata_filters: args.meta
+```
+
+So clap’s `Vec<(String, String)>` becomes `FindOptions.metadata_filters`.
+
+### 6. `get_configuration()` loads config
+
+**Function:** `get_configuration`  
+**File:** `crates/iwe/src/main.rs:1048`
+
+```rust
+fn get_configuration() -> Configuration {
+    let config = load_config();
+    ...
+    config
+}
+```
+
+This matters because graph loading uses config values such as markdown options and library path.
+
+### 7. `load_graph()` imports markdown files into a `Graph`
+
+**Function:** `load_graph`  
+**File:** `crates/iwe/src/main.rs:1025`
+
+```rust
+fn load_graph(configuration: &Configuration) -> Graph {
+    Graph::import(
+        &new_for_path_with_options(
+            &get_library_path(configuration),
+            configuration.library.virtual_directories,
+        ),
+        configuration.markdown.clone(),
+        configuration.library.frontmatter_document_title.clone(),
+    )
+}
+```
+
+This calls:
+
+- `get_library_path(configuration)`
+- `new_for_path_with_options(...)`
+- `Graph::import(...)`
+
+### 8. `get_library_path()` computes the notes directory
+
+**Function:** `get_library_path`  
+**File:** `crates/iwe/src/main.rs:1036`
+
+It starts from current directory and appends `configuration.library.path` if configured.
+
+### 9. `new_for_path_with_options()` reads `.md` files into `State`
+
+**Function:** `new_for_path_with_options`  
+**File:** `crates/liwe/src/fs.rs:17`
+
+Relevant behavior:
+
+```rust
+WalkBuilder::new(base_path)
+    ...
+    .filter_map(|entry| {
+        ...
+        if !path.is_file() || path.extension().is_none_or(|ext| ext != "md") {
+            return None;
+        }
+        ...
+        fs::read_to_string(path).ok().map(|content| (key, content))
+    })
+    .collect()
+```
+
+So the graph import receives a `State`, essentially a map from document key to markdown content.
+
+### 10. `Graph::import()` delegates to `Graph::from_state()`
+
+**Function:** `Graph::import`  
+**File:** `crates/liwe/src/graph.rs:343`
+
+```rust
+pub fn import(
+    content: &State,
+    markdown_options: MarkdownOptions,
+    frontmatter_document_title: Option<String>,
+) -> Graph {
+    Self::from_state(content.clone(), false, markdown_options, frontmatter_document_title)
+}
+```
+
+### 11. `Graph::from_state()` parses every document and stores metadata
+
+**Function:** `Graph::from_state`  
+**File:** `crates/liwe/src/graph.rs:351`
+
+Relevant section:
+
+```rust
+let reader = MarkdownReader::new();
+
+let blocks = state
+    .iter()
+    .sorted_by(|a, b| a.0.cmp(b.0))
+    .collect_vec()
+    .par_iter()
+    .map(|(k, v)| {
+        debug!("parsing content, key={}", k);
+        (Key::name(k), reader.document(v, &markdown_options))
+    })
+    .collect::<Vec<_>>();
+
+for (key, document) in blocks.into_iter() {
+    if let Some(meta) = document.metadata.clone() {
+        graph.metadata.insert(key.clone(), meta);
+    } else {
+        graph.metadata.remove(&key);
+    }
+
+    ...
+}
+```
+
+This is where raw YAML front matter gets stored in the graph.
+
+## Markdown metadata extraction path
+
+### 12. `MarkdownReader::new()`
+
+**Function:** `MarkdownReader::new`  
+**File:** `crates/liwe/src/markdown.rs:21`
+
+Creates the markdown reader.
+
+### 13. `MarkdownReader::document()` parses content into `Document`
+
+**Function:** `MarkdownReader::document`  
+**File:** `crates/liwe/src/markdown.rs:58`
+
+```rust
+fn document(&self, content: &str, markdown_options: &MarkdownOptions) -> Document {
+    let effective = if markdown_options.bare_frontmatter {
+        wrap_bare_frontmatter(content)
+    } else {
+        Cow::Borrowed(content)
+    };
+
+    let mut reader = MarkdownEventsReader::new_with_options(markdown_options);
+    reader.read(&effective);
+
+    Document {
+        blocks: reader.blocks(),
+        metadata: reader.metadata(),
+    }
+}
+```
+
+This returns a `Document` containing:
+
+```rust
+pub struct Document {
+    pub blocks: DocumentBlocks,
+    pub metadata: Option<String>,
+}
+```
+
+### 14. `wrap_bare_frontmatter()` optionally normalizes bare front matter
+
+**Function:** `wrap_bare_frontmatter`  
+**File:** `crates/liwe/src/markdown.rs:29`
+
+Only applies if `markdown_options.bare_frontmatter` is true.
+
+It wraps content starting with `title: ` in YAML fences so pulldown-cmark sees it as metadata. This can affect whether a document has metadata available for `--meta`.
+
+### 15. `MarkdownEventsReader::new_with_options()`
+
+**Function:** `MarkdownEventsReader::new_with_options`  
+**File:** `crates/liwe/src/markdown/reader.rs:45`
+
+Initializes:
+
+```rust
+metadata_block: false,
+metadata: None,
+```
+
+### 16. `MarkdownEventsReader::read()` enables YAML metadata blocks
+
+**Function:** `MarkdownEventsReader::read`  
+**File:** `crates/liwe/src/markdown/reader.rs:76`
+
+Important parser option:
+
+```rust
+Options::ENABLE_YAML_STYLE_METADATA_BLOCKS
+```
+
+Relevant event handling:
+
+```rust
+Text(text) => {
+    if !self.metadata_block {
+        ...
+    } else {
+        self.metadata = Some(text.to_string());
+    }
+}
+```
+
+So while inside a metadata block, text is captured as `self.metadata`.
+
+### 17. `MarkdownEventsReader::start_tag()` detects metadata block start
+
+**Function:** `MarkdownEventsReader::start_tag`  
+**File:** `crates/liwe/src/markdown/reader.rs:356`
+
+Relevant match arm:
+
+```rust
+Tag::MetadataBlock(_) => self.metadata_block = true,
+```
+
+### 18. `MarkdownEventsReader::end_tag()` detects metadata block end
+
+**Function:** `MarkdownEventsReader::end_tag`  
+**File:** `crates/liwe/src/markdown/reader.rs:386`
+
+```rust
+TagEnd::MetadataBlock(_) => self.metadata_block = false,
+```
+
+### 19. `MarkdownEventsReader::metadata()`
+
+**Function:** `MarkdownEventsReader::metadata`  
+**File:** `crates/liwe/src/markdown/reader.rs:63`
+
+```rust
+pub fn metadata(&self) -> Option<String> {
+    self.metadata.clone()
+}
+```
+
+This is the raw metadata string passed up into `Document.metadata`, then `Graph.metadata`.
+
+## Filtering path
+
+### 20. `DocumentFinder::new()`
+
+**Function:** `DocumentFinder::new`  
+**File:** `crates/liwe/src/find.rs:51`
+
+```rust
+pub fn new(graph: &'a Graph) -> Self {
+    Self { graph }
+}
+```
+
+### 21. `FindOptions.metadata_filters`
+
+**Type:** `FindOptions`  
+**File:** `crates/liwe/src/find.rs:35`
+
+```rust
+pub struct FindOptions {
+    pub query: Option<String>,
+    pub roots: bool,
+    pub refs_to: Option<Key>,
+    pub refs_from: Option<Key>,
+    pub selector: Selector,
+    pub limit: Option<usize>,
+    pub metadata_filters: Vec<(String, String)>,
+}
+```
+
+### 22. `DocumentFinder::find()` iterates document keys and filters
+
+**Function:** `DocumentFinder::find`  
+**File:** `crates/liwe/src/find.rs:55`
+
+It starts from all graph keys:
+
+```rust
+self.graph.keys().into_iter().filter_map(|key| { ... })
+```
+
+The meta filter is applied after selector/root/ref filters and before fuzzy query scoring:
+
+```rust
+if !options.metadata_filters.is_empty()
+    && !self.metadata_matches(&key, &options.metadata_filters)
+{
+    return None;
+}
+```
+
+So:
+
+- if no `--meta` filters were supplied, this condition is skipped;
+- if at least one `--meta` was supplied, every document must pass `metadata_matches`;
+- documents that fail are removed from the result stream by returning `None`.
+
+Then remaining documents are scored and possibly query-filtered:
+
+```rust
+let score = options
+    .query
+    .as_ref()
+    .map(|q| matcher.fuzzy_match(&search_text, q).unwrap_or(0))
+    .unwrap_or(self.node_rank(&key) as i64);
+
+if options.query.is_some() && score == 0 {
+    return None;
+}
+
+Some((key, score))
+```
+
+Finally:
+
+```rust
+results.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+```
+
+Then limit is applied, and each surviving key is converted to `FindResult` with `build_result`.
+
+### 23. `Graph::keys()`
+
+**Function:** `Graph::keys`  
+Not shown in the snippets above, but called from `DocumentFinder::find()`.
+
+It supplies the complete starting set of document keys. `--meta` does not search metadata independently; it filters this existing key set.
+
+### 24. `DocumentFinder::metadata_matches()`
+
+**Function:** `metadata_matches`  
+**File:** `crates/liwe/src/find.rs:253`
+
+Full filtering logic:
+
+```rust
+fn metadata_matches(&self, key: &Key, filters: &[(String, String)]) -> bool {
+    let raw = match self.graph.get_metadata(key) {
+        Some(s) => s,
+        None => return false,
+    };
+    let val: serde_yaml::Value = match serde_yaml::from_str(raw) {
+        Ok(v) => v,
+        _ => return false,
+    };
+    filters.iter().all(|(k, v)| {
+        val.get(k.as_str())
+            .and_then(|node| match node {
+                serde_yaml::Value::String(s) => Some(s.as_str() == v.as_str()),
+                serde_yaml::Value::Bool(b) => Some(b.to_string() == *v),
+                serde_yaml::Value::Number(n) => Some(n.to_string() == *v),
+                serde_yaml::Value::Sequence(items) => Some(
+                    items
+                        .iter()
+                        .any(|i| i.as_str().map(|s| s == v.as_str()).unwrap_or(false)),
+                ),
+                _ => Some(false),
+            })
+            .unwrap_or(false)
+    })
+}
+```
+
+### 25. `Graph::get_metadata()`
+
+**Function:** `Graph::get_metadata`  
+**File:** `crates/liwe/src/graph.rs:219`
+
+```rust
+pub fn get_metadata(&self, key: &Key) -> Option<&str> {
+    self.metadata.get(key).map(|s| s.as_str())
+}
+```
+
+If no metadata exists for that key, `metadata_matches()` returns `false`.
+
+## Exact metadata matching semantics
+
+Given:
+
+```bash
+iwe find --meta status=ready --meta category=work
+```
+
+A document must satisfy:
+
+```text
+metadata.status == "ready" AND metadata.category == "work"
+```
+
+because `filters.iter().all(...)` is used.
+
+### Matching supported YAML types
+
+#### String
+
+YAML:
+
+```yaml
+status: ready
+```
+
+CLI:
+
+```bash
+--meta status=ready
+```
+
+Matches by exact string equality.
+
+#### Bool
+
+YAML:
+
+```yaml
+published: true
+```
+
+CLI:
+
+```bash
+--meta published=true
+```
+
+Matches because bool is converted with `b.to_string()`.
+
+Likely values are lowercase Rust bool strings:
+
+```text
+true
+false
+```
+
+#### Number
+
+YAML:
+
+```yaml
+priority: 3
+```
+
+CLI:
+
+```bash
+--meta priority=3
+```
+
+Matches because YAML number is converted with `n.to_string()`.
+
+#### Sequence
+
+YAML:
+
+```yaml
+tags:
+  - rust
+  - iwe
+```
+
+CLI:
+
+```bash
+--meta tags=rust
+```
+
+Matches if **any sequence item** is a YAML string equal to the requested value.
+
+Important limitation: sequence matching only checks `i.as_str()`. So this matches only string sequence items, not numeric/bool sequence items.
+
+### Non-matching / excluded cases
+
+A document is excluded if:
+
+- it has no metadata/front matter;
+- its metadata cannot be parsed by `serde_yaml`;
+- the requested top-level key is absent;
+- the field exists but has unsupported type:
+  - map/object,
+  - null,
+  - other non-string/non-bool/non-number/non-sequence values;
+- sequence exists but none of its string items equal the requested value;
+- any one of repeated `--meta` filters fails.
+
+### Top-level only
+
+The code uses:
+
+```rust
+val.get(k.as_str())
+```
+
+It does not split dotted paths. So this:
+
+```bash
+--meta owner.name=DG
+```
+
+looks for a literal top-level YAML key named `owner.name`; it does **not** traverse:
+
+```yaml
+owner:
+  name: DG
+```
+
+## Interaction with other `find` filters
+
+Inside `DocumentFinder::find()`, filtering order is:
+
+1. selector:
+   ```rust
+   options.selector.resolve(self.graph)
+   ```
+2. root-only:
+   ```rust
+   options.roots && !self.is_root(&key)
+   ```
+3. references-to:
+   ```rust
+   options.refs_to && !self.references(&key, target)
+   ```
+4. references-from:
+   ```rust
+   options.refs_from && !self.references(source, &key)
+   ```
+5. metadata:
+   ```rust
+   !options.metadata_filters.is_empty()
+       && !self.metadata_matches(...)
+   ```
+6. query fuzzy match:
+   ```rust
+   matcher.fuzzy_match(&search_text, q)
+   ```
+
+All filters combine as AND. The metadata filter narrows the candidate set before query scoring and before sorting/limiting.
+
+## Functions involved, in order
+
+For the ordinary CLI path:
+
+1. `main()` — parses CLI and dispatches command.
+2. `App::parse()` — clap-generated parser entry point.
+3. `parse_meta_filter()` — clap value parser for each `--meta key=value`.
+4. `find_command()` — converts `Find` CLI args into `FindOptions`.
+5. `get_configuration()` — loads project configuration.
+6. `load_config()` — called by `get_configuration`; defined elsewhere.
+7. `load_graph()` — builds graph from configured library path.
+8. `get_library_path()` — computes library path from cwd/config.
+9. `new_for_path_with_options()` — reads markdown files into `State`.
+10. `Graph::import()` — imports `State` into a graph.
+11. `Graph::from_state()` — parses each markdown document and stores metadata.
+12. `MarkdownReader::new()` — creates markdown reader.
+13. `MarkdownReader::document()` — parses document and returns `Document`.
+14. `wrap_bare_frontmatter()` — conditional helper if bare front matter is enabled.
+15. `MarkdownEventsReader::new_with_options()` — initializes metadata tracking.
+16. `MarkdownEventsReader::read()` — parses markdown events.
+17. `MarkdownEventsReader::start_tag()` — sets `metadata_block = true`.
+18. `MarkdownEventsReader::end_tag()` — sets `metadata_block = false`.
+19. `MarkdownEventsReader::metadata()` — returns captured raw metadata.
+20. `DocumentFinder::new()` — wraps graph.
+21. `DocumentFinder::find()` — filters candidates, including metadata.
+22. `Graph::keys()` — supplies candidate document keys.
+23. `DocumentFinder::metadata_matches()` — implements `--meta` matching.
+24. `Graph::get_metadata()` — retrieves raw metadata for a document key.
+25. `serde_yaml::from_str()` — parses raw front matter into `serde_yaml::Value`.
+26. `DocumentFinder::build_result()` — builds `FindResult` after filtering/limiting.
+27. Output rendering path:
+    - JSON: `serde_json::to_string_pretty(&output)`
+    - keys: direct `println!("{}", result.key)`
+    - markdown: `render_find_output(&output)`
+
+## Summary
+
+`iwe find --meta` is a post-import, in-memory graph filter. It does not scan markdown files directly at filter time. Front matter is captured during graph import, stored as raw YAML text keyed by document key, and then `DocumentFinder::metadata_matches()` parses that YAML for each candidate document. Repeated `--meta` options are conjunctive. Only exact top-level field matches are supported, with special cases for strings, bools, numbers, and string arrays.

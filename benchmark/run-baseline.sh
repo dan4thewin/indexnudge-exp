@@ -2,8 +2,8 @@
 set -eu
 
 BENCHMARK_DIR="$(cd "$(dirname "$0")" && pwd)"
-CONDITION="baseline"
-RUNS=3
+CONDITION="${1:-baseline}"
+RUNS="${2:-3}"
 
 MODELS=("claude-opus-4.6" "gpt-5.5")
 TASKS=("explore" "implement" "debug")

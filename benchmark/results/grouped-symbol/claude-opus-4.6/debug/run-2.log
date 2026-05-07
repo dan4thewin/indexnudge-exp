@@ -1,0 +1,762 @@
+
+  ────────────────────────────────────────
+  ▸ todo_write todo
+    content: - [ ] Diagnose why `iwe find --meta depends=foo` fails for bare frontmatter docs
+- [ ] Fix the bug
+- [ ] Ensure cargo test passes
+
+
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && grep -rn "bare" --include="*.rs" -l | head -20
+
+crates/iwec/src/lib.rs
+crates/iwes/tests/go_to_definition_test.rs
+crates/iwes/tests/completion_test.rs
+crates/iwe/tests/retrieve_test.rs
+crates/iwe/src/selector.rs
+crates/liwe/tests/config_migration_test.rs
+crates/liwe/tests/bare_frontmatter_test.rs
+crates/liwe/src/markdown.rs
+crates/liwe/src/markdown/writer.rs
+crates/liwe/src/selector.rs
+crates/liwe/src/model/graph.rs
+crates/liwe/src/model/config.rs
+crates/liwe/src/parser.rs
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && grep -rn "meta\|frontmatter\|front_matter\|yaml_block" crates/liwe/src/selector.rs | head -30
+
+(no output)
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && grep -rn "meta" crates/liwe/src/selector.rs | head -20
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db ──
+
+
+── crates/iwe/src/main.rs ──
+
+  (top-level)
+    153 │     #[clap(long = "meta", value_parser = parse_meta_filter,
+    155 │     meta: Vec<(String, String)>,
+
+  parse_meta_filter (L654-L658)
+    654 │ fn parse_meta_filter(s: &str) -> Result<(String, String), String> {
+
+  find_command (L661-L693)
+    673 │         metadata_filters: args.meta,
+
+── crates/iwec/src/lib.rs ──
+
+  (top-level)
+    116 │     pub meta: Option<Vec<(String, String)>>,
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && grep -rn "metadata_filter\|meta_filter\|filter_meta\|matches_meta" --include="*.rs" | head -20
+
+crates/iwec/src/lib.rs:130:            metadata_filters: p.meta.unwrap_or_default(),
+crates/iwe/src/main.rs:153:    #[clap(long = "meta", value_parser = parse_meta_filter,
+crates/iwe/src/main.rs:654:fn parse_meta_filter(s: &str) -> Result<(String, String), String> {
+crates/iwe/src/main.rs:673:        metadata_filters: args.meta,
+crates/liwe/tests/find_metadata_test.rs:32:        metadata_filters: vec![("status".to_string(), "ready".to_string())],
+crates/liwe/tests/find_metadata_test.rs:62:        metadata_filters: vec![
+crates/liwe/tests/find_metadata_test.rs:86:        metadata_filters: vec![("status".to_string(), "ready".to_string())],
+crates/liwe/tests/find_metadata_test.rs:101:        metadata_filters: vec![("status".to_string(), "ready".to_string())],
+crates/liwe/tests/find_metadata_test.rs:123:        metadata_filters: vec![("tags".to_string(), "rust".to_string())],
+crates/liwe/tests/find_metadata_test.rs:154:        metadata_filters: vec![("status".to_string(), "ready".to_string())],
+crates/liwe/src/find.rs:43:    pub metadata_filters: Vec<(String, String)>,
+crates/liwe/src/find.rs:88:                if !options.metadata_filters.is_empty()
+crates/liwe/src/find.rs:89:                    && !self.metadata_matches(&key, &options.metadata_filters)
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && sed -n '85,130p' crates/liwe/src/find.rs
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db ──
+query: SELECT line_num, content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN 85 AND 130;
+** STOP USING sed. Query the DB directly: sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db "SELECT content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN START AND END ORDER BY line_num;" **
+
+  85 │                     }
+  86 │                 }
+  87 │ 
+  88 │                 if !options.metadata_filters.is_empty()
+  89 │                     && !self.metadata_matches(&key, &options.metadata_filters)
+  90 │                 {
+  91 │                     return None;
+  92 │                 }
+  93 │ 
+  94 │                 let title = self.graph.get_key_title(&key).unwrap_or_default();
+  95 │                 let search_text = format!("{} {}", key, title);
+  96 │ 
+  97 │                 let score = options
+  98 │                     .query
+  99 │                     .as_ref()
+ 100 │                     .map(|q| matcher.fuzzy_match(&search_text, q).unwrap_or(0))
+ 101 │                     .unwrap_or(self.node_rank(&key) as i64);
+ 102 │ 
+ 103 │                 if options.query.is_some() && score == 0 {
+ 104 │                     return None;
+ 105 │                 }
+ 106 │ 
+ 107 │                 Some((key, score))
+ 108 │             })
+ 109 │             .collect();
+ 110 │ 
+ 111 │         results.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+ 112 │ 
+ 113 │         let total = results.len();
+ 114 │         let results: Vec<FindResult> = if let Some(limit) = options.limit {
+ 115 │             results
+ 116 │                 .into_iter()
+ 117 │                 .take(limit)
+ 118 │                 .map(|(key, _)| self.build_result(&key))
+ 119 │                 .collect()
+ 120 │         } else {
+ 121 │             results
+ 122 │                 .into_iter()
+ 123 │                 .map(|(key, _)| self.build_result(&key))
+ 124 │                 .collect()
+ 125 │         };
+ 126 │ 
+ 127 │         let limit = options.limit.filter(|&l| l < total);
+ 128 │ 
+ 129 │         FindOutput {
+ 130 │             query: options.query.clone(),
+
+── enclosing: DocumentFinder | impl | lines 50-278
+find | method | lines 55-135 ──
+── full  impl : sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db "SELECT content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN 50 AND 278 ORDER BY line_num;" ──
+── full  method : sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db "SELECT content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN 55 AND 135 ORDER BY line_num;" ──
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && grep -n "metadata_matches" crates/liwe/src/find.rs
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db ──
+
+
+── crates/liwe/src/find.rs ──
+
+  DocumentFinder::find
+    89 │                     && !self.metadata_matches(&key, &options.metadata_filters)
+
+  DocumentFinder::metadata_matches
+    253 │     fn metadata_matches(&self, key: &Key, filters: &[(String, String)]) -> bool {
+
+── 2 matches across 1 file(s) ──
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db "SELECT content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN 253 AND 278 ORDER BY line_num;"
+
+    fn metadata_matches(&self, key: &Key, filters: &[(String, String)]) -> bool {
+        let raw = match self.graph.get_metadata(key) {
+            Some(s) => s,
+            None => return false,
+        };
+        let val: serde_yaml::Value = match serde_yaml::from_str(raw) {
+            Ok(v) => v,
+            _ => return false,
+        };
+        filters.iter().all(|(k, v)| {
+            val.get(k.as_str())
+                .and_then(|node| match node {
+                    serde_yaml::Value::String(s) => Some(s.as_str() == v.as_str()),
+                    serde_yaml::Value::Bool(b) => Some(b.to_string() == *v),
+                    serde_yaml::Value::Number(n) => Some(n.to_string() == *v),
+                    serde_yaml::Value::Sequence(items) => Some(
+                        items
+                            .iter()
+                            .any(|i| i.as_str().map(|s| s == v.as_str()).unwrap_or(false)),
+                    ),
+                    _ => Some(false),
+                })
+                .unwrap_or(false)
+        })
+    }
+}
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && grep -n "get_metadata" crates/liwe/src/model/graph.rs
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db ──
+
+
+── crates/iwe/src/render.rs ──
+
+  RetrieveRenderer::render_document
+    65 │         if let Some(metadata_str) = self.graph.get_metadata(&key) {
+
+── crates/liwe/src/find.rs ──
+
+  DocumentFinder::metadata_matches
+    254 │         let raw = match self.graph.get_metadata(key) {
+
+── crates/liwe/src/graph.rs ──
+
+  Graph::get_metadata
+    223 │     pub fn get_metadata(&self, key: &Key) -> Option<&str> {
+
+── 3 matches across 3 file(s) ──
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db "SELECT content FROM lines WHERE file='crates/liwe/src/graph.rs' AND line_num BETWEEN 223 AND 250 ORDER BY line_num;"
+
+    pub fn get_metadata(&self, key: &Key) -> Option<&str> {
+        self.metadata.get(key).map(|s| s.as_str())
+    }
+
+    pub fn build_key_and<F>(&mut self, key: &Key, f: F) -> &mut Self
+    where
+        F: FnOnce(&mut GraphBuilder),
+    {
+        let id = self.arena.new_node_id();
+        self.keys.insert(key.clone(), id);
+        self.arena
+            .set_node(id, GraphNode::new_root(key.clone(), id, None));
+        f(&mut GraphBuilder::new(self, id));
+
+        self.extract_ref_text(key)
+            .map(|text| self.keys_to_ref_text.insert(key.clone(), text));
+
+        let mut index = RefIndex::new();
+        index.index_node(self, id);
+        self.index.merge(index);
+
+        self
+    }
+
+    fn extract_ref_text(&self, key: &Key) -> Option<String> {
+        if let Some(title) = self.extract_frontmatter_title(key) {
+            return Some(title);
+        }
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && grep -n "self.metadata" crates/liwe/src/graph.rs | head -20
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db ──
+
+
+── crates/liwe/src/find.rs ──
+
+  DocumentFinder::find
+    89 │                     && !self.metadata_matches(&key, &options.metadata_filters)
+
+── crates/liwe/src/graph.rs ──
+
+  Graph::new_patch
+    102 │             metadata: self.metadata.clone(),
+
+  Graph::remove_document
+    141 │         self.metadata.remove(&key);
+
+  Graph::get_metadata
+    224 │         self.metadata.get(key).map(|s| s.as_str())
+
+  Graph::extract_frontmatter_title
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && grep -n "metadata\.insert\|metadata\.entry" crates/liwe/src/graph.rs crates/liwe/src/parser.rs crates/liwe/src/model/graph.rs
+
+crates/liwe/src/graph.rs:284:            self.metadata.insert(key.clone(), meta);
+crates/liwe/src/graph.rs:380:                graph.metadata.insert(key.clone(), meta);
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db "SELECT content FROM lines WHERE file='crates/liwe/src/graph.rs' AND line_num BETWEEN 270 AND 295 ORDER BY line_num;"
+
+            .map(|id| GraphNodePointer::new(self, *id))
+    }
+
+    pub fn get_document_id(&self, key: &Key) -> NodeId {
+        *self
+            .keys
+            .get(key)
+            .unwrap_or_else(|| panic!("to have key, {}", key))
+    }
+
+    pub fn from_markdown(&mut self, key: Key, content: &str, reader: impl Reader) {
+        let document = reader.document(content, &self.markdown_options);
+
+        if let Some(meta) = document.metadata {
+            self.metadata.insert(key.clone(), meta);
+        } else {
+            self.metadata.remove(&key);
+        }
+
+        let mut build_key = self.build_key(&key);
+        let id = build_key.id();
+
+        let nodes_map = SectionsBuilder::new(&mut build_key, &document.blocks, &key).nodes_map();
+
+        self.nodes_map.insert(key.clone(), nodes_map.clone());
+        self.global_nodes_map.extend(nodes_map);
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db "SELECT content FROM lines WHERE file='crates/liwe/src/graph.rs' AND line_num BETWEEN 370 AND 390 ORDER BY line_num;"
+
+            .collect_vec()
+            .par_iter()
+            .map(|(k, v)| {
+                debug!("parsing content, key={}", k);
+                (Key::name(k), reader.document(v, &markdown_options))
+            })
+            .collect::<Vec<_>>();
+
+        for (key, document) in blocks.into_iter() {
+            if let Some(meta) = document.metadata.clone() {
+                graph.metadata.insert(key.clone(), meta);
+            } else {
+                graph.metadata.remove(&key);
+            }
+
+            let nodes_map =
+                SectionsBuilder::new(&mut graph.build_key(&key), &document.blocks, &key)
+                    .nodes_map();
+            graph.nodes_map.insert(key.clone(), nodes_map.clone());
+            graph.global_nodes_map.extend(nodes_map);
+        }
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && grep -n "metadata" crates/liwe/src/markdown.rs | head -20
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db ──
+
+
+── crates/iwe/src/main.rs ──
+
+  (top-level)
+    108 │     #[clap(long, help = "Exclude document content from results (metadata only)")]
+
+  find_command (L661-L693)
+    673 │         metadata_filters: args.meta,
+
+── crates/iwe/src/render.rs ──
+
+  RetrieveRenderer::render_document
+    62 │         // Build extra fields from parsed front matter metadata.
+    65 │         if let Some(metadata_str) = self.graph.get_metadata(&key) {
+    66 │             if let Ok(serde_yaml::Value::Mapping(map)) = serde_yaml::from_str(metadata_str) {
+
+── crates/iwec/src/lib.rs ──
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && grep -rn "fn document\|struct.*Document\|metadata.*:" crates/liwe/src/markdown.rs | head -20
+
+68:    fn document(&self, content: &str, markdown_options: &MarkdownOptions) -> Document {
+80:            metadata: reader.metadata(),
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db "SELECT content FROM lines WHERE file='crates/liwe/src/markdown.rs' AND line_num BETWEEN 60 AND 95 ORDER BY line_num;"
+
+            .filter(|l| !l.starts_with(' '))
+            .collect::<Vec<_>>()
+            .join("\n");
+        Cow::Owned(format!("---\n{}\n---\n\n{}", cleaned_header, rest))
+    }
+}
+
+impl Reader for MarkdownReader {
+    fn document(&self, content: &str, markdown_options: &MarkdownOptions) -> Document {
+        let effective = if markdown_options.bare_frontmatter {
+            wrap_bare_frontmatter(content)
+        } else {
+            Cow::Borrowed(content)
+        };
+
+        let mut reader = MarkdownEventsReader::new_with_options(markdown_options);
+        reader.read(&effective);
+
+        Document {
+            blocks: reader.blocks(),
+            metadata: reader.metadata(),
+        }
+    }
+}
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && grep -n "fn metadata\|fn wrap_bare" crates/liwe/src/markdown.rs
+
+29:pub fn wrap_bare_frontmatter(content: &str) -> Cow<'_, str> {
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db "SELECT content FROM lines WHERE file='crates/liwe/src/markdown.rs' AND line_num BETWEEN 29 AND 65 ORDER BY line_num;"
+
+pub fn wrap_bare_frontmatter(content: &str) -> Cow<'_, str> {
+    // Already fenced — leave alone.
+    if content.starts_with("---") {
+        return Cow::Borrowed(content);
+    }
+
+    // Must start with `title: `.
+    if !content.starts_with("title: ") {
+        return Cow::Borrowed(content);
+    }
+
+    // Find first true blank line (\n\n or \r\n\r\n).
+    let (header, rest) = if let Some(pos) = content.find("\n\n") {
+        (&content[..pos], &content[pos + 2..])
+    } else if let Some(pos) = content.find("\r\n\r\n") {
+        (&content[..pos], &content[pos + 4..])
+    } else {
+        // No blank line — entire content is header.
+        (content.trim_end(), "")
+    };
+
+    if rest.is_empty() {
+        let cleaned_header: String = header
+            .lines()
+            .filter(|l| !l.starts_with(' '))
+            .collect::<Vec<_>>()
+            .join("\n");
+        Cow::Owned(format!("---\n{}\n---\n", cleaned_header))
+    } else {
+        let cleaned_header: String = header
+            .lines()
+            .filter(|l| !l.starts_with(' '))
+            .collect::<Vec<_>>()
+            .join("\n");
+        Cow::Owned(format!("---\n{}\n---\n\n{}", cleaned_header, rest))
+    }
+}
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && cat -n crates/liwe/src/markdown.rs | head -70
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db ──
+query: SELECT content FROM lines WHERE file='crates/liwe/src/markdown.rs' ORDER BY line_num;
+
+use std::borrow::Cow;
+
+use crate::graph::Reader;
+use crate::model::config::MarkdownOptions;
+use crate::model::document::Document;
+
+pub mod reader;
+
+use reader::MarkdownEventsReader;
+pub struct MarkdownReader {}
+
+pub mod writer;
+
+impl Default for MarkdownReader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl MarkdownReader {
+    pub fn new() -> MarkdownReader {
+        MarkdownReader {}
+    }
+}
+
+/// If `bare_frontmatter` is enabled and content starts with `title: ` (but
+/// not `---`), wrap the leading header block in `---` fences so the
+/// downstream pulldown-cmark MetadataBlock machinery picks it up.
+pub fn wrap_bare_frontmatter(content: &str) -> Cow<'_, str> {
+    // Already fenced — leave alone.
+    if content.starts_with("---") {
+        return Cow::Borrowed(content);
+    }
+
+    // Must start with `title: `.
+    if !content.starts_with("title: ") {
+        return Cow::Borrowed(content);
+    }
+
+    // Find first true blank line (\n\n or \r\n\r\n).
+    let (header, rest) = if let Some(pos) = content.find("\n\n") {
+        (&content[..pos], &content[pos + 2..])
+    } else if let Some(pos) = content.find("\r\n\r\n") {
+        (&content[..pos], &content[pos + 4..])
+    } else {
+        // No blank line — entire content is header.
+        (content.trim_end(), "")
+    };
+
+    if rest.is_empty() {
+        let cleaned_header: String = header
+            .lines()
+            .filter(|l| !l.starts_with(' '))
+            .collect::<Vec<_>>()
+            .join("\n");
+        Cow::Owned(format!("---\n{}\n---\n", cleaned_header))
+    } else {
+        let cleaned_header: String = header
+            .lines()
+            .filter(|l| !l.starts_with(' '))
+            .collect::<Vec<_>>()
+            .join("\n");
+        Cow::Owned(format!("---\n{}\n---\n\n{}", cleaned_header, rest))
+    }
+}
+
+impl Reader for MarkdownReader {
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && git log --oneline -10 -- crates/liwe/src/markdown.rs
+
+5607c85 Add bare frontmatter, --meta filtering, virtual dirs, merged envelope
+b5deb6f chore: Lint fixes (#182)
+65c07a8 fix: Do not remove extensions from local links (#132)
+b93e6c0 feat: tables support (#77)
+b6dfd0d Fix Zed code actions (#17)
+b78e588 Publish to crates.io (#15)
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && grep -n "starts_with(' ')" crates/liwe/src/markdown.rs
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db ──
+
+
+── crates/liwe/src/markdown.rs ──
+
+  wrap_bare_frontmatter (L29-L65)
+    53 │             .filter(|l| !l.starts_with(' '))
+    60 │             .filter(|l| !l.starts_with(' '))
+
+── 2 matches across 1 file(s) ──
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && git log -1 -p --follow -S "starts_with(' ')" -- crates/liwe/src/markdown.rs | head -80
+
+(no output)
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && git log -1 -p 5607c85 -- crates/liwe/src/markdown.rs | grep -A3 -B3 "starts_with"
+
++/// downstream pulldown-cmark MetadataBlock machinery picks it up.
++pub fn wrap_bare_frontmatter(content: &str) -> Cow<'_, str> {
++    // Already fenced — leave alone.
++    if content.starts_with("---") {
++        return Cow::Borrowed(content);
++    }
++
++    // Must start with `title: `.
++    if !content.starts_with("title: ") {
++        return Cow::Borrowed(content);
++    }
++
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && cargo test -p liwe -- bare_frontmatter 2>&1 | tail -20
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 12 filtered out; finished in 0.00s
+
+     Running tests/toc_test.rs (target/debug/deps/toc_test-173659129d78b308)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.00s
+
+     Running tests/virtual_directories_test.rs (target/debug/deps/virtual_directories_test-df865321661582e1)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.00s
+
+   Doc-tests liwe
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && python3 -c "
+from subprocess import run
+# Simulate what wrap_bare_frontmatter does
+content = 'title: Test\ndepends:\n  - foo\n\nBody text here'
+header, rest = content.split('\n\n', 1)
+cleaned = '\n'.join(l for l in header.splitlines() if not l.startswith(' '))
+print('Cleaned header:')
+print(repr(cleaned))
+print()
+print('Full result:')
+print(f'---\n{cleaned}\n---\n\n{rest}')
+"
+
+Cleaned header:
+'title: Test\ndepends:'
+
+Full result:
+---
+title: Test
+depends:
+---
+
+Body text here
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && cat -n crates/liwe/src/markdown.rs
+
+── sqlite3 /home/dangood/src/iwe/.indexnudge-rust.db ──
+query: SELECT content FROM lines WHERE file='crates/liwe/src/markdown.rs' ORDER BY line_num;
+
+use std::borrow::Cow;
+
+use crate::graph::Reader;
+use crate::model::config::MarkdownOptions;
+use crate::model::document::Document;
+
+pub mod reader;
+
+use reader::MarkdownEventsReader;
+pub struct MarkdownReader {}
+
+pub mod writer;
+
+impl Default for MarkdownReader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl MarkdownReader {
+    pub fn new() -> MarkdownReader {
+        MarkdownReader {}
+    }
+}
+
+/// If `bare_frontmatter` is enabled and content starts with `title: ` (but
+/// not `---`), wrap the leading header block in `---` fences so the
+/// downstream pulldown-cmark MetadataBlock machinery picks it up.
+pub fn wrap_bare_frontmatter(content: &str) -> Cow<'_, str> {
+    // Already fenced — leave alone.
+    if content.starts_with("---") {
+        return Cow::Borrowed(content);
+    }
+
+    // Must start with `title: `.
+    if !content.starts_with("title: ") {
+        return Cow::Borrowed(content);
+    }
+
+    // Find first true blank line (\n\n or \r\n\r\n).
+    let (header, rest) = if let Some(pos) = content.find("\n\n") {
+        (&content[..pos], &content[pos + 2..])
+    } else if let Some(pos) = content.find("\r\n\r\n") {
+        (&content[..pos], &content[pos + 4..])
+    } else {
+        // No blank line — entire content is header.
+        (content.trim_end(), "")
+    };
+
+    if rest.is_empty() {
+        let cleaned_header: String = header
+            .lines()
+            .filter(|l| !l.starts_with(' '))
+            .collect::<Vec<_>>()
+            .join("\n");
+        Cow::Owned(format!("---\n{}\n---\n", cleaned_header))
+    } else {
+        let cleaned_header: String = header
+            .lines()
+            .filter(|l| !l.starts_with(' '))
+            .collect::<Vec<_>>()
+            .join("\n");
+        Cow::Owned(format!("---\n{}\n---\n\n{}", cleaned_header, rest))
+    }
+}
+
+impl Reader for MarkdownReader {
+    fn document(&self, content: &str, markdown_options: &MarkdownOptions) -> Document {
+        let effective = if markdown_options.bare_frontmatter {
+            wrap_bare_frontmatter(content)
+        } else {
+            Cow::Borrowed(content)
+        };
+
+        let mut reader = MarkdownEventsReader::new_with_options(markdown_options);
+        reader.read(&effective);
+
+        Document {
+            blocks: reader.blocks(),
+            metadata: reader.metadata(),
+        }
+    }
+}
+
+── crates/liwe/src/markdown.rs: 83 lines ──
+symbols:
+  struct | MarkdownReader | lines 10-10
+  trait_impl | MarkdownReader | lines 14-18
+  method | default | lines 15-17
+  impl | MarkdownReader | lines 20-24
+  method | new | lines 21-23
+  function | wrap_bare_frontmatter | lines 29-65
+  trait_impl | MarkdownReader | lines 67-83
+  method | document | lines 68-82
+── For focused exploration: SELECT * FROM symbols WHERE file='crates/liwe/src/markdown.rs'; ──
+  ────────────────────────────────────────
+  ▸ edit
+    path crates/liwe/src/markdown.rs
+    before:     if rest.is_empty() {
+        let cleaned_header: String = header
+            .lines()
+            .filter(|l| !l.starts_with(' '))
+            .collect::<Vec<_>>()
+            .join("\n");
+        Cow::Owned(format!("---\n{}\n---\n", cleaned_header))
+    } else {
+        let cleaned_header: String = header
+            .lines()
+            .filter(|l| !l.starts_with(' '))
+            .collect::<Vec<_>>()
+            .join("\n");
+        Cow::Owned(format!("---\n{}\n---\n\n{}", cleaned_header, rest))
+    }
+    after:     if rest.is_empty() {
+        Cow::Owned(format!("---\n{}\n---\n", header))
+    } else {
+        Cow::Owned(format!("---\n{}\n---\n\n{}", header, rest))
+    }
+
+Edited crates/liwe/src/markdown.rs (15 lines -> 5 lines)
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/dangood/src/iwe && cargo test 2>&1 | tail -30
+
+test parent_dir_with_only_subdirs_gets_index ... ok
+test nested_directories_each_get_index ... ok
+test user_index_suppresses_generated ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+   Doc-tests iwe
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests iwec
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests iwes
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests liwe
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+All tests pass. Here's the diagnosis and fix:
+
+**Root cause:** `wrap_bare_frontmatter()` was filtering out all lines starting with a space character (`.filter(|l| !l.starts_with(' '))`). In YAML, list items under a key are indented with spaces:
+
+```yaml
+depends:
+  - foo
+  - bar
+```
+
+The filter stripped the `  - foo` and `  - bar` lines, leaving just `depends:` with no value. So the metadata parsed as an empty key, and `--meta depends=foo` found nothing.
+
+**Fix:** Removed the space-filtering logic entirely. The header block should be passed through as-is — it's valid YAML that pulldown-cmark's metadata block parser handles correctly.
