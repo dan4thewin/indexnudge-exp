@@ -56,6 +56,43 @@ freshen_db() {
     :
 }
 
+# Get the next rotating hint. Increments counter in the DB.
+# Usage: hint=$(get_hint "$rel")  — pass the current file for contextual hints.
+get_hint() {
+    local rel="${1:-}"
+    local file_clause=""
+    [[ -n "$rel" ]] && file_clause="'$rel'"
+
+    # Ensure hints table exists and atomically increment counter
+    local n
+    n=$(sqlite3 -cmd '.timeout 5000' "$CODEINDEX_DB" "
+        CREATE TABLE IF NOT EXISTS hint_state (key TEXT PRIMARY KEY, value INTEGER);
+        INSERT INTO hint_state (key, value) VALUES ('counter', 0)
+            ON CONFLICT(key) DO UPDATE SET value = value + 1;
+        SELECT value FROM hint_state WHERE key = 'counter';
+    " 2>/dev/null) || return 1
+
+    local db_name
+    db_name=$(basename "$CODEINDEX_DB")
+
+    case $(( n % 6 )) in
+        0) echo "── tip: sqlite3 $db_name \"SELECT file, lines FROM files;\" ──" ;;
+        1) if [[ -n "$rel" ]]; then
+               echo "── tip: sqlite3 $db_name \"SELECT name, kind, start_line, end_line FROM symbols WHERE file='$rel';\" ──"
+           else
+               echo "── tip: sqlite3 $db_name \"SELECT name, kind, start_line, end_line FROM symbols WHERE file='...';\" ──"
+           fi ;;
+        2) echo "── tip: sqlite3 $db_name \"SELECT caller, callee_qname FROM calls WHERE file='${rel:-...}';\" — trace call graph ──" ;;
+        3) echo "── tip: sqlite3 $db_name \"SELECT module, name FROM imports WHERE file='${rel:-...}';\" — see dependencies ──" ;;
+        4) echo "── tip: ed file <<'EOF' — use DB line numbers for precise addressing ──" ;;
+        5) if [[ -n "$rel" ]]; then
+               echo "── tip: sqlite3 $db_name \"SELECT name, kind, start_line, end_line FROM symbols WHERE file='$rel';\" ──"
+           else
+               echo "── tip: sqlite3 $db_name \"SELECT name, kind, start_line, end_line FROM symbols WHERE file='...';\" ──"
+           fi ;;
+    esac
+}
+
 # Resolve a potentially relative path to absolute.
 resolve_path() {
     local f="$1"
