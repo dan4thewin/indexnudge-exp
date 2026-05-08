@@ -1,19 +1,18 @@
 #!/usr/bin/env bash
-# indexnudge shim for head — intercept head -n N file, serve from DB.
+# indexnudge shim for head — intercept head -n N file, serve from DB with symbol dividers.
 set -euo pipefail
 SHIM_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SHIM_DIR/_indexnudge_common.bash"
 
 REAL_HEAD=head
 
-# If stdin is a pipe, pass through immediately — we can't intercept pipes.
-if [[ ! -t 0 ]] && [[ $# -eq 0 || ( $# -le 2 && "$*" != */* ) ]]; then
+# Stdin pipe with no file arg: pass through
+if [[ ! -t 0 ]] && [[ $# -eq 0 ]]; then
     exec "$REAL_HEAD" "$@"
 fi
 
 # Parse: head [-n N] [file...]  or  head -N [file...]
-n=10  # default
-file=""
+n=10 file=""
 args=("$@")
 i=0
 while (( i < ${#args[@]} )); do
@@ -27,7 +26,6 @@ while (( i < ${#args[@]} )); do
             n="${arg#-}"
             ;;
         -*)
-            # Unknown flag — bail to real head
             exec "$REAL_HEAD" "$@"
             ;;
         *)
@@ -42,19 +40,29 @@ if [[ -n "$file" ]] && [[ -f "$file" ]]; then
     if find_indexnudge_db "$abs"; then
         freshen_db
         rel=$(rel_path "$abs")
-        result=$(sqlite3 -cmd '.timeout 5000' "$CODEINDEX_DB" \
-            "SELECT line_num, content FROM lines WHERE file='$rel' AND line_num <= $n ORDER BY line_num;")
-        if [[ -n "$result" ]]; then
-            total=$(sqlite3 -cmd '.timeout 5000' "$CODEINDEX_DB" "SELECT lines FROM files WHERE file='$rel';")
-            echo "── sqlite3 $CODEINDEX_DB ──"
-            echo "query: SELECT line_num, content FROM lines WHERE file='$rel' AND line_num <= $n;"
-            echo ""
-            echo "$result" | while IFS='|' read -r num content; do
-                printf '%4s │ %s\n' "$num" "$content"
-            done
-            echo ""
-            echo "── showing $n of $total lines ──"
-            exit 0
+        in_index=$(sqlite3 -cmd '.timeout 5000' "$CODEINDEX_DB" "SELECT count(*) FROM files WHERE file='$rel';")
+        if [[ "$in_index" -gt 0 ]]; then
+            query="SELECT
+    CASE WHEN NULLIF(l.symbol,'') IS NOT NULL
+         AND (COALESCE(NULLIF(l.symbol,''),'') != COALESCE(NULLIF(LAG(l.symbol) OVER (ORDER BY l.line_num),''),'')
+              OR LAG(l.line_num) OVER (ORDER BY l.line_num) IS NULL)
+         THEN char(10) || '  ── ' || COALESCE(NULLIF(l.symbol,''), '(top-level)') ||
+              COALESCE(' (L' || s.start_line || '-L' || s.end_line || ')', '') ||
+              ' ──' || char(10)
+         ELSE '' END ||
+    printf('%4d', l.line_num) || ' │ ' || l.content as output
+FROM lines l
+LEFT JOIN symbols s ON s.file = l.file AND s.name = l.symbol AND l.symbol != ''
+WHERE l.file = '$rel' AND l.line_num <= $n
+ORDER BY l.line_num;"
+
+            result=$(timeout 5 sqlite3 -cmd '.timeout 5000' "$CODEINDEX_DB" "$query" 2>/dev/null)
+            if [[ -n "$result" ]]; then
+                total=$(sqlite3 -cmd '.timeout 5000' "$CODEINDEX_DB" "SELECT lines FROM files WHERE file='$rel';")
+                echo "── $rel (first $n of $total lines) ──"
+                echo "$result"
+                exit 0
+            fi
         fi
     fi
 fi

@@ -47,11 +47,36 @@ if [[ -n "$target" ]]; then
         freshen_db
         safe_pattern="${pattern//\'/\'\'}"
 
+        # Scope to target
+        scope_clause=""
+        if $recursive && [[ -d "$target" ]]; then
+            rel_dir=$(rel_path "$(cd "$target" && pwd)")
+            if [[ -n "$rel_dir" && "$rel_dir" != "." ]]; then
+                scope_clause="AND l.file LIKE '${rel_dir}/%'"
+            fi
+        elif ! $recursive && [[ -f "$target" ]]; then
+            rel_file=$(rel_path "$abs")
+            scope_clause="AND l.file = '${rel_file}'"
+        fi
+
+        # Route: simple alphanumeric → FTS MATCH, else → REGEXP
+        # FTS5 can't use WHERE on columns — embed file filter in MATCH or use lines table
         if [[ "$pattern" =~ ^[a-zA-Z0-9_]+$ ]]; then
-            match_clause="l.content MATCH '\"$safe_pattern\"'"
-            source_table="lines_fts"
+            if [[ -z "$scope_clause" ]]; then
+                match_clause="l.content MATCH '\"$safe_pattern\"'"
+                source_table="lines_fts"
+            elif [[ "$scope_clause" == *"l.file = "* ]]; then
+                # Single file: use FTS with column filter
+                match_clause="lines_fts MATCH 'file:\"${rel_file}\" content:\"$safe_pattern\"'"
+                source_table="lines_fts"
+                scope_clause=""
+            else
+                # Directory LIKE scope: fall back to lines table
+                match_clause="l.content REGEXP '$safe_pattern'"
+                source_table="lines"
+            fi
         else
-            match_clause="l.content LIKE '%$safe_pattern%'"
+            match_clause="l.content REGEXP '$safe_pattern'"
             source_table="lines"
         fi
 
@@ -68,7 +93,7 @@ if [[ -n "$target" ]]; then
     '    ' || l.line_num || ' │ ' || l.content as output
 FROM $source_table l
 LEFT JOIN symbols s ON s.file = l.file AND s.name = l.symbol
-WHERE $match_clause
+WHERE $match_clause $scope_clause
 ORDER BY l.file, COALESCE(s.start_line,0), l.line_num;"
 
         result=$(timeout 5 sqlite3 -cmd '.timeout 5000' "$CODEINDEX_DB" "$query" 2>/dev/null)
@@ -81,10 +106,10 @@ ORDER BY l.file, COALESCE(s.start_line,0), l.line_num;"
         # Count stats
         if [[ "$pattern" =~ ^[a-zA-Z0-9_]+$ ]]; then
             stats=$(timeout 3 sqlite3 -cmd '.timeout 5000' "$CODEINDEX_DB" \
-                "SELECT COUNT(*), COUNT(DISTINCT file) FROM lines_fts WHERE content MATCH '\"$safe_pattern\"';" 2>/dev/null)
+                "SELECT COUNT(*), COUNT(DISTINCT file) FROM lines_fts WHERE content MATCH '\"$safe_pattern\"' $scope_clause;" 2>/dev/null)
         else
             stats=$(timeout 3 sqlite3 -cmd '.timeout 5000' "$CODEINDEX_DB" \
-                "SELECT COUNT(*), COUNT(DISTINCT file) FROM lines WHERE content LIKE '%$safe_pattern%';" 2>/dev/null)
+                "SELECT COUNT(*), COUNT(DISTINCT file) FROM lines WHERE content REGEXP '$safe_pattern' $scope_clause;" 2>/dev/null)
         fi
         count=$(echo "$stats" | cut -d'|' -f1)
         nfiles=$(echo "$stats" | cut -d'|' -f2)

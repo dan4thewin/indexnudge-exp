@@ -70,6 +70,10 @@ resolve_path() {
 rel_path() {
     local abs
     abs=$(resolve_path "$1")
-    echo "${abs#"$CODEINDEX_DIR/"}"
+    if [[ "$abs" == "$CODEINDEX_DIR" ]]; then
+        echo "."
+    else
+        echo "${abs#"$CODEINDEX_DIR/"}"
+    fi
 }
 

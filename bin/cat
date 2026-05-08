@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# indexnudge shim for cat — serve indexed source from DB, pass through non-code.
+# indexnudge shim for cat — serve indexed source from DB with symbol dividers.
 set -euo pipefail
 SHIM_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SHIM_DIR/_indexnudge_common.bash"
@@ -11,7 +11,7 @@ if [[ ! -t 0 ]] && [[ $# -eq 0 ]]; then
     exec "$REAL_CAT" "$@"
 fi
 
-# Flags only (no file args) or dash: pass through
+# No args or dash: pass through
 if [[ $# -eq 0 ]] || [[ "$1" == "-" ]]; then
     exec "$REAL_CAT" "$@"
 fi
@@ -31,24 +31,28 @@ if [[ ${#files[@]} -eq 1 ]] && [[ -f "${files[0]}" ]]; then
     if find_indexnudge_db "$abs"; then
         freshen_db
         rel=$(rel_path "$abs")
-        # Check if file is in the index
         in_index=$(sqlite3 -cmd '.timeout 5000' "$CODEINDEX_DB" "SELECT count(*) FROM files WHERE file='$rel';")
         if [[ "$in_index" -gt 0 ]]; then
-            total=$(sqlite3 -cmd '.timeout 5000' "$CODEINDEX_DB" "SELECT lines FROM files WHERE file='$rel';")
-            syms=$(sqlite3 -cmd '.timeout 5000' "$CODEINDEX_DB" -separator ' | ' \
-                "SELECT kind, name, 'lines ' || start_line || '-' || end_line FROM symbols WHERE file='$rel' ORDER BY start_line;")
-            echo "── sqlite3 $CODEINDEX_DB ──"
-            echo "query: SELECT content FROM lines WHERE file='$rel' ORDER BY line_num;"
-            echo ""
-            sqlite3 "$CODEINDEX_DB" "SELECT content FROM lines WHERE file='$rel' ORDER BY line_num;"
-            echo ""
-            echo "── $rel: $total lines ──"
-            if [[ -n "$syms" ]]; then
-                echo "symbols:"
-                echo "$syms" | while read -r s; do echo "  $s"; done
+            query="SELECT
+    CASE WHEN NULLIF(l.symbol,'') IS NOT NULL
+         AND (COALESCE(NULLIF(l.symbol,''),'') != COALESCE(NULLIF(LAG(l.symbol) OVER (ORDER BY l.line_num),''),'')
+              OR LAG(l.line_num) OVER (ORDER BY l.line_num) IS NULL)
+         THEN char(10) || '  ── ' || COALESCE(NULLIF(l.symbol,''), '(top-level)') ||
+              COALESCE(' (L' || s.start_line || '-L' || s.end_line || ')', '') ||
+              ' ──' || char(10)
+         ELSE '' END ||
+    printf('%4d', l.line_num) || ' │ ' || l.content as output
+FROM lines l
+LEFT JOIN symbols s ON s.file = l.file AND s.name = l.symbol AND l.symbol != ''
+WHERE l.file = '$rel'
+ORDER BY l.line_num;"
+
+            result=$(timeout 5 sqlite3 -cmd '.timeout 5000' "$CODEINDEX_DB" "$query" 2>/dev/null)
+            if [[ -n "$result" ]]; then
+                echo "── $rel ──"
+                echo "$result"
+                exit 0
             fi
-            echo "── For focused exploration: SELECT * FROM symbols WHERE file='$rel'; ──"
-            exit 0
         fi
     fi
 fi
