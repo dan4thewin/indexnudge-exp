@@ -119,31 +119,32 @@ fn freshen(dir: &PathBuf, db_path: &PathBuf) -> Result<()> {
             .map(|f| f.strip_prefix(dir).unwrap_or(f).to_string_lossy().to_string())
             .collect();
 
-        let mut stmt = conn.prepare("SELECT file, indexed_mtime FROM files")?;
-        let db_files: Vec<(String, f64)> = stmt
-            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+        let mut stmt = conn.prepare("SELECT file, indexed_mtime, indexed_size FROM files")?;
+        let db_files: Vec<(String, f64, i64)> = stmt
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get::<_, i64>(2).unwrap_or(0))))?
             .filter_map(|r| r.ok())
             .collect();
-        let db_set: HashSet<String> = db_files.iter().map(|(f, _)| f.clone()).collect();
+        let db_set: HashSet<String> = db_files.iter().map(|(f, _, _)| f.clone()).collect();
 
         let mut reindexed = 0u64;
         let mut removed = 0u64;
 
-        for (db_file, _) in &db_files {
+        for (db_file, _, _) in &db_files {
             if !disk_set.contains(db_file.as_str()) {
                 delete_file_rows(&conn, db_file)?;
                 removed += 1;
             }
         }
 
-        let db_mtimes: HashMap<&str, f64> = db_files.iter().map(|(f, m)| (f.as_str(), *m)).collect();
+        let db_mtimes: HashMap<&str, (f64, i64)> = db_files.iter().map(|(f, m, s)| (f.as_str(), (*m, *s))).collect();
 
         for file in &disk_files {
             let rel = file.strip_prefix(dir).unwrap_or(file).to_string_lossy().to_string();
             let disk_mtime = file_mtime(file);
+            let disk_size = file_size(file);
 
-            let needs_index = if let Some(&db_mtime) = db_mtimes.get(rel.as_str()) {
-                disk_mtime > db_mtime
+            let needs_index = if let Some(&(db_mtime, db_size)) = db_mtimes.get(rel.as_str()) {
+                disk_mtime > db_mtime || disk_size != db_size
             } else {
                 true
             };
@@ -220,9 +221,10 @@ fn index_file(conn: &Connection, parser: &mut TsParser, rel_str: &str, abs_path:
 
     let line_count = source.lines().count() as i64;
     let mtime = file_mtime(abs_path);
+    let size = file_size(abs_path);
     conn.execute(
-        "INSERT INTO files (file, lines, language, indexed_mtime) VALUES (?1, ?2, ?3, ?4)",
-        rusqlite::params![rel_str, line_count, "rust", mtime],
+        "INSERT INTO files (file, lines, language, indexed_mtime, indexed_size) VALUES (?1, ?2, ?3, ?4, ?5)",
+        rusqlite::params![rel_str, line_count, "rust", mtime, size],
     )?;
     Ok(())
 }
@@ -237,9 +239,10 @@ fn index_file_lines_only(conn: &Connection, rel_str: &str, source: &str, abs_pat
     }
     let line_count = source.lines().count() as i64;
     let mtime = file_mtime(abs_path);
+    let size = file_size(abs_path);
     conn.execute(
-        "INSERT INTO files (file, lines, language, indexed_mtime, parse_error) VALUES (?1, ?2, ?3, ?4, 1)",
-        rusqlite::params![rel_str, line_count, "rust", mtime],
+        "INSERT INTO files (file, lines, language, indexed_mtime, indexed_size, parse_error) VALUES (?1, ?2, ?3, ?4, ?5, 1)",
+        rusqlite::params![rel_str, line_count, "rust", mtime, size],
     )?;
     Ok(())
 }
@@ -989,6 +992,7 @@ fn create_schema(conn: &Connection) -> Result<()> {
             lines          INTEGER,
             language       TEXT,
             indexed_mtime  REAL,
+            indexed_size   INTEGER DEFAULT 0,
             parse_error    INTEGER DEFAULT 0
         );
 
@@ -1036,6 +1040,19 @@ fn ensure_new_tables(conn: &Connection) -> Result<()> {
             CREATE INDEX IF NOT EXISTS idx_refs_name ON refs(name);
             ",
         )?;
+    }
+
+    // Add indexed_size column if missing
+    let has_size: bool = conn
+        .query_row(
+            "SELECT count(*) FROM pragma_table_info('files') WHERE name='indexed_size'",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .map(|c| c > 0)
+        .unwrap_or(false);
+    if !has_size {
+        conn.execute_batch("ALTER TABLE files ADD COLUMN indexed_size INTEGER DEFAULT 0;")?;
     }
     Ok(())
 }
@@ -1139,6 +1156,10 @@ fn file_mtime(path: &PathBuf) -> f64 {
         .and_then(|m| m.modified())
         .map(|t| t.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs_f64())
         .unwrap_or(0.0)
+}
+
+fn file_size(path: &PathBuf) -> i64 {
+    fs::metadata(path).map(|m| m.len() as i64).unwrap_or(0)
 }
 
 fn finalize(conn: &Connection) -> Result<()> {
@@ -1276,8 +1297,8 @@ fn main() {
         insert_references(conn, &extractor.references).unwrap();
         let line_count = source.lines().count() as i64;
         conn.execute(
-            "INSERT INTO files (file, lines, language, indexed_mtime) VALUES (?1, ?2, ?3, ?4)",
-            rusqlite::params!["test.rs", line_count, "rust", 0.0],
+            "INSERT INTO files (file, lines, language, indexed_mtime, indexed_size) VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params!["test.rs", line_count, "rust", 0.0, 0i64],
         ).unwrap();
     }
 
@@ -1459,5 +1480,55 @@ fn main() {
         // Function ends at the last line of MATCH_SAMPLE
         let last_line = MATCH_SAMPLE.lines().count() as i64;
         assert_eq!(close.unwrap(), last_line, "fn block should close at last line");
+    }
+}
+
+#[cfg(test)]
+
+#[cfg(test)]
+mod freshen_size_tests {
+    use super::*;
+    use std::process::Command;
+
+    #[test]
+    fn freshen_detects_same_mtime_different_size() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join(".indexnudge-rust.db");
+        let rs_file = dir.path().join("lib.rs");
+        fs::write(&rs_file, "fn hello() {}\n").unwrap();
+
+        let dir_path = dir.path().to_path_buf();
+        full_index(&dir_path, &db_path).unwrap();
+
+        let conn = Connection::open(&db_path).unwrap();
+        let count: i64 = conn.query_row("SELECT count(*) FROM symbols WHERE name='hello'", [], |row| row.get(0)).unwrap();
+        assert_eq!(count, 1);
+        drop(conn);
+
+        // Get the file's mtime as a touch-compatible timestamp
+        let original_mtime = file_mtime(&rs_file);
+        let secs = original_mtime as u64;
+
+        // Write different (larger) content
+        fs::write(&rs_file, "fn goodbye() {}\nfn extra() {}\n").unwrap();
+
+        // Reset mtime to original using touch --date
+        Command::new("touch")
+            .arg("-d")
+            .arg(format!("@{}", secs))
+            .arg(rs_file.to_str().unwrap())
+            .status()
+            .expect("touch failed");
+
+        // Verify mtime looks the same (within 1 second)
+        let new_mtime = file_mtime(&rs_file);
+        assert!((new_mtime - original_mtime).abs() < 1.1, "mtime should be ~unchanged, got {} vs {}", new_mtime, original_mtime);
+
+        // Freshen should detect via size difference
+        freshen(&dir_path, &db_path).unwrap();
+
+        let conn = Connection::open(&db_path).unwrap();
+        let count: i64 = conn.query_row("SELECT count(*) FROM symbols WHERE name='goodbye'", [], |row| row.get(0)).unwrap();
+        assert_eq!(count, 1, "freshen should detect size change even with same mtime");
     }
 }
