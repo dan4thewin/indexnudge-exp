@@ -307,6 +307,7 @@ struct MatchArmRecord {
     end_line: usize,
     body_start: usize,
     body_end: usize,
+    has_early_return: bool,
 }
 
 struct ReferenceRecord {
@@ -722,6 +723,11 @@ impl Extractor {
             (start_line, end_line)
         };
 
+        // Check for early returns (return_expression not inside a closure)
+        let has_early_return = value_node
+            .map(|val| has_return_outside_closure(val))
+            .unwrap_or(false);
+
         self.match_arms.push(MatchArmRecord {
             file: self.file.clone(),
             parent_fn: self.current_scope(),
@@ -730,6 +736,7 @@ impl Extractor {
             end_line,
             body_start,
             body_end,
+            has_early_return,
         });
 
         // Recurse into the arm value
@@ -869,6 +876,23 @@ impl Extractor {
     }
 }
 
+/// Check if a subtree contains a `return` expression not nested inside a closure.
+fn has_return_outside_closure(node: Node) -> bool {
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        match child.kind() {
+            "return_expression" => return true,
+            "closure_expression" => continue, // don't recurse into closures
+            _ => {
+                if has_return_outside_closure(child) {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
 fn is_keyword(s: &str) -> bool {
     matches!(
         s,
@@ -928,7 +952,7 @@ fn create_schema(conn: &Connection) -> Result<()> {
         "
         PRAGMA journal_mode=DELETE;
         PRAGMA synchronous=OFF;
-        PRAGMA user_version=2;
+        PRAGMA user_version=3;
 
         CREATE TABLE lines (
             file     TEXT,
@@ -989,7 +1013,8 @@ fn create_schema(conn: &Connection) -> Result<()> {
             start_line  INTEGER,
             end_line    INTEGER,
             body_start  INTEGER,
-            body_end    INTEGER
+            body_end    INTEGER,
+            has_early_return INTEGER DEFAULT 0
         );
 
         CREATE TABLE refs (
@@ -1033,7 +1058,7 @@ fn create_schema(conn: &Connection) -> Result<()> {
 
 /// Schema version — bump when tables/columns change.
 /// freshen checks this and falls back to full_index if outdated.
-const SCHEMA_VERSION: i64 = 2;
+const SCHEMA_VERSION: i64 = 3;
 
 /// Returns true if the DB schema is current. If outdated, freshen
 /// should abandon incremental update and do a full rebuild.
@@ -1095,10 +1120,10 @@ fn insert_blocks(conn: &Connection, blocks: &[BlockRecord]) -> Result<()> {
 
 fn insert_match_arms(conn: &Connection, arms: &[MatchArmRecord]) -> Result<()> {
     let mut stmt = conn.prepare(
-        "INSERT INTO match_arms (file, parent_fn, pattern, start_line, end_line, body_start, body_end) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        "INSERT INTO match_arms (file, parent_fn, pattern, start_line, end_line, body_start, body_end, has_early_return) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
     )?;
     for a in arms {
-        stmt.execute(rusqlite::params![a.file, a.parent_fn, a.pattern, a.start_line as i64, a.end_line as i64, a.body_start as i64, a.body_end as i64])?;
+        stmt.execute(rusqlite::params![a.file, a.parent_fn, a.pattern, a.start_line as i64, a.end_line as i64, a.body_start as i64, a.body_end as i64, a.has_early_return as i64])?;
     }
     Ok(())
 }
@@ -1557,5 +1582,78 @@ mod freshen_stores_size_tests {
         let conn = Connection::open(&db_path).unwrap();
         let size: i64 = conn.query_row("SELECT indexed_size FROM files WHERE file='lib.rs'", [], |row| row.get(0)).unwrap();
         assert_eq!(size, 28, "freshen should store updated indexed_size, got {}", size);
+    }
+}
+
+#[cfg(test)]
+mod early_return_tests {
+    use super::*;
+
+    const EARLY_RETURN_SAMPLE: &str = r#"fn process(x: i32) -> i32 {
+    match x {
+        1 => {
+            println!("one");
+            1
+        }
+        2 => {
+            if x > 0 {
+                return -1;
+            }
+            2
+        }
+        3 => {
+            let f = || return 99;
+            3
+        }
+        _ => 0,
+    }
+}
+"#;
+
+    #[test]
+    fn early_return_detected() {
+        let conn = setup_db();
+        index_sample(&conn, EARLY_RETURN_SAMPLE);
+
+        let arms: Vec<(String, i64)> = conn
+            .prepare("SELECT pattern, has_early_return FROM match_arms WHERE file='test.rs' ORDER BY start_line")
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect();
+
+        assert_eq!(arms.len(), 4, "expected 4 arms: {:?}", arms);
+        assert_eq!(arms[0].1, 0, "arm 1 (pattern=1) has no early return");
+        assert_eq!(arms[1].1, 1, "arm 2 (pattern=2) has early return");
+        assert_eq!(arms[2].1, 0, "arm 3 (pattern=3) return is inside closure, not early");
+        assert_eq!(arms[3].1, 0, "arm _ has no early return");
+    }
+
+    fn setup_db() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        create_schema(&conn).unwrap();
+        conn
+    }
+
+    fn index_sample(conn: &Connection, source: &str) {
+        let mut parser = TsParser::new();
+        parser.set_language(&tree_sitter_rust::LANGUAGE.into()).unwrap();
+        let tree = parser.parse(source, None).unwrap();
+        let mut extractor = Extractor::new("test.rs".to_string(), source);
+        extractor.extract(tree.root_node());
+        insert_lines(conn, "test.rs", source, &extractor.symbol_ranges).unwrap();
+        insert_symbols(conn, &extractor.symbols).unwrap();
+        insert_calls(conn, &extractor.calls).unwrap();
+        insert_imports(conn, &extractor.imports).unwrap();
+        insert_defs(conn, &extractor.defs).unwrap();
+        insert_blocks(conn, &extractor.blocks).unwrap();
+        insert_match_arms(conn, &extractor.match_arms).unwrap();
+        insert_references(conn, &extractor.references).unwrap();
+        let line_count = source.lines().count() as i64;
+        conn.execute(
+            "INSERT INTO files (file, lines, language, indexed_mtime, indexed_size) VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params!["test.rs", line_count, "rust", 0.0, 0i64],
+        ).unwrap();
     }
 }
