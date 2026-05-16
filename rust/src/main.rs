@@ -701,10 +701,26 @@ impl Extractor {
         let start_line = node.start_position().row + 1;
         let end_line = node.end_position().row + 1;
 
-        // Body starts after the =>
+        // Body: if value is a block, body_start is the line after the opening {
+        // otherwise it's the value expression's start line
         let value_node = node.child_by_field_name("value");
-        let body_start = value_node.map(|n| n.start_position().row + 1).unwrap_or(start_line);
-        let body_end = value_node.map(|n| n.end_position().row + 1).unwrap_or(end_line);
+        let (body_start, body_end) = if let Some(val) = value_node {
+            if val.kind() == "block" {
+                // Block: body starts at first line inside {, ends at line before }
+                let block_start = val.start_position().row + 1;
+                let block_end = val.end_position().row + 1;
+                // If block spans multiple lines, body is interior
+                if block_end > block_start {
+                    (block_start + 1, block_end - 1)
+                } else {
+                    (block_start, block_end)
+                }
+            } else {
+                (val.start_position().row + 1, val.end_position().row + 1)
+            }
+        } else {
+            (start_line, end_line)
+        };
 
         self.match_arms.push(MatchArmRecord {
             file: self.file.clone(),
@@ -1318,10 +1334,10 @@ fn main() {
         let conn = setup_db();
         index_sample(&conn, MATCH_SAMPLE);
 
-        let arms: Vec<(String, i64, i64)> = conn
-            .prepare("SELECT pattern, start_line, end_line FROM match_arms WHERE file='test.rs' ORDER BY start_line")
+        let arms: Vec<(String, i64, i64, i64, i64)> = conn
+            .prepare("SELECT pattern, start_line, end_line, body_start, body_end FROM match_arms WHERE file='test.rs' ORDER BY start_line")
             .unwrap()
-            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)))
             .unwrap()
             .filter_map(|r| r.ok())
             .collect();
@@ -1330,6 +1346,13 @@ fn main() {
         assert!(arms[0].0.contains("Add"), "first arm should be Add: {:?}", arms[0].0);
         assert!(arms[1].0.contains("Remove"), "second arm should be Remove: {:?}", arms[1].0);
         assert!(arms[2].0.contains("List"), "third arm should be List: {:?}", arms[2].0);
+
+        // body_start should be the first line inside the { block, not the { itself
+        // MATCH_SAMPLE line 3 is `Command::Add { name, value } => {`
+        // line 4 is `            println!(...)` — that's body_start
+        let (_, _, _, body_start, body_end) = &arms[0];
+        // The Add arm body should start at the println line, not the { line
+        assert!(*body_start > arms[0].1, "body_start ({}) should be after arm start_line ({})", body_start, arms[0].1);
     }
 
     #[test]
