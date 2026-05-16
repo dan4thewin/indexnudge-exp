@@ -99,12 +99,20 @@ fn freshen(dir: &PathBuf, db_path: &PathBuf) -> Result<()> {
 
     fs::rename(db_path, &bak_path)?;
 
+    // Check schema version before attempting incremental freshen
+    {
+        let conn = Connection::open(&bak_path)?;
+        if !schema_is_current(&conn) {
+            drop(conn);
+            fs::rename(&bak_path, db_path)?;
+            eprintln!("Schema outdated, doing full reindex.");
+            return full_index(dir, db_path);
+        }
+    }
+
     let result = (|| -> Result<(u64, u64)> {
         let conn = Connection::open(&bak_path)?;
         conn.execute_batch("PRAGMA journal_mode=DELETE; PRAGMA synchronous=OFF; PRAGMA busy_timeout=5000;")?;
-
-        // Ensure new tables exist (for DBs created before this branch)
-        ensure_new_tables(&conn)?;
 
         conn.execute_batch("BEGIN IMMEDIATE;")?;
 
@@ -904,6 +912,7 @@ fn create_schema(conn: &Connection) -> Result<()> {
         "
         PRAGMA journal_mode=DELETE;
         PRAGMA synchronous=OFF;
+        PRAGMA user_version=2;
 
         CREATE TABLE lines (
             file     TEXT,
@@ -1006,55 +1015,17 @@ fn create_schema(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
-/// Add new tables to an existing DB (for freshen on DBs created before this branch)
-fn ensure_new_tables(conn: &Connection) -> Result<()> {
-    // Check if blocks table exists
-    let has_blocks: bool = conn
-        .query_row(
-            "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='blocks'",
-            [],
-            |row| row.get::<_, i64>(0),
-        )
-        .map(|c| c > 0)
-        .unwrap_or(false);
+/// Schema version — bump when tables/columns change.
+/// freshen checks this and falls back to full_index if outdated.
+const SCHEMA_VERSION: i64 = 2;
 
-    if !has_blocks {
-        conn.execute_batch(
-            "
-            CREATE TABLE IF NOT EXISTS blocks (
-                file TEXT, open_line INTEGER, close_line INTEGER,
-                kind TEXT, parent_symbol TEXT
-            );
-            CREATE TABLE IF NOT EXISTS match_arms (
-                file TEXT, parent_fn TEXT, pattern TEXT,
-                start_line INTEGER, end_line INTEGER,
-                body_start INTEGER, body_end INTEGER
-            );
-            CREATE TABLE IF NOT EXISTS refs (
-                file TEXT, line_num INTEGER, name TEXT, kind TEXT
-            );
-            CREATE INDEX IF NOT EXISTS idx_blocks_file ON blocks(file);
-            CREATE INDEX IF NOT EXISTS idx_blocks_open ON blocks(file, open_line);
-            CREATE INDEX IF NOT EXISTS idx_match_arms_file ON match_arms(file);
-            CREATE INDEX IF NOT EXISTS idx_refs_file_line ON refs(file, line_num);
-            CREATE INDEX IF NOT EXISTS idx_refs_name ON refs(name);
-            ",
-        )?;
-    }
-
-    // Add indexed_size column if missing
-    let has_size: bool = conn
-        .query_row(
-            "SELECT count(*) FROM pragma_table_info('files') WHERE name='indexed_size'",
-            [],
-            |row| row.get::<_, i64>(0),
-        )
-        .map(|c| c > 0)
-        .unwrap_or(false);
-    if !has_size {
-        conn.execute_batch("ALTER TABLE files ADD COLUMN indexed_size INTEGER DEFAULT 0;")?;
-    }
-    Ok(())
+/// Returns true if the DB schema is current. If outdated, freshen
+/// should abandon incremental update and do a full rebuild.
+fn schema_is_current(conn: &Connection) -> bool {
+    let version: i64 = conn
+        .query_row("PRAGMA user_version", [], |row| row.get(0))
+        .unwrap_or(0);
+    version >= SCHEMA_VERSION
 }
 
 // ─── DB insertion ─────────────────────────────────────────────────────────
