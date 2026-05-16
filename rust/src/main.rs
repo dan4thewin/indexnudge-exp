@@ -1526,3 +1526,36 @@ mod freshen_size_tests {
         assert_eq!(count, 1, "freshen should detect size change even with same mtime");
     }
 }
+
+#[cfg(test)]
+mod freshen_stores_size_tests {
+    use super::*;
+
+    #[test]
+    fn freshen_stores_nonzero_indexed_size() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join(".indexnudge-rust.db");
+        let rs_file = dir.path().join("lib.rs");
+        fs::write(&rs_file, "fn hello() {}\n").unwrap();
+
+        let dir_path = dir.path().to_path_buf();
+        full_index(&dir_path, &db_path).unwrap();
+
+        // Verify full_index stores size
+        let conn = Connection::open(&db_path).unwrap();
+        let size: i64 = conn.query_row("SELECT indexed_size FROM files WHERE file='lib.rs'", [], |row| row.get(0)).unwrap();
+        assert!(size > 0, "full_index should store nonzero indexed_size, got {}", size);
+        assert_eq!(size, 14, "expected 14 bytes");
+        drop(conn);
+
+        // Edit and freshen
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        fs::write(&rs_file, "fn hello() {}\nfn world() {}\n").unwrap();
+        freshen(&dir_path, &db_path).unwrap();
+
+        // Verify freshen stores updated size
+        let conn = Connection::open(&db_path).unwrap();
+        let size: i64 = conn.query_row("SELECT indexed_size FROM files WHERE file='lib.rs'", [], |row| row.get(0)).unwrap();
+        assert_eq!(size, 28, "freshen should store updated indexed_size, got {}", size);
+    }
+}
