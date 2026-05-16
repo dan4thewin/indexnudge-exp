@@ -1,6 +1,10 @@
 # Shared helpers for indexnudge shims. Source this, don't execute it.
 # Requires bash 4+ for associative arrays / local -n.
 
+# The indexnudge binary lives next to the shims — use it directly.
+# No PATH resolution needed; avoids picking up stale copies elsewhere.
+INDEXNUDGE_BIN="$SHIM_DIR/indexnudge"
+
 # Remove the shim directory from PATH so `command -v foo` and `exec foo`
 # find the real tool, not ourselves.  Uses only bash builtins to avoid
 # recursion (the shimmed grep/sed/etc. would re-source this file).
@@ -53,7 +57,18 @@ find_indexnudge_db() {
 
 # Freshen the DB if found. No-op if not found or indexnudge not on PATH.
 freshen_db() {
-    :
+    [[ -n "${CODEINDEX_DB:-}" ]] || return 0
+    [[ -n "${INDEXNUDGE_BIN:-}" && -x "${INDEXNUDGE_BIN}" ]] || return 0
+    "$INDEXNUDGE_BIN" --freshen "$CODEINDEX_DIR" 2>/dev/null || true
+}
+
+# Get the next rotating hint. Increments counter in the DB.
+# Usage: hint=$(get_hint "$rel")  — pass the current file for contextual hints.
+# Fixed preamble: printed BEFORE shim output to frame it as DB-sourced.
+emit_preamble() {
+    local db_name
+    db_name=$(basename "$CODEINDEX_DB")
+    echo "── This output was served from $db_name — query it directly with sqlite3, do NOT use grep/sed/cat to read source files ──"
 }
 
 # Get the next rotating hint. Increments counter in the DB.
