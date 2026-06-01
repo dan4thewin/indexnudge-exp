@@ -743,9 +743,10 @@ func extractSymbols(db *sql.DB, fset *token.FileSet, rel string, f *ast.File, in
 
 // cyclomaticComplexity computes McCabe complexity over a function body.
 // 1 + count of decision points. Counts each if, each switch/select case,
-// each for/range loop, each type-switch case, and each && / || operator.
-// Nested function literals are not recursed into — each is its own
-// symbol with its own complexity.
+// each for/range loop, each && / || operator. FuncLit (closures) count as
+// +1 in the enclosing function (matching Mozilla rust-code-analysis
+// convention) without recursing — each closure is its own symbol with its
+// own complexity computed separately.
 func cyclomaticComplexity(body *ast.BlockStmt) *int {
 	if body == nil {
 		return nil
@@ -754,7 +755,8 @@ func cyclomaticComplexity(body *ast.BlockStmt) *int {
 	ast.Inspect(body, func(n ast.Node) bool {
 		switch x := n.(type) {
 		case *ast.FuncLit:
-			return false // nested closures are separate symbols
+			count++       // closure contributes +1 to enclosing fn
+			return false  // don't recurse — it's its own symbol
 		case *ast.IfStmt:
 			count++
 		case *ast.CaseClause:

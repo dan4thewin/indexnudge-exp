@@ -908,16 +908,26 @@ fn has_return_outside_closure(node: Node) -> bool {
 /// Count McCabe decision points inside a function body. The cyclomatic
 /// complexity of the function is `1 + count_decision_points(body)`.
 ///
-/// Counted nodes for tree-sitter-rust:
-///   - `if_expression` (each `if` adds one branch)
-///   - `match_arm` (each arm beyond the first; we subtract one match worth
-///     by not counting `match_expression` itself and counting all arms,
-///     which over-counts by 0 — every arm is a decision point)
-///   - `while_expression`, `while_let_expression`, `for_expression`,
-///     `loop_expression` (loop entry is a branch)
-///   - `if_let_expression`
-///   - `try_expression` (the `?` operator: success vs. error propagation)
-///   - `binary_expression` whose operator is `&&` or `||` (short-circuit)
+/// Convention chosen to match Mozilla's `rust-code-analysis` so numbers
+/// are comparable to that reference. Counted nodes for tree-sitter-rust:
+///
+///   - `if_expression` — every `if`, including `if let` (the parser
+///     uses a unified `if_expression` node with an optional `let_condition`
+///     child for `if let`).
+///   - `while_expression` — every `while` and `while let`, same reason.
+///   - `for_expression`, `loop_expression` — loop entry is a branch.
+///   - `match_arm` — each arm adds one. `|`-alternated patterns
+///     (`A | B | C => ...`) count as a single decision, matching
+///     McCabe original and Mozilla's `rust-code-analysis`. Counting
+///     each alternative was tested against safebash and over-counted
+///     against the reference (e.g. lexer `b' ' | b'\t' | ...` arms
+///     with 17 alternatives became +17 instead of +1).
+///   - `let_declaration` with a `block` child — let-else.
+///   - `match_pattern` with named children beyond the pattern itself —
+///     the `if cond` guard.
+///   - `try_expression` — the `?` operator (success vs. error
+///     propagation).
+///   - `binary_expression` whose operator is `&&` or `||` — short-circuit.
 ///
 /// Does not recurse into nested function/closure bodies — each nested
 /// function is its own symbol with its own complexity row.
@@ -926,17 +936,45 @@ fn count_decision_points(node: Node) -> usize {
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         match child.kind() {
-            // Nested functions/closures are separate symbols; don't recurse.
-            "function_item" | "closure_expression" => continue,
+            // Nested function bodies are separate symbols; don't recurse into them.
+            "function_item" => continue,
+            // Closures contribute +1 to the enclosing function (each closure is
+            // an alternative codepath being constructed) and we don't recurse
+            // into the closure body — it's accounted for as its own decision.
+            // Matches Mozilla `rust-code-analysis` convention.
+            "closure_expression" => {
+                count += 1;
+                continue;
+            }
             "if_expression"
-            | "if_let_expression"
             | "while_expression"
-            | "while_let_expression"
             | "for_expression"
             | "loop_expression"
             | "match_arm"
             | "try_expression" => {
                 count += 1;
+                count += count_decision_points(child);
+            }
+            "let_declaration" => {
+                // let-else: `let pat = expr else { ... };` — the `else`
+                // branch surfaces as a `block` child of the let_declaration.
+                let mut c = child.walk();
+                let has_else_block = child.children(&mut c).any(|n| n.kind() == "block");
+                if has_else_block {
+                    count += 1;
+                }
+                count += count_decision_points(child);
+            }
+            "match_pattern" => {
+                // Match arm guard: `pat if cond => ...`. The guard expression
+                // appears as a child of `match_pattern` after the actual
+                // pattern node. First named child is the pattern; any
+                // additional named children form the guard.
+                let mut c = child.walk();
+                let named_children = child.children(&mut c).filter(|n| n.is_named()).count();
+                if named_children > 1 {
+                    count += 1;
+                }
                 count += count_decision_points(child);
             }
             "binary_expression" => {
@@ -1015,7 +1053,7 @@ fn create_schema(conn: &Connection) -> Result<()> {
         "
         PRAGMA journal_mode=DELETE;
         PRAGMA synchronous=OFF;
-        PRAGMA user_version=7;
+        PRAGMA user_version=8;
 
         CREATE TABLE lines (
             file     TEXT,
@@ -1204,7 +1242,7 @@ fn create_schema(conn: &Connection) -> Result<()> {
 
 /// Schema version — bump when tables/columns change.
 /// freshen checks this and falls back to full_index if outdated.
-const SCHEMA_VERSION: i64 = 7;
+const SCHEMA_VERSION: i64 = 8;
 
 /// Returns true if the DB schema is current. If outdated, freshen
 /// should abandon incremental update and do a full rebuild.
@@ -1849,6 +1887,31 @@ fn outer_with_closure(x: i32) -> i32 {
     };
     inner(x)
 }
+
+fn if_let_test(x: Option<i32>) -> i32 {
+    if let Some(v) = x { v } else { 0 }
+}
+
+fn let_else_test(x: Option<i32>) -> i32 {
+    let Some(v) = x else { return -1 };
+    v
+}
+
+fn match_with_guard(x: i32) -> i32 {
+    match x {
+        n if n < 0 => -n,
+        0 => 0,
+        n => n,
+    }
+}
+
+fn match_with_or_pattern(x: i32) -> i32 {
+    match x {
+        1 | 2 | 3 => 1,
+        4 | 5 => 2,
+        _ => 0,
+    }
+}
 "#;
 
     #[test]
@@ -1872,7 +1935,16 @@ fn outer_with_closure(x: i32) -> i32 {
         assert_eq!(lookup.get("match_three"),        Some(&Some(4)),  "1 + 3 arms = 4");
         assert_eq!(lookup.get("short_circuit"),      Some(&Some(3)),  "&& and || each add 1 → 3");
         assert_eq!(lookup.get("loop_and_try"),       Some(&Some(3)),  "for + if = 3");
-        assert_eq!(lookup.get("outer_with_closure"), Some(&Some(1)), "outer body has no branches; closure body counts separately");
+        assert_eq!(lookup.get("outer_with_closure"), Some(&Some(2)),
+                   "outer fn has no branches but the closure counts as +1 in the outer body (Mozilla convention); closure body is its own symbol");
+        assert_eq!(lookup.get("if_let_test"),        Some(&Some(2)),
+                   "if let uses unified if_expression → +1");
+        assert_eq!(lookup.get("let_else_test"),      Some(&Some(2)),
+                   "let-else adds +1 for the alternative path");
+        assert_eq!(lookup.get("match_with_guard"),   Some(&Some(5)),
+                   "1 base + 3 arms + 1 guard");
+        assert_eq!(lookup.get("match_with_or_pattern"), Some(&Some(4)),
+                   "1 base + 3 arms (or-patterns DON'T count separately — McCabe original, matches Mozilla)");
     }
 
     #[test]

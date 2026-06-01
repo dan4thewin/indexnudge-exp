@@ -874,7 +874,7 @@ want := map[string]int64{
 "SwitchThree":      4, // 1 + 3 case clauses
 "ShortCircuit":     3, // && and || each add 1
 "LoopAndRange":     3, // range + if
-"OuterWithClosure": 1, // outer body has no branches; FuncLit not recursed into
+"OuterWithClosure": 2, // outer body has no branches but the FuncLit counts as +1 (Mozilla convention); FuncLit body is its own symbol
 }
 for name, w := range want {
 if g, ok := got[name]; !ok {
