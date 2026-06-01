@@ -910,3 +910,122 @@ if !any {
 t.Fatal("expected at least one struct/type row")
 }
 }
+
+const sampleSL = `package example
+
+import (
+"fmt"
+)
+
+func dispatch(name string) int {
+if name == "echo" {
+return 1
+}
+if name != "true" {
+return 2
+}
+switch name {
+case "false", "noop":
+return 0
+case "fail":
+return -1
+default:
+return len(name)
+}
+}
+
+func talk() {
+fmt.Println("hello", "world")
+fmt.Sprintf("debug: %s", "info")
+}
+
+// Comment mentioning "echo" should be filtered.
+func commentFilter() {}
+`
+
+func TestStringLiteralsViewDispatchBuckets(t *testing.T) {
+db := setupDB(t)
+indexSample(t, db, sampleSL, "sl.go")
+
+rows, err := db.Query(`
+SELECT value, context, COUNT(*)
+FROM string_literals
+WHERE file = 'sl.go'
+GROUP BY value, context
+ORDER BY value, context`)
+if err != nil {
+t.Fatal(err)
+}
+defer rows.Close()
+
+got := map[string]int64{}
+for rows.Next() {
+var v, c string
+var n int64
+if err := rows.Scan(&v, &c, &n); err != nil {
+t.Fatal(err)
+}
+got[v+"|"+c] = n
+}
+
+checks := []struct{ key string; want int64; reason string }{
+{"echo|compare",     1, "if name == \"echo\""},
+{"true|compare",     1, "if name != \"true\""},
+{"false|match_pat",  1, `case "false", "noop"`},
+{"noop|match_pat",   1, "multi-string case clause"},
+{"fail|match_pat",   1, `case "fail"`},
+{"hello|fmt",        1, "fmt.Println first arg"},
+{"debug: %s|fmt",    1, "fmt.Sprintf format string"},
+}
+for _, c := range checks {
+if n, ok := got[c.key]; !ok {
+t.Errorf("missing %s (%s)", c.key, c.reason)
+} else if n != c.want {
+t.Errorf("%s: got count %d, want %d (%s)", c.key, n, c.want, c.reason)
+}
+}
+}
+
+func TestStringLiteralsViewFiltersComments(t *testing.T) {
+db := setupDB(t)
+indexSample(t, db, sampleSL, "sl.go")
+
+// The // comment line mentions "echo" but should not appear as a dispatch hit.
+hits := queryInt(t, db,
+`SELECT COUNT(*) FROM string_literals
+ WHERE file = 'sl.go' AND value = 'echo' AND context = 'compare'`)
+if hits != 1 {
+t.Errorf("expected 1 dispatch 'echo' (the if-eq), got %d (likely comment leaked through)", hits)
+}
+}
+
+// Note: Go's case clauses with comma-separated values like
+//   case "false", "noop":
+// emit ONE source line containing both literals. The recursive CTE
+// peels each string off and tags both rows match_pat — verified above.
+// Sanity-check the pos ordering:
+func TestStringLiteralsViewMultiStringOrdering(t *testing.T) {
+db := setupDB(t)
+indexSample(t, db, sampleSL, "sl.go")
+
+rows, err := db.Query(`
+SELECT value, pos FROM string_literals
+WHERE file = 'sl.go' AND context = 'match_pat' AND value IN ('false','noop')
+ORDER BY line_num, pos`)
+if err != nil {
+t.Fatal(err)
+}
+defer rows.Close()
+var order []string
+for rows.Next() {
+var v string
+var p int
+if err := rows.Scan(&v, &p); err != nil {
+t.Fatal(err)
+}
+order = append(order, fmt.Sprintf("%s@%d", v, p))
+}
+if len(order) != 2 || order[0] != "false@1" || order[1] != "noop@2" {
+t.Errorf("multi-string ordering wrong: %v", order)
+}
+}

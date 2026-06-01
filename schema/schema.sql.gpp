@@ -96,6 +96,70 @@ LEFT JOIN symbols s
    AND s.kind IN ('function','method')
    AND (c.callee_qname IS NULL OR s.qualified_name = c.callee_qname);
 
+-- String-literal extraction view. Peels every double-quoted string off each
+-- line of source, one row per occurrence, with a coarse `context` bucket
+-- derived from surrounding line text.
+--
+-- Limitations (acceptable for the dispatch-discovery use case):
+--   - One line at a time: multi-line strings and raw strings with embedded
+--     newlines are extracted only up to the first \n.
+--   - Escaped quotes (\") split strings early — rare in dispatch code.
+--   - Context is line-level heuristic, not AST-parent. Good enough to filter
+--     `compare`/`match_pat` from `fmt`/`arg`, but not perfect.
+--
+-- Filters out lines beginning with // or /// (doc-comment false positives).
+-- See AGENTS.md snippet for query patterns.
+CREATE VIEW string_literals AS
+WITH RECURSIVE peeled(file, line_num, symbol, content, value, rest, pos) AS (
+    SELECT file, line_num, symbol, content,
+           substr(content,
+                  instr(content, '"') + 1,
+                  instr(substr(content, instr(content, '"') + 1), '"') - 1),
+           substr(substr(content, instr(content, '"') + 1),
+                  instr(substr(content, instr(content, '"') + 1), '"') + 1),
+           1
+    FROM lines
+    WHERE content LIKE '%"%"%'
+      AND trim(content) NOT LIKE '//%'
+    UNION ALL
+    SELECT file, line_num, symbol, content,
+           substr(rest, instr(rest, '"') + 1,
+                  instr(substr(rest, instr(rest, '"') + 1), '"') - 1),
+           substr(substr(rest, instr(rest, '"') + 1),
+                  instr(substr(rest, instr(rest, '"') + 1), '"') + 1),
+           pos + 1
+    FROM peeled
+    WHERE rest LIKE '%"%"%' AND pos < 8
+)
+SELECT file, line_num, symbol, value, pos,
+       CASE
+           WHEN content LIKE '%==%"' || value || '"%'
+             OR content LIKE '%!=%"' || value || '"%' THEN 'compare'
+#ifdef LANG_GO
+           WHEN content LIKE '%case %"' || value || '"%' THEN 'match_pat'
+           WHEN content LIKE '%fmt.Print%'
+             OR content LIKE '%fmt.Sprint%'
+             OR content LIKE '%fmt.Errorf%'
+             OR content LIKE '%fmt.Fprintf%'
+             OR content LIKE '%log.Print%'
+             OR content LIKE '%log.Fatal%'            THEN 'fmt'
+#else
+           WHEN content LIKE '%"' || value || '"%=>%'
+             OR content LIKE '%"' || value || '" |%'
+             OR content LIKE '%| "' || value || '"%'  THEN 'match_pat'
+           WHEN content LIKE '%format!%'
+             OR content LIKE '%println!%'
+             OR content LIKE '%write!%'
+             OR content LIKE '%writeln!%'
+             OR content LIKE '%eprintln!%'
+             OR content LIKE '%panic!%'               THEN 'fmt'
+#endif
+           ELSE 'arg'
+       END AS context
+FROM peeled
+WHERE value != '';
+
+
 #ifdef LANG_GO
 -- Go-specific: channel operations (make, send, recv, close, range, select)
 CREATE TABLE channels (

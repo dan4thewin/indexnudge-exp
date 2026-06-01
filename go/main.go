@@ -478,6 +478,44 @@ LEFT JOIN symbols s
     ON s.name = c.callee
    AND s.kind IN ('function','method')
    AND (c.callee_qname IS NULL OR s.qualified_name = c.callee_qname);
+
+CREATE VIEW string_literals AS
+WITH RECURSIVE peeled(file, line_num, symbol, content, value, rest, pos) AS (
+    SELECT file, line_num, symbol, content,
+           substr(content,
+                  instr(content, '"') + 1,
+                  instr(substr(content, instr(content, '"') + 1), '"') - 1),
+           substr(substr(content, instr(content, '"') + 1),
+                  instr(substr(content, instr(content, '"') + 1), '"') + 1),
+           1
+    FROM lines
+    WHERE content LIKE '%"%"%'
+      AND trim(content) NOT LIKE '//%'
+    UNION ALL
+    SELECT file, line_num, symbol, content,
+           substr(rest, instr(rest, '"') + 1,
+                  instr(substr(rest, instr(rest, '"') + 1), '"') - 1),
+           substr(substr(rest, instr(rest, '"') + 1),
+                  instr(substr(rest, instr(rest, '"') + 1), '"') + 1),
+           pos + 1
+    FROM peeled
+    WHERE rest LIKE '%"%"%' AND pos < 8
+)
+SELECT file, line_num, symbol, value, pos,
+       CASE
+           WHEN content LIKE '%==%"' || value || '"%'
+             OR content LIKE '%!=%"' || value || '"%' THEN 'compare'
+           WHEN content LIKE '%case %"' || value || '"%' THEN 'match_pat'
+           WHEN content LIKE '%fmt.Print%'
+             OR content LIKE '%fmt.Sprint%'
+             OR content LIKE '%fmt.Errorf%'
+             OR content LIKE '%fmt.Fprintf%'
+             OR content LIKE '%log.Print%'
+             OR content LIKE '%log.Fatal%'            THEN 'fmt'
+           ELSE 'arg'
+       END AS context
+FROM peeled
+WHERE value != '';
 `
 	_, err := db.Exec(schema)
 	return err

@@ -1015,7 +1015,7 @@ fn create_schema(conn: &Connection) -> Result<()> {
         "
         PRAGMA journal_mode=DELETE;
         PRAGMA synchronous=OFF;
-        PRAGMA user_version=5;
+        PRAGMA user_version=6;
 
         CREATE TABLE lines (
             file     TEXT,
@@ -1135,6 +1135,46 @@ fn create_schema(conn: &Connection) -> Result<()> {
             ON s.name = c.callee
            AND s.kind IN ('function','method')
            AND (c.callee_qname IS NULL OR s.qualified_name = c.callee_qname);
+
+        CREATE VIEW string_literals AS
+        WITH RECURSIVE peeled(file, line_num, symbol, content, value, rest, pos) AS (
+            SELECT file, line_num, symbol, content,
+                   substr(content,
+                          instr(content, '\"') + 1,
+                          instr(substr(content, instr(content, '\"') + 1), '\"') - 1),
+                   substr(substr(content, instr(content, '\"') + 1),
+                          instr(substr(content, instr(content, '\"') + 1), '\"') + 1),
+                   1
+            FROM lines
+            WHERE content LIKE '%\"%\"%'
+              AND trim(content) NOT LIKE '//%'
+            UNION ALL
+            SELECT file, line_num, symbol, content,
+                   substr(rest, instr(rest, '\"') + 1,
+                          instr(substr(rest, instr(rest, '\"') + 1), '\"') - 1),
+                   substr(substr(rest, instr(rest, '\"') + 1),
+                          instr(substr(rest, instr(rest, '\"') + 1), '\"') + 1),
+                   pos + 1
+            FROM peeled
+            WHERE rest LIKE '%\"%\"%' AND pos < 8
+        )
+        SELECT file, line_num, symbol, value, pos,
+               CASE
+                   WHEN content LIKE '%==%\"' || value || '\"%'
+                     OR content LIKE '%!=%\"' || value || '\"%' THEN 'compare'
+                   WHEN content LIKE '%\"' || value || '\"%=>%'
+                     OR content LIKE '%\"' || value || '\" |%'
+                     OR content LIKE '%| \"' || value || '\"%'  THEN 'match_pat'
+                   WHEN content LIKE '%format!%'
+                     OR content LIKE '%println!%'
+                     OR content LIKE '%write!%'
+                     OR content LIKE '%writeln!%'
+                     OR content LIKE '%eprintln!%'
+                     OR content LIKE '%panic!%'               THEN 'fmt'
+                   ELSE 'arg'
+               END AS context
+        FROM peeled
+        WHERE value != '';
         ",
     )?;
     Ok(())
@@ -1142,7 +1182,7 @@ fn create_schema(conn: &Connection) -> Result<()> {
 
 /// Schema version — bump when tables/columns change.
 /// freshen checks this and falls back to full_index if outdated.
-const SCHEMA_VERSION: i64 = 5;
+const SCHEMA_VERSION: i64 = 6;
 
 /// Returns true if the DB schema is current. If outdated, freshen
 /// should abandon incremental update and do a full rebuild.
@@ -1845,5 +1885,102 @@ fn outer_with_closure(x: i32) -> i32 {
         let mut extractor = Extractor::new("test.rs".to_string(), source);
         extractor.extract(tree.root_node());
         insert_symbols(conn, &extractor.symbols).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod string_literals_view_tests {
+    use super::*;
+
+    const SL_SAMPLE: &str = r#"fn dispatch(name: &str) -> i32 {
+    if name == "echo" {
+        return 1;
+    }
+    if name != "true" {
+        return 2;
+    }
+    match name {
+        "false" | "noop" => 0,
+        "fail" => -1,
+        other => other.len() as i32,
+    }
+}
+
+fn talk() {
+    println!("hello {}", "world");
+    format!("debug: {}", "info");
+}
+
+/// Doc comment mentioning "echo" should be filtered.
+fn comment_filter() {}
+"#;
+
+    #[test]
+    fn string_literals_view_dispatch_buckets() {
+        let conn = setup_db();
+        index_sample(&conn, SL_SAMPLE);
+
+        let rows: Vec<(String, String, i64)> = conn
+            .prepare("SELECT value, context, COUNT(*)
+                      FROM string_literals
+                      WHERE file='test.rs'
+                      GROUP BY value, context
+                      ORDER BY value, context")
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect();
+
+        let lookup: std::collections::HashMap<(String, String), i64> =
+            rows.iter().map(|(v, c, n)| ((v.clone(), c.clone()), *n)).collect();
+
+        assert_eq!(lookup.get(&("echo".to_string(),  "compare".to_string())),  Some(&1),
+                   "expected one == \"echo\" hit");
+        assert_eq!(lookup.get(&("true".to_string(),  "compare".to_string())),  Some(&1),
+                   "expected one != \"true\" hit");
+        assert_eq!(lookup.get(&("false".to_string(), "match_pat".to_string())), Some(&1),
+                   "expected match arm \"false\" | \"noop\" — false counted");
+        assert_eq!(lookup.get(&("noop".to_string(),  "match_pat".to_string())), Some(&1),
+                   "expected match arm \"false\" | \"noop\" — noop also counted (multi-string line)");
+        assert_eq!(lookup.get(&("fail".to_string(),  "match_pat".to_string())), Some(&1),
+                   "expected match arm \"fail\"");
+        assert_eq!(lookup.get(&("hello {}".to_string(), "fmt".to_string())), Some(&1),
+                   "println! format string classified fmt");
+        assert_eq!(lookup.get(&("debug: {}".to_string(), "fmt".to_string())), Some(&1),
+                   "format! format string classified fmt");
+    }
+
+    #[test]
+    fn string_literals_view_filters_doc_comments() {
+        let conn = setup_db();
+        index_sample(&conn, SL_SAMPLE);
+
+        // The /// doc comment line mentions "echo" but should not appear.
+        let comment_hits: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM string_literals
+                 WHERE file='test.rs' AND value='echo' AND context='compare'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(comment_hits, 1,
+                   "should be exactly 1 dispatch 'echo' (the real if-eq), not 2 with the doc comment");
+    }
+
+    fn setup_db() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        create_schema(&conn).unwrap();
+        conn
+    }
+
+    fn index_sample(conn: &Connection, source: &str) {
+        let mut parser = TsParser::new();
+        parser.set_language(&tree_sitter_rust::LANGUAGE.into()).unwrap();
+        let tree = parser.parse(source, None).unwrap();
+        let mut extractor = Extractor::new("test.rs".to_string(), source);
+        extractor.extract(tree.root_node());
+        insert_lines(conn, "test.rs", source, &extractor.symbol_ranges).unwrap();
     }
 }

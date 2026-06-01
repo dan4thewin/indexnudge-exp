@@ -196,6 +196,62 @@ The `channels` table uses `go/types` for accuracy: a `range` over a slice
 will not appear here — only true channel operations are tracked.
 
 #endif
+### Finding string-keyed dispatch
+
+`string_literals` is a view that peels every double-quoted string off
+each source line and classifies its surrounding context. Use it to find
+sites that compare-against / match-against / format-with a specific
+string — far more precise than `lines_fts MATCH '"value"'` which would
+also hit comments, format args, and arbitrary mentions.
+
+#ifdef LANG_GO
+| context     | matches lines like                            |
+|-------------|-----------------------------------------------|
+| `compare`   | `if name == "x"` / `if name != "x"`           |
+| `match_pat` | `case "x":` / `case "x", "y":`                |
+| `fmt`       | `fmt.Print*("...")`, `log.Print*`, `Errorf`   |
+| `arg`       | everything else (function arguments, struct literals, etc.) |
+#elif defined(LANG_RUST)
+| context     | matches lines like                            |
+|-------------|-----------------------------------------------|
+| `compare`   | `if name == "x"` / `if name != "x"`           |
+| `match_pat` | `"x" => ...` / `"x" \| "y" => ...`            |
+| `fmt`       | `format!`, `println!`, `panic!`, etc.         |
+| `arg`       | everything else (function arguments, struct literals, etc.) |
+#else
+| context     | matches lines like                            |
+|-------------|-----------------------------------------------|
+| `compare`   | `if name == "x"` / `if name != "x"`           |
+| `match_pat` | Rust `"x" => ` / `"x" \| "y" => `, Go `case "x":` |
+| `fmt`       | language-specific print/format helpers        |
+| `arg`       | everything else                               |
+#endif
+
+```bash
+# Every site that dispatches on one of N builtin names
+sqlite3 "$DB" "SELECT file, line_num, symbol, value, context
+               FROM string_literals
+               WHERE value IN ('echo','true','false','printf','exec')
+                 AND context IN ('compare','match_pat')
+               ORDER BY file, line_num;"
+
+# Where is literal 'X' used as a format-string vs a real arg?
+sqlite3 "$DB" "SELECT context, COUNT(*) FROM string_literals
+               WHERE value LIKE '%error%' GROUP BY context;"
+
+# Find string-keyed dispatch outside the canonical from_name() functions
+sqlite3 "$DB" "SELECT file, line_num, symbol, value FROM string_literals
+               WHERE value IN ('echo','true','false')
+                 AND context = 'match_pat'
+                 AND symbol NOT LIKE '%::from_name';"
+```
+
+Limits: lines that begin with `//` are filtered to suppress comment
+false positives; multi-line raw strings (`r#"..."#` in Rust, backtick
+strings in Go) only appear up to the first newline; escaped `\"`
+inside a string can split it early. For the dispatch-discovery use
+case these gaps are rarely material.
+
 ### Schema reference
 
 | Table         | Columns of interest                                                |
@@ -205,6 +261,7 @@ will not appear here — only true channel operations are tracked.
 | `symbols`     | `name, qualified_name, kind, file, start_line, end_line, parent, signature, cyclomatic` |
 | `calls`       | `caller_file, caller_symbol, callee, callee_qname, kind, line_num`  |
 | `callee_candidates` | view: `calls` ⨝ `symbols` — one row per (call, candidate symbol) |
+| `string_literals` | view: every double-quoted string on every line, with context bucket |
 | `defs`        | `symbol, file, line_num, var, kind`  *(variable/binding definitions)* |
 | `imports`     | `file, module, line_num`                                           |
 | `files`       | `file, lines, language, indexed_mtime`                             |

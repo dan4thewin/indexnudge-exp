@@ -1,5 +1,56 @@
 # Feature Request: Extract string literals as a queryable column / table
 
+**Status: resolved as a view (2026-05-31).** Implemented as
+`string_literals` — a SQLite view over `lines` using a recursive CTE
+that peels every double-quoted string off each line and tags its
+context. No new table, zero storage, ~95 ms cold scan on a 27K-line
+codebase. Schema version bumped 5 → 6; freshen rebuilds old DBs.
+
+The view replaces the FR's proposed table for all the motivating
+queries:
+
+```sql
+-- Step 1 (from the FR): every dispatch site for the BuiltinCmd set
+SELECT file, line_num, symbol, value, context FROM string_literals
+WHERE value IN ('echo','true','false',':','printf','exec','trap',
+                'read','bless','getenv','argv')
+  AND context IN ('compare','match_pat');
+
+-- Step 2: surviving string-keyed dispatch outside the canonical enum
+SELECT * FROM string_literals
+WHERE value IN ('echo','true','false','printf','exec','trap',
+                'read','bless','getenv','argv')
+  AND context IN ('compare','match_pat')
+  AND (symbol IS NULL OR symbol NOT LIKE '%from_name%');
+```
+
+On safebash (the FR's motivating codebase): step 1 returns 40 cleanly
+dispatched sites, step 2 returns 32 sites outside `from_name`. Same
+data the FR asked for, one SQL query each.
+
+## Why a view instead of a table
+
+A view over `lines` recovers ~95% of the FR's value with three
+characteristics the proposed table couldn't match:
+
+1. **Zero per-language code.** The recursive CTE works for any
+   language with double-quoted strings — Rust, Go, Python, JS, bash.
+   A proposed table needed a per-language AST visitor (Rust easy via
+   tree-sitter parent nodes; Go awkward because `ast.Inspect` doesn't
+   expose parents).
+2. **No storage.** ~250 KB saved on safebash.
+3. **Honest about limits.** AGENTS.md snippet documents what the
+   line-level heuristic can't see (multi-line strings, escaped quotes,
+   `r#"..."#` raw strings) so agents know when to fall back.
+
+The `context` enum the FR proposed is preserved (`compare`,
+`match_pat`, `fmt`, `arg`) and bucketed via per-language LIKE heuristics
+in the view body. Language-specific patterns are conditional via gpp:
+Rust gets `=>` arm patterns and `format!`/`println!` macros; Go gets
+`case X:` arms and `fmt.Print*`/`log.Print*` calls.
+
+Original request below preserved for context.
+
 ## Problem
 
 The index knows about *symbol* references — `calls`, `refs`,
