@@ -275,3 +275,103 @@ commit-hook thresholds it's not yet trustworthy.
 
 - `notes/feature-request-complexity-metric.md` — the original FR
   that this implements.
+
+---
+
+## Update — 2026-05-31 (after schema v8 fixes)
+
+After v8 (match-arm guards, let-else, closures-as-+1-in-enclosing),
+the picture is dramatically better. Mozilla-confirmed on safebash:
+
+```
+                Mozilla   v1      v8
+fns                656    438    438     (still off — see below)
+avg cc             6.8    8.8    9.3
+max cc              58     48     58 ✓
+```
+
+8 of 14 hotspots now match exactly. Mean per-fn delta dropped from
+−8.3 to −3.1. Rejected `|`-alternated patterns after testing —
+correctly identified as catastrophically over-counting on
+lexer-style code (e.g., `b' ' | b'\t' | ... | b'$' => break`).
+
+### Residual on six functions in safebash
+
+| function | Mozilla | v8 | delta |
+|---|---:|---:|---:|
+| `lower_one` | 57 | 47 | **−10** |
+| `lower_value` | 48 | 39 | **−9** |
+| `lower_case` | 44 | 41 | −3 |
+| `allocate_variables` | 36 | 34 | −2 |
+| `verify_ssa_taint` | 36 | 34 | −2 |
+| `lower_for` | 44 | 43 | −1 |
+
+All deltas negative. Three observations from inspecting `lower_one`
+and `lower_value`:
+
+1. **`matches!` macro** — `lower_one` contains at least 2 sites
+   (`sash/src/transform/statements.rs:104,134`) and the broader
+   file has 5. Each `matches!(x, A | B | C)` expands to a `match`
+   with one explicit arm and a `_` arm — Mozilla appears to count
+   each as +1. Tree-sitter sees a `macro_invocation` node, not a
+   `match_expression`, so a node-kind-based counter would miss
+   them unless macro names are special-cased.
+
+2. **Nested item-level `fn` declarations** —
+   `sash/src/transform/statements.rs:248` defines `fn uncheck_block`
+   inside `lower_one`. By the same convention you applied to
+   closures (+1 in the enclosing fn), nested item-level `fn`
+   declarations should also count +1.
+
+3. **Multi-line struct-destructure match arms** —
+   `sash/src/codegen/values.rs` has at least 4 arms shaped like
+
+   ```rust
+   SsaValue::ParamExpansion {
+       var, op, word, ...
+   } => handle_param_expansion(...)
+   ```
+
+   These are normal `match_arm` nodes to tree-sitter and *should*
+   be counted, but worth verifying the walk handles the
+   pattern-block-then-`=>` layout. If counted, point 1+2 cover
+   most of the gap; if not, this is the third source.
+
+### Function-count gap (438 vs 656)
+
+The agent's v2 note says closures-as-symbols was deferred because
+adding them ripples through `callee_candidates`, `string_literals`,
+and `block_dupes`. Reasonable deferral. Two ways to close the gap
+without ripples:
+
+- **`symbol_metrics` sibling table** — separate the metric data
+  from the symbol catalog. Add closures as metric-only rows keyed
+  by `(file, start_line)`. Existing views are untouched; new
+  `closure_count` queries become trivial.
+- **`kind = 'closure'` with synthetic name** — `closure@line` as
+  the name. All three existing views already filter `kind` and
+  would naturally exclude them; the only ripple is whether the
+  views' implicit "joinable name" assumption holds.
+
+The metric-only table is the lower-risk path.
+
+### Self-test fixture
+
+A small Rust fixture with hand-verified CC numbers would let you
+spot regressions like the original v1 bug or the over-count caused
+by the `|`-pattern experiment immediately. Suggested test cases:
+
+- empty fn → 1
+- single `if` → 2
+- single `?` operator → 2
+- single closure `|| {}` → 2 in outer (+1 row for inner)
+- nested item-level `fn` → 2 in outer (+1 row for inner)
+- `matches!(x, A | B)` → 2 in outer
+- `match x { A | B => 1, _ => 2 }` → 2 in outer (NOT 3; McCabe original)
+- match arm guard `pat if cond => ...` → 3 (1 base + 1 arm + 1 guard)
+- `let Some(x) = opt else { return }` → 2 in outer
+- chained `a && b && c` → 3 in outer
+
+If you build that fixture, safebash's `lower_one` (currently
+indexed at 47, Mozilla 57) becomes a natural acceptance test for
+the real Rust idioms.
