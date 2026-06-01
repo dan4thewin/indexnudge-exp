@@ -1,0 +1,57 @@
+=== Score ===
+Wall clock: 242s
+Tokens: 43501 (in=42194, out=1307)
+Tool calls: 22 | Navigation: 8
+  DB structural: 1
+  DB lines:      0
+  DB other:      1
+  Shim hit:      5
+  Shim fallthru: 1
+  Shim evasion:  0
+Scores:
+  db_ratio:         0.875
+  structural_ratio: 1.0
+  evasion_ratio:    0.0
+  line_ratio:       0.0
+  nav_ratio:        0.364
+
+Categories: {'non_shell_tool': 3, 'shim_hit': 5, 'direct_db_other': 1, 'direct_db_structural': 1, 'mutation': 2, 'build_test': 5, 'git': 4, 'shim_fallthrough': 1}
+
+Commands:
+  [shim_hit              ] pwd; ls -la; printf '\n--- spec heads ---\n'; sed -n '1,220p' ENHANCEMENTS_SPEC.md 2>/dev/null; printf '\n--- plan heads
+  [direct_db_other       ] sqlite3 .indexnudge.db '.schema' 2>/dev/null || sqlite3 .codeindex.db '.schema' 2>/dev/null || true
+  [direct_db_structural  ] printf 'Find symbols:\n'; sqlite3 .indexnudge.db "select file,start_line,end_line,qualified_name,signature from symbols 
+  [shim_hit              ] sed -n '1,120p' crates/liwe/src/markdown.rs; printf '\n--- reader metadata ---\n'; sed -n '330,410p' crates/liwe/src/mar
+  [shim_hit              ] sed -n '190,260p' crates/liwe/tests/bare_frontmatter_test.rs; printf '\n--- graph import metadata path ---\n'; sed -n '1
+  [mutation              ] ed -s crates/liwe/src/markdown.rs <<'EOF'
+50,64c
+    if rest.is_empty() {
+        Cow::Owned(format!("---\n{}\n---\n", h
+  [mutation              ] ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+130a
+
+#[test]
+fn bare_frontmatter_yaml_sequence_matches() {
+    le
+  [build_test            ] cargo test -p liwe bare_frontmatter_yaml_sequence_matches --test find_metadata_test
+  [build_test            ] cargo test
+  [git                   ] git diff -- crates/liwe/src/markdown.rs crates/liwe/tests/find_metadata_test.rs; printf '\n--- status ---\n'; git status
+  [git                   ] /bin/sed -n '1,80p' crates/liwe/src/markdown.rs; git diff -- crates/liwe/src/markdown.rs; git status --short
+  [git                   ] git show HEAD:crates/liwe/src/markdown.rs | /bin/sed -n '35,60p'; printf '\nactual status ignored?\n'; git diff --stat; 
+  [shim_fallthrough      ] rg -n "MarkdownOptions|bare_frontmatter|FindOptions|metadata_filters|Find \{|fn find|parse_meta_filter|Graph::import|new
+  [shim_hit              ] sed -n '640,690p' crates/iwe/src/main.rs; sed -n '1018,1035p' crates/iwe/src/main.rs; sed -n '1,90p' crates/iwe/tests/fi
+  [build_test            ] tmp=$(mktemp -d); mkdir -p "$tmp/.iwe"; cat >"$tmp/.iwe/config.toml" <<'EOF'
+version = 4
+
+[library]
+path = ""
+
+[markdown
+  [shim_hit              ] sed -n '90,260p' crates/iwe/tests/find_test.rs
+  [build_test            ] cat >> /tmp/append_find_test <<'EOF'
+
+#[test]
+fn test_find_meta_matches_bare_frontmatter_yaml_sequence() {
+    let dir =
+  [build_test            ] cargo test
+  [git                   ] git diff --stat; git diff -- crates/liwe/tests/find_metadata_test.rs crates/iwe/tests/find_test.rs | /bin/sed -n '1,220p

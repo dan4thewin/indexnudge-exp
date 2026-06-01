@@ -1,0 +1,35 @@
+=== Score ===
+Wall clock: 175s
+Tokens: 15908 (in=15729, out=179)
+Tool calls: 16 | Navigation: 6
+  DB structural: 1
+  DB lines:      0
+  DB other:      0
+  Shim hit:      4
+  Shim fallthru: 1
+  Shim evasion:  0
+Scores:
+  db_ratio:         0.833
+  structural_ratio: 1.0
+  evasion_ratio:    0.0
+  line_ratio:       0.0
+  nav_ratio:        0.375
+
+Categories: {'direct_db_structural': 1, 'shim_fallthrough': 1, 'shim_hit': 4, 'non_shell_tool': 1, 'build_test': 7, 'git': 2}
+
+Commands:
+  [direct_db_structural  ] cd /tmp/bench-iwe-debug-1-NUGs4q && sqlite3 .codeindex.db "SELECT DISTINCT file FROM files WHERE file LIKE '%front%' OR 
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-1-NUGs4q && grep -r "frontmatter\|front_matter\|parse_meta\|parse_yaml" --include="*.rs" -l | he
+  [shim_hit              ] cd /tmp/bench-iwe-debug-1-NUGs4q && grep -n "bare" crates/liwe/src/markdown.rs | head -20
+  [shim_hit              ] cd /tmp/bench-iwe-debug-1-NUGs4q && sed -n '29,65p' crates/liwe/src/markdown.rs
+  [build_test            ] cd /tmp/bench-iwe-debug-1-NUGs4q && cargo test 2>&1 | tail -20
+  [build_test            ] cd /tmp/bench-iwe-debug-1-NUGs4q && cargo test 2>&1 | grep -E "^test result|FAILED|^running"
+  [build_test            ] cd /tmp/bench-iwe-debug-1-NUGs4q && git stash && cargo test -- transform_action_with_env_vars 2>&1 | tail -5; git stash 
+  [git                   ] cd /tmp/bench-iwe-debug-1-NUGs4q && git diff HEAD -- crates/liwe/src/markdown.rs
+  [shim_hit              ] cd /tmp/bench-iwe-debug-1-NUGs4q && sed -n '49,55p' crates/liwe/src/markdown.rs
+  [shim_hit              ] cd /tmp/bench-iwe-debug-1-NUGs4q && cat crates/liwe/src/markdown.rs | head -60
+  [git                   ] cd /tmp/bench-iwe-debug-1-NUGs4q && git stash list; git log --oneline -3
+  [build_test            ] cd /tmp/bench-iwe-debug-1-NUGs4q && cargo test -- transform_action_with_env_vars 2>&1 | tail -20
+  [build_test            ] cd /tmp/bench-iwe-debug-1-NUGs4q && cargo test 2>&1 | grep "FAILED\|^test result" | tail -5
+  [build_test            ] cd /tmp/bench-iwe-debug-1-NUGs4q && cargo test 2>&1 | grep "FAILED"
+  [build_test            ] cd /tmp/bench-iwe-debug-1-NUGs4q && cargo test 2>&1 | grep -c "FAILED"

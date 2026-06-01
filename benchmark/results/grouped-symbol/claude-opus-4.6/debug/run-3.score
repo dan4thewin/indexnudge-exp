@@ -1,0 +1,214 @@
+=== Score ===
+Wall clock: 2010s
+Tokens: 84312 (in=83714, out=598)
+Tool calls: 149 | Navigation: 102
+  DB structural: 0
+  DB lines:      6
+  DB other:      0
+  Shim hit:      20
+  Shim fallthru: 76
+  Shim evasion:  0
+Scores:
+  db_ratio:         0.255
+  structural_ratio: 0.0
+  evasion_ratio:    0.0
+  line_ratio:       0.059
+  nav_ratio:        0.685
+
+Categories: {'non_shell_tool': 2, 'shim_fallthrough': 76, 'shim_hit': 20, 'other': 1, 'mutation': 3, 'build_test': 23, 'git': 18, 'direct_db_lines': 6}
+
+Commands:
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && grep -rn "bare\|frontmatter\|front.matter\|parse_meta\|meta.*filter\|find.*meta" --i
+  [shim_hit              ] cd /tmp/bench-iwe-debug-3-MNhOQJ && cat crates/liwe/tests/bare_frontmatter_test.rs
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && grep -n "metadata\|meta_matches\|find.*meta\|frontmatter\|yaml_value\|serde_yaml" cr
+  [shim_hit              ] cd /tmp/bench-iwe-debug-3-MNhOQJ && sed -n '1,100p' crates/liwe/src/markdown.rs
+  [other                 ] cd /tmp/bench-iwe-debug-3-MNhOQJ && printf 'title: Test\ndepends:\n  - foo\n\n# Body\n' | python3 -c "
+import sys
+conten
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && cat -n crates/liwe/src/markdown.rs | sed -n '49,65p'
+  [mutation              ] cd /tmp/bench-iwe-debug-3-MNhOQJ && ed crates/liwe/src/markdown.rs <<'EOF'
+50,56c
+    if rest.is_empty() {
+        Cow::
+  [build_test            ] cd /tmp/bench-iwe-debug-3-MNhOQJ && cargo test 2>&1 | tail -20
+  [shim_hit              ] cd /tmp/bench-iwe-debug-3-MNhOQJ && sed -n '48,60p' crates/liwe/src/markdown.rs
+  [git                   ] cd /tmp/bench-iwe-debug-3-MNhOQJ && git checkout crates/liwe/src/markdown.rs
+  [mutation              ] cd /tmp/bench-iwe-debug-3-MNhOQJ && ed crates/liwe/src/markdown.rs <<'EOF'
+50,64c
+    if rest.is_empty() {
+        Cow::
+  [build_test            ] cd /tmp/bench-iwe-debug-3-MNhOQJ && cargo test 2>&1 | tail -30
+  [git                   ] cd /tmp/bench-iwe-debug-3-MNhOQJ && git checkout crates/liwe/src/markdown.rs && cat -n crates/liwe/src/markdown.rs
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && grep -n "metadata\|MetadataBlock\|yaml\|serde_yaml\|frontmatter" crates/liwe/src/mar
+  [shim_hit              ] cd /tmp/bench-iwe-debug-3-MNhOQJ && sed -n '90,120p' crates/liwe/src/markdown/reader.rs
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && grep -n "find\|meta_match\|metadata_match\|filter_meta" crates/liwe/src/selector.rs 
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && grep -rn "meta\|find" crates/liwe/src/selector.rs | head -30
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && grep -rn "meta" crates/iwe/src/selector.rs | head -20
+  [shim_hit              ] cd /tmp/bench-iwe-debug-3-MNhOQJ && grep -rn "meta" crates/iwe/src/main.rs | head -20
+  [shim_hit              ] cd /tmp/bench-iwe-debug-3-MNhOQJ && sed -n '660,700p' crates/iwe/src/main.rs
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && grep -rn "metadata_filter\|meta.*filter\|matches_meta" crates/liwe/src/ --include="*
+  [shim_hit              ] cd /tmp/bench-iwe-debug-3-MNhOQJ && sed -n '250,300p' crates/liwe/src/find.rs
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && grep -n "get_metadata\|fn metadata" crates/liwe/src/graph.rs | head -20
+  [shim_hit              ] cd /tmp/bench-iwe-debug-3-MNhOQJ && sed -n '223,245p' crates/liwe/src/graph.rs
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && grep -n "self.metadata" crates/liwe/src/graph.rs | head -20
+  [direct_db_lines       ] cd /tmp/bench-iwe-debug-3-MNhOQJ && sqlite3 .indexnudge-rust.db "SELECT line_number, content FROM lines WHERE file_path 
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && sqlite3 .indexnudge-rust.db ".schema lines" 2>/dev/null | head -5
+  [direct_db_lines       ] cd /tmp/bench-iwe-debug-3-MNhOQJ && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file LIKE '%/
+  [git                   ] cd /tmp/bench-iwe-debug-3-MNhOQJ && git log --oneline -5 -- crates/liwe/src/markdown.rs
+  [shim_fallthrough      ] cat -A /tmp/bench-iwe-debug-3-MNhOQJ/crates/liwe/src/markdown.rs | sed -n '50,64p'
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && grep -c "cleaned_header" crates/liwe/src/markdown.rs
+  [shim_hit              ] cd /tmp/bench-iwe-debug-3-MNhOQJ && cat crates/liwe/src/markdown.rs
+  [shim_hit              ] cd /tmp/bench-iwe-debug-3-MNhOQJ && cat crates/liwe/tests/find_metadata_test.rs
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && grep -n "load_graph\|bare_frontmatter\|markdown_options\|MarkdownOptions" crates/iwe
+  [shim_hit              ] cd /tmp/bench-iwe-debug-3-MNhOQJ && sed -n '1025,1060p' crates/iwe/src/main.rs
+  [shim_hit              ] cat /tmp/bench-iwe-debug-3-MNhOQJ/crates/liwe/src/markdown.rs
+  [shim_hit              ] cat -n /tmp/bench-iwe-debug-3-MNhOQJ/crates/liwe/src/markdown.rs
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && cat > /tmp/test_meta.rs << 'TESTEOF'
+// Quick check: what does pulldown-cmark give u
+  [git                   ] cd /tmp/bench-iwe-debug-3-MNhOQJ && git log --all --oneline | head -5
+  [shim_fallthrough      ] LANG=C /bin/cat /tmp/bench-iwe-debug-3-MNhOQJ/crates/liwe/src/markdown.rs
+  [shim_fallthrough      ] LANG=C /bin/cat -n /tmp/bench-iwe-debug-3-MNhOQJ/crates/liwe/src/markdown/reader.rs | head -130 | tail -50
+  [build_test            ] cd /tmp/bench-iwe-debug-3-MNhOQJ && cargo run --example 2>&1 | head -5; ls crates/liwe/examples/ 2>/dev/null
+  [build_test            ] cd /tmp/bench-iwe-debug-3-MNhOQJ && cat > /tmp/test_meta.rs << 'EOF'
+fn main() {
+    use pulldown_cmark::*;
+    
+    let
+  [build_test            ] cd /tmp/bench-iwe-debug-3-MNhOQJ && cat >> crates/liwe/tests/find_metadata_test.rs << 'EOF'
+
+#[test]
+fn debug_bare_metad
+  [build_test            ] cd /tmp/bench-iwe-debug-3-MNhOQJ && cargo test -p liwe --test find_metadata_test debug_bare_metadata_content 2>&1 | grep
+  [build_test            ] cd /tmp/bench-iwe-debug-3-MNhOQJ && cargo test -p liwe --test find_metadata_test debug_bare_metadata_content -- --nocapt
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && grep -n "cleaned\|filter.*start\|bare\|metadata" crates/liwe/src/markdown/writer.rs 
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && grep -n "fn new_for_path\|fn read_files\|fn import" crates/liwe/src/graph.rs | head 
+  [shim_hit              ] cd /tmp/bench-iwe-debug-3-MNhOQJ && sed -n '347,400p' crates/liwe/src/graph.rs | LANG=C /bin/cat
+  [git                   ] cd /tmp/bench-iwe-debug-3-MNhOQJ && git diff HEAD~1 -- crates/liwe/src/markdown.rs
+  [shim_hit              ] cd /tmp/bench-iwe-debug-3-MNhOQJ && grep -rn "new_for_path" crates/ --include="*.rs" | head -10
+  [shim_hit              ] cd /tmp/bench-iwe-debug-3-MNhOQJ && grep -n "new_for_path" crates/liwe/src/fs.rs | head -10
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && LANG=C /bin/cat -n crates/liwe/src/fs.rs | head -60
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && grep -n "fn from_indoc" crates/liwe/src/state.rs
+  [shim_hit              ] cd /tmp/bench-iwe-debug-3-MNhOQJ && grep -rn "fn from_indoc" crates/liwe/src/ --include="*.rs"
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && LANG=C /bin/cat -n crates/liwe/src/state.rs | head -40
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && grep pulldown-cmark crates/liwe/Cargo.toml
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && grep pulldown-cmark Cargo.toml
+  [build_test            ] cd /tmp/bench-iwe-debug-3-MNhOQJ && cat >> crates/liwe/tests/find_metadata_test.rs << 'EOF'
+
+#[test]
+fn debug_pulldown_e
+  [build_test            ] cd /tmp/bench-iwe-debug-3-MNhOQJ && cat >> crates/liwe/tests/find_metadata_test.rs << 'EOF'
+
+#[test]
+fn debug_pulldown_e
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && LANG=C /bin/cat -n crates/liwe/src/markdown/writer.rs | head -60
+  [git                   ] cd /tmp/bench-iwe-debug-3-MNhOQJ && git log --all --oneline --diff-filter=M -- crates/liwe/src/markdown.rs
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && grep -rn "bare_frontmatter\|wrap_bare\|MarkdownOptions" crates/liwe/src/ --include="
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && grep -rn "bare_frontmatter\|wrap_bare\|MarkdownOptions" crates/liwe/src/ --include="
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && LANG=C /bin/cat -n crates/liwe/src/model/config.rs | head -50
+  [git                   ] cd /tmp/bench-iwe-debug-3-MNhOQJ && git show HEAD:crates/liwe/src/markdown.rs | LANG=C /bin/cat -n
+  [git                   ] cd /tmp/bench-iwe-debug-3-MNhOQJ && git status --short
+  [git                   ] cd /tmp/bench-iwe-debug-3-MNhOQJ && git show HEAD --stat
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && LANG=C /bin/cat AUDIT_FINDINGS.md
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && LANG=C /bin/cat -n crates/liwe/src/markdown/reader.rs | head -85
+  [build_test            ] cd /tmp/bench-iwe-debug-3-MNhOQJ && cat >> crates/liwe/tests/find_metadata_test.rs << 'EOF'
+
+#[test]
+fn bare_frontmatter
+  [build_test            ] cd /tmp/bench-iwe-debug-3-MNhOQJ && cat >> crates/liwe/tests/find_metadata_test.rs << 'EOF'
+
+#[test]
+fn bare_frontmatter
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && LANG=C /bin/cat -n crates/liwe/src/find.rs | head -100
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && LANG=C /bin/cat -n crates/liwe/src/find.rs | sed -n '250,280p'
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && /bin/cat crates/liwe/src/markdown/reader.rs | /bin/grep -n "metadata" 
+  [git                   ] cd /tmp/bench-iwe-debug-3-MNhOQJ && git log --oneline
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && LANG=C /bin/cat -n crates/liwe/src/graph.rs | sed -n '270,310p'
+  [git                   ] cd /tmp/bench-iwe-debug-3-MNhOQJ && git stash list; git diff HEAD -- crates/liwe/src/markdown.rs
+  [direct_db_lines       ] cd /tmp/bench-iwe-debug-3-MNhOQJ && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && grep -n "fn load_config" crates/iwe/src/main.rs crates/liwe/src/model/config.rs
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && LANG=C /bin/cat -n crates/liwe/src/model/config.rs | sed -n '544,600p'
+  [direct_db_lines       ] cd /tmp/bench-iwe-debug-3-MNhOQJ && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/
+  [git                   ] cd /tmp/bench-iwe-debug-3-MNhOQJ && git show HEAD:crates/liwe/src/markdown.rs | md5sum; /bin/cat crates/liwe/src/markdow
+  [direct_db_lines       ] cd /tmp/bench-iwe-debug-3-MNhOQJ && sqlite3 .indexnudge-rust.db "SELECT content FROM lines WHERE file='crates/liwe/src/m
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && grep -n "pub struct Configuration" -A 20 crates/liwe/src/model/config.rs | LANG=C /b
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && grep -n "fn template" crates/liwe/src/model/config.rs
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && grep -n "template\b" crates/liwe/src/model/config.rs | head -5
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && grep -n "fn template\|fn default_config\|Configuration {" crates/liwe/src/model/conf
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && grep -n "fn template" crates/liwe/src/model/config.rs; grep -n "Configuration::templ
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && LANG=C /bin/cat -n crates/liwe/src/model/config.rs | sed -n '324,345p'
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && grep -rn "DocumentFinder\|metadata_matches\|metadata_filters" crates/ --include="*.r
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && LANG=C /bin/cat -n crates/iwec/src/lib.rs | sed -n '120,140p'
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && LANG=C /bin/cat -n crates/iwec/src/lib.rs | sed -n '420,445p'
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && grep -n "fn graph\|fn new\|load_graph\|Graph::" crates/iwec/src/lib.rs | head -20
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && LANG=C /bin/cat -n crates/iwec/src/lib.rs | sed -n '1335,1370p'
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && grep -n "MarkdownOptions::default\|markdown_options\|from_state\|Graph::import" crat
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && LANG=C /bin/cat -n crates/iwec/src/lib.rs | sed -n '1370,1385p'
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && grep -n "from_state\|MarkdownOptions\|markdown" crates/iwes/src/lib.rs crates/iwes/s
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && LANG=C /bin/cat -n crates/iwes/src/router/server.rs | sed -n '770,830p'
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && LANG=C /bin/cat -n crates/iwes/src/router/server.rs | sed -n '40,55p'
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && grep -n "insert_document\|from_markdown" crates/liwe/src/graph.rs | head -10
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && LANG=C /bin/cat -n crates/liwe/src/graph.rs | sed -n '123,145p'
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && grep -n "fn update_key" crates/liwe/src/graph.rs
+  [direct_db_lines       ] cd /tmp/bench-iwe-debug-3-MNhOQJ && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && LANG=C /bin/cat -n crates/liwe/src/graph.rs | sed -n '333,345p'
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && LANG=C /bin/cat -n crates/iwec/src/lib.rs | sed -n '1363,1378p'
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && grep -n "did_save\|did_change\|did_open\|insert_document\|update_document\|from_mark
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && LANG=C /bin/cat -n crates/iwes/src/router/server.rs | sed -n '104,130p'
+  [build_test            ] cd /tmp/bench-iwe-debug-3-MNhOQJ && cat >> crates/liwe/tests/find_metadata_test.rs << 'EOF'
+
+#[test]
+fn bare_frontmatter
+  [build_test            ] cd /tmp/bench-iwe-debug-3-MNhOQJ && cat >> crates/liwe/tests/find_metadata_test.rs << 'EOF'
+
+#[test]
+fn bare_frontmatter
+  [build_test            ] cd /tmp/bench-iwe-debug-3-MNhOQJ && cat >> crates/liwe/tests/find_metadata_test.rs << 'EOF'
+
+#[test]
+fn bare_frontmatter
+  [git                   ] cd /tmp/bench-iwe-debug-3-MNhOQJ && git checkout crates/liwe/tests/find_metadata_test.rs
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && grep -n "MarkdownOptions::default()" crates/iwec/src/lib.rs
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && LANG=C grep -n "MarkdownOptions::default\|markdown_options\|from_state\|\.markdown" 
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && LANG=C /bin/cat -n crates/iwec/src/lib.rs | sed -n '1440,1460p'
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && LANG=C /bin/cat -n crates/iwec/src/lib.rs | sed -n '1359,1378p'
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && grep -rn "bare_frontmatter\|from_documents_with_config" crates/iwec/ --include="*.rs
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && LANG=C /bin/cat -n crates/iwec/src/lib.rs | sed -n '370,400p'
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && grep -n "from_documents_with_config\|from_documents\b" crates/iwec/tests/ -r | head 
+  [shim_hit              ] cd /tmp/bench-iwe-debug-3-MNhOQJ && sed -n '1363,1370p' crates/iwec/src/lib.rs | LANG=C /bin/cat
+  [mutation              ] cd /tmp/bench-iwe-debug-3-MNhOQJ && ed crates/iwec/src/lib.rs <<'EOF'
+1370s/MarkdownOptions::default()/config.markdown.c
+  [build_test            ] cd /tmp/bench-iwe-debug-3-MNhOQJ && cargo test 2>&1 | tail -5
+  [build_test            ] cd /tmp/bench-iwe-debug-3-MNhOQJ && cargo test -p iwes --test transform_test 2>&1 | grep "FAILED\|panicked\|assertion"
+  [build_test            ] cd /tmp/bench-iwe-debug-3-MNhOQJ && cargo test -p iwes --test transform_test -- --nocapture 2>&1 | grep -A5 "FAILED\|fai
+  [build_test            ] cd /tmp/bench-iwe-debug-3-MNhOQJ && cargo test -p iwes --test transform_test transform_action_with_static_output -- --no
+  [build_test            ] cd /tmp/bench-iwe-debug-3-MNhOQJ && cargo test 2>&1 | grep "FAILED\|failures\|test result"
+  [git                   ] cd /tmp/bench-iwe-debug-3-MNhOQJ && git diff HEAD
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && LANG=C grep -n "from_state\|MarkdownOptions" crates/iwes/src/router/server.rs
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && LANG=C /bin/cat -n crates/iwes/src/router/server.rs | sed -n '44,52p'
+  [shim_hit              ] cd /tmp/bench-iwe-debug-3-MNhOQJ && LANG=C grep -rn "MarkdownOptions::default()" crates/ --include="*.rs" | grep -v test
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && LANG=C /bin/cat -n crates/iwes/src/router/server.rs | sed -n '125,155p'
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && grep -n "update_document\|update_key\|from_markdown" crates/liwe/src/graph.rs | head
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && LANG=C /bin/cat -n crates/liwe/src/graph.rs | sed -n '280,342p'
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && LANG=C /bin/cat -n crates/liwe/src/graph.rs | sed -n '123,131p'
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && LANG=C /bin/cat -n crates/iwec/src/lib.rs | sed -n '1368,1372p'
+  [git                   ] cd /tmp/bench-iwe-debug-3-MNhOQJ && git diff HEAD~1 -- crates/liwe/src/markdown.rs | head -60
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && LANG=C /bin/cat -n crates/iwec/src/lib.rs | sed -n '1363,1378p'
+  [git                   ] cd /tmp/bench-iwe-debug-3-MNhOQJ && git stash list
+  [build_test            ] cd /tmp/bench-iwe-debug-3-MNhOQJ && cat >> crates/liwe/tests/find_metadata_test.rs << 'EOF'
+
+#[test]
+fn bare_frontmatter
+  [build_test            ] cd /tmp/bench-iwe-debug-3-MNhOQJ && cat >> crates/liwe/tests/find_metadata_test.rs << 'EOF'
+
+#[test]
+fn bare_frontmatter
+  [git                   ] cd /tmp/bench-iwe-debug-3-MNhOQJ && git checkout crates/liwe/tests/find_metadata_test.rs
+  [shim_hit              ] cd /tmp/bench-iwe-debug-3-MNhOQJ && head -11 crates/liwe/tests/find_metadata_test.rs
+  [git                   ] cd /tmp/bench-iwe-debug-3-MNhOQJ && git diff HEAD~1 -- crates/liwe/src/find.rs
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && cat >> crates/liwe/tests/find_metadata_test.rs << 'TESTEOF'
+
+#[test]
+fn bare_frontma
+  [build_test            ] cd /tmp/bench-iwe-debug-3-MNhOQJ && cargo test -p liwe --test find_metadata_test bare_frontmatter_meta_filter_finds_sequ
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-MNhOQJ && LANG=C /bin/cat -n crates/iwec/src/lib.rs | sed -n '1341,1350p'
+  [build_test            ] cd /tmp/bench-iwe-debug-3-MNhOQJ && cargo test 2>&1 | grep -c "^test result:" && cargo test 2>&1 | grep "FAILED"

@@ -1,0 +1,77 @@
+=== Score ===
+Wall clock: 419s
+Tokens: 55423 (in=54879, out=544)
+Tool calls: 34 | Navigation: 11
+  DB structural: 0
+  DB lines:      0
+  DB other:      1
+  Shim hit:      5
+  Shim fallthru: 5
+  Shim evasion:  0
+Scores:
+  db_ratio:         0.545
+  structural_ratio: 0
+  evasion_ratio:    0.0
+  line_ratio:       0.0
+  nav_ratio:        0.324
+
+Categories: {'non_shell_tool': 5, 'direct_db_other': 1, 'shim_fallthrough': 5, 'shim_hit': 5, 'mutation': 2, 'build_test': 10, 'git': 6}
+
+Commands:
+  [direct_db_other       ] pwd; ls -la; sqlite3 .indexnudge.db '.schema' | head -80
+  [shim_fallthrough      ] grep -R "meta\|frontmatter\|front matter\|depends" -n crates src tests 2>/dev/null | head -200
+  [shim_hit              ] sed -n '1,130p' crates/liwe/src/markdown.rs; sed -n '240,310p' crates/liwe/src/find.rs; sed -n '1,230p' crates/liwe/test
+  [shim_fallthrough      ] grep -R "bare_frontmatter\|wrap_bare\|starts_with(' ')\|indented" -n BARE_FRONTMATTER_SPEC.md ENHANCEMENTS_SPEC.md IMPLE
+  [shim_fallthrough      ] cat BARE_FRONTMATTER_SPEC.md; sed -n '1,160p' IMPLEMENTATION_PLAN.md; sed -n '1,80p' ENHANCEMENTS_SPEC.md
+  [shim_hit              ] sed -n '1,150p' crates/liwe/src/markdown/reader.rs; sed -n '340,395p' crates/liwe/src/markdown/reader.rs; sed -n '1,120p
+  [mutation              ] ed -s crates/liwe/src/markdown.rs <<'EOF'
+29,65c
+pub fn wrap_bare_frontmatter(content: &str) -> Cow<'_, str> {
+    // Al
+  [build_test            ] ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+130a
+
+#[test]
+fn bare_frontmatter_sequence_value_matches() {
+    l
+  [build_test            ] cargo test
+  [git                   ] git diff -- crates/liwe/src/markdown.rs crates/liwe/tests/find_metadata_test.rs; git status --short
+  [git                   ] sed -n '26,66p' crates/liwe/src/markdown.rs; git ls-files .indexnudge-rust.db; git status --short --untracked-files=all 
+  [git                   ] python3 - <<'PY'
+from pathlib import Path
+p=Path('crates/liwe/src/markdown.rs')
+for i,line in enumerate(p.read_text().sp
+  [git                   ] git show HEAD:crates/liwe/src/markdown.rs | nl -ba | sed -n '26,66p'; git diff --stat; git diff -- crates/liwe/tests/fin
+  [shim_hit              ] sed -n '1,220p' crates/iwe/src/main.rs; sed -n '620,690p' crates/iwe/src/main.rs; sed -n '990,1050p' crates/iwe/src/main
+  [shim_hit              ] sed -n '520,575p' crates/liwe/src/model/config.rs; sed -n '180,340p' crates/liwe/src/model/config.rs; sed -n '1,130p' cr
+  [shim_hit              ] sed -n '575,635p' crates/liwe/src/model/config.rs; sed -n '1,60p' crates/liwe/src/model/config.rs; grep -R "find" -n cra
+  [build_test            ] set -e
+BIN=target/debug/iwe
+cargo build -p iwe >/tmp/iwe-build.log 2>&1 || { cat /tmp/iwe-build.log; exit 1; }
+TMP=$(mkt
+  [shim_fallthrough      ] python3 - <<'PY'
+from pathlib import Path
+for p in ['crates/liwe/src/markdown.rs','crates/liwe/src/find.rs','crates/iwe/
+  [mutation              ] ed -s crates/liwe/src/markdown.rs <<'EOF'
+26,55c
+/// If `bare_frontmatter` is enabled and content starts with a YAML map
+  [build_test            ] ed -s crates/liwe/tests/bare_frontmatter_test.rs <<'EOF'
+72,90c
+#[test]
+fn reader_detects_when_title_is_not_first_key() 
+  [shim_fallthrough      ] nl -ba crates/liwe/tests/bare_frontmatter_test.rs | sed -n '64,100p'
+  [build_test            ] ed -s crates/liwe/tests/bare_frontmatter_test.rs <<'EOF'
+71d
+w
+EOF
+cargo test -p liwe reader_detects_when_title_is_not_f
+  [build_test            ] cargo test -p liwe reader_detects_when_title_is_not_first_key -- --nocapture
+  [build_test            ] cargo test -p liwe bare_frontmatter_sequence_value_matches -- --nocapture
+  [build_test            ] set -e
+cargo build -p iwe >/tmp/iwe-build-after.log 2>&1 || { cat /tmp/iwe-build-after.log; exit 1; }
+TMP=$(mktemp -d)
+m
+  [build_test            ] cargo fmt && cargo test
+  [git                   ] git diff -- crates/liwe/src/markdown.rs crates/liwe/tests/bare_frontmatter_test.rs crates/liwe/tests/find_metadata_test.
+  [git                   ] git diff --name-only | grep -v -E '^(crates/liwe/src/markdown\.rs|crates/liwe/tests/bare_frontmatter_test\.rs|crates/liw
+  [build_test            ] cargo test

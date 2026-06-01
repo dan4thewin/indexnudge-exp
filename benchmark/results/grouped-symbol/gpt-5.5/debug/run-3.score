@@ -1,0 +1,48 @@
+=== Score ===
+Wall clock: 200s
+Tokens: 40591 (in=40285, out=306)
+Tool calls: 20 | Navigation: 10
+  DB structural: 0
+  DB lines:      0
+  DB other:      1
+  Shim hit:      5
+  Shim fallthru: 4
+  Shim evasion:  0
+Scores:
+  db_ratio:         0.6
+  structural_ratio: 0
+  evasion_ratio:    0.0
+  line_ratio:       0.0
+  nav_ratio:        0.5
+
+Categories: {'non_shell_tool': 2, 'shim_hit': 5, 'direct_db_other': 1, 'shim_fallthrough': 4, 'build_test': 6, 'mutation': 1, 'git': 1}
+
+Commands:
+  [shim_hit              ] ls -la && printf '\nDBs:\n' && ls -la .*index*.db 2>/dev/null || true && printf '\nTop files:\n' && find . -maxdepth 2 -
+  [direct_db_other       ] sqlite3 .indexnudge.db '.schema' | head -120
+  [shim_fallthrough      ] grep -R "meta\|frontmatter\|front matter\|depends" -n crates | head -200
+  [shim_fallthrough      ] find crates -maxdepth 3 -type f | sort | sed -n '1,160p'
+  [shim_hit              ] sed -n '1,130p' crates/liwe/src/markdown.rs && printf '\nreader relevant\n' && sed -n '1,140p' crates/liwe/src/markdown/
+  [shim_hit              ] sed -n '1,260p' BARE_FRONTMATTER_SPEC.md && printf '\nBare tests\n' && sed -n '1,260p' crates/liwe/tests/bare_frontmatte
+  [shim_hit              ] sed -n '1,140p' crates/liwe/src/find.rs && printf '\nconfig\n' && sed -n '1,70p' crates/liwe/src/model/config.rs && prin
+  [shim_hit              ] tail -40 crates/liwe/tests/find_metadata_test.rs
+  [build_test            ] cargo test -p liwe value_in_bare_yaml_sequence_matches --test find_metadata_test
+  [mutation              ] ed -s crates/liwe/src/markdown.rs <<'EOF'
+50,64c
+    let cleaned_header = header.lines().collect::<Vec<_>>().join("\n");
+  [build_test            ] ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+10a
+
+fn setup_bare_graph(input: &str) -> Graph {
+    Graph::import
+  [shim_fallthrough      ] nl -ba crates/liwe/tests/find_metadata_test.rs | sed -n '1,190p'
+  [build_test            ] ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+119,161c
+#[test]
+fn value_in_yaml_sequence_matches() {
+    let gra
+  [build_test            ] cargo test -p liwe
+  [build_test            ] git diff -- crates/liwe/src/markdown.rs crates/liwe/tests/find_metadata_test.rs && cargo test
+  [git                   ] git status --short && git diff -- crates/liwe/src/markdown.rs crates/liwe/tests/find_metadata_test.rs
+  [shim_fallthrough      ] nl -ba crates/liwe/src/markdown.rs | sed -n '29,58p' && printf '\nActual test snippet:\n' && nl -ba crates/liwe/tests/fi
+  [build_test            ] cargo test --quiet

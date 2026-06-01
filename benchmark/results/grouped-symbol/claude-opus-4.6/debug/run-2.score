@@ -1,0 +1,47 @@
+=== Score ===
+Wall clock: 611s
+Tokens: 23997 (in=23815, out=182)
+Tool calls: 26 | Navigation: 21
+  DB structural: 1
+  DB lines:      0
+  DB other:      0
+  Shim hit:      12
+  Shim fallthru: 8
+  Shim evasion:  0
+Scores:
+  db_ratio:         0.619
+  structural_ratio: 1.0
+  evasion_ratio:    0.0
+  line_ratio:       0.0
+  nav_ratio:        0.808
+
+Categories: {'direct_db_structural': 1, 'other': 1, 'shim_fallthrough': 8, 'shim_hit': 12, 'build_test': 3, 'non_shell_tool': 1}
+
+Commands:
+  [direct_db_structural  ] cd /tmp/bench-iwe-debug-2-dOs5QO && sqlite3 .codeindex.db "SELECT path FROM files WHERE path LIKE '%meta%' OR path LIKE 
+  [other                 ] cd /tmp/bench-iwe-debug-2-dOs5QO && sqlite3 .codeindex.db ".tables"
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-2-dOs5QO && grep -r "front.matter\|frontmatter\|parse_meta\|extract_meta\|parse_yaml" --include=
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-2-dOs5QO && grep -n "meta\|frontmatter\|front_matter" crates/liwe/src/model/node.rs | head -40
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-2-dOs5QO && grep -rn "parse_meta\|extract_meta\|fn.*meta" crates/liwe/src/markdown.rs | head -20
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-2-dOs5QO && grep -rn "fn.*meta\|fn.*find" crates/liwe/src/ --include="*.rs" | grep -i "meta\|fin
+  [shim_hit              ] cd /tmp/bench-iwe-debug-2-dOs5QO && sed -n '240,280p' crates/liwe/src/find.rs
+  [shim_hit              ] cd /tmp/bench-iwe-debug-2-dOs5QO && sed -n '220,230p' crates/liwe/src/graph.rs
+  [shim_hit              ] cd /tmp/bench-iwe-debug-2-dOs5QO && grep -n "metadata" crates/liwe/src/graph.rs | head -20
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-2-dOs5QO && grep -n "metadata.insert\|metadata\.entry" crates/liwe/src/graph.rs
+  [shim_hit              ] cd /tmp/bench-iwe-debug-2-dOs5QO && sed -n '370,395p' crates/liwe/src/graph.rs
+  [shim_hit              ] cd /tmp/bench-iwe-debug-2-dOs5QO && sed -n '275,295p' crates/liwe/src/graph.rs
+  [shim_hit              ] cd /tmp/bench-iwe-debug-2-dOs5QO && sed -n '55,80p' crates/liwe/src/markdown/reader.rs
+  [shim_hit              ] cd /tmp/bench-iwe-debug-2-dOs5QO && sed -n '80,140p' crates/liwe/src/markdown/reader.rs
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-2-dOs5QO && grep -n "metadata_block\|MetadataBlock" crates/liwe/src/markdown/reader.rs
+  [shim_hit              ] cd /tmp/bench-iwe-debug-2-dOs5QO && sed -n '350,390p' crates/liwe/src/markdown/reader.rs
+  [shim_hit              ] cd /tmp/bench-iwe-debug-2-dOs5QO && cat crates/liwe/tests/bare_frontmatter_test.rs
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-2-dOs5QO && grep -n "bare_frontmatter\|bare" crates/liwe/src/markdown/reader.rs
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-2-dOs5QO && grep -rn "bare_frontmatter\|bare" crates/liwe/src/markdown/ --include="*.rs" | head 
+  [shim_hit              ] cd /tmp/bench-iwe-debug-2-dOs5QO && grep -rn "bare_frontmatter" crates/liwe/src/ --include="*.rs" | head -20
+  [shim_hit              ] cd /tmp/bench-iwe-debug-2-dOs5QO && grep -rn "bare_frontmatter" crates/liwe/src/ --include="*.rs"
+  [shim_hit              ] cd /tmp/bench-iwe-debug-2-dOs5QO && sed -n '26,75p' crates/liwe/src/markdown.rs
+  [build_test            ] cd /tmp/bench-iwe-debug-2-dOs5QO && cat <<'EOF' | cargo run -q -p liwe --example test_meta 2>/dev/null || true
+EOF
+# Let
+  [build_test            ] cd /tmp/bench-iwe-debug-2-dOs5QO && cargo test 2>&1 | tail -20
+  [build_test            ] cd /tmp/bench-iwe-debug-2-dOs5QO && cargo test 2>&1 | grep -E "^test result|FAILED|failures"
