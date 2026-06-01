@@ -952,7 +952,7 @@ fn create_schema(conn: &Connection) -> Result<()> {
         "
         PRAGMA journal_mode=DELETE;
         PRAGMA synchronous=OFF;
-        PRAGMA user_version=3;
+        PRAGMA user_version=4;
 
         CREATE TABLE lines (
             file     TEXT,
@@ -1051,6 +1051,25 @@ fn create_schema(conn: &Connection) -> Result<()> {
             file_count  INTEGER,
             total_lines INTEGER
         );
+
+        CREATE VIEW callee_candidates AS
+        SELECT
+            c.caller_file,
+            c.caller_symbol,
+            c.callee,
+            c.callee_qname,
+            c.line_num       AS call_line,
+            c.kind           AS call_kind,
+            s.qualified_name AS candidate_qname,
+            s.file           AS def_file,
+            s.start_line     AS def_line,
+            s.parent         AS def_parent,
+            s.signature
+        FROM calls c
+        LEFT JOIN symbols s
+            ON s.name = c.callee
+           AND s.kind IN ('function','method')
+           AND (c.callee_qname IS NULL OR s.qualified_name = c.callee_qname);
         ",
     )?;
     Ok(())
@@ -1058,7 +1077,7 @@ fn create_schema(conn: &Connection) -> Result<()> {
 
 /// Schema version — bump when tables/columns change.
 /// freshen checks this and falls back to full_index if outdated.
-const SCHEMA_VERSION: i64 = 3;
+const SCHEMA_VERSION: i64 = 4;
 
 /// Returns true if the DB schema is current. If outdated, freshen
 /// should abandon incremental update and do a full rebuild.

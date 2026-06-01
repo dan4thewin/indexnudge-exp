@@ -97,7 +97,7 @@ get_hint() {
            else
                echo "── tip: sqlite3 $db_name \"SELECT name, kind, start_line, end_line FROM symbols WHERE file='...';\" ──"
            fi ;;
-        2) echo "── tip: sqlite3 $db_name \"SELECT caller, callee_qname FROM calls WHERE file='${rel:-...}';\" — trace call graph ──" ;;
+        2) echo "── tip: sqlite3 $db_name \"SELECT * FROM callee_candidates WHERE caller_symbol='...' AND callee='...';\" — disambiguate call targets ──" ;;
         3) echo "── tip: sqlite3 $db_name \"SELECT module, name FROM imports WHERE file='${rel:-...}';\" — see dependencies ──" ;;
         4) echo "── tip: ed file <<'EOF' — use DB line numbers for precise addressing ──" ;;
         5) if [[ -n "$rel" ]]; then

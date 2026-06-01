@@ -29,6 +29,7 @@ CREATE TABLE calls (
     caller_file   TEXT,
     caller_symbol TEXT,
     callee        TEXT,
+    callee_qname  TEXT,
     kind          TEXT,
     line_num      INTEGER
 );
@@ -67,6 +68,31 @@ CREATE TABLE directories (
     file_count  INTEGER,
     total_lines INTEGER
 );
+
+-- Call-target disambiguation view. One row per (call site, candidate symbol).
+-- Calls whose `callee_qname` was resolved by the indexer (Go's go/types pass)
+-- return at most one candidate — the exact qualified-name match. Calls left
+-- with `callee_qname IS NULL` (Rust today) return every local symbol sharing
+-- the short name. Agents narrow further with proximity / parent-type / arity
+-- filters at query time. See AGENTS.md snippet for examples.
+CREATE VIEW callee_candidates AS
+SELECT
+    c.caller_file,
+    c.caller_symbol,
+    c.callee,
+    c.callee_qname,
+    c.line_num       AS call_line,
+    c.kind           AS call_kind,
+    s.qualified_name AS candidate_qname,
+    s.file           AS def_file,
+    s.start_line     AS def_line,
+    s.parent         AS def_parent,
+    s.signature
+FROM calls c
+LEFT JOIN symbols s
+    ON s.name = c.callee
+   AND s.kind IN ('function','method')
+   AND (c.callee_qname IS NULL OR s.qualified_name = c.callee_qname);
 
 #ifdef LANG_GO
 -- Go-specific: channel operations (make, send, recv, close, range, select)

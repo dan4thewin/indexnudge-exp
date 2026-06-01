@@ -457,6 +457,25 @@ CREATE TABLE channels (
 );
 CREATE INDEX idx_channels_var ON channels(var);
 CREATE INDEX idx_channels_file ON channels(file);
+
+CREATE VIEW callee_candidates AS
+SELECT
+    c.caller_file,
+    c.caller_symbol,
+    c.callee,
+    c.callee_qname,
+    c.line_num       AS call_line,
+    c.kind           AS call_kind,
+    s.qualified_name AS candidate_qname,
+    s.file           AS def_file,
+    s.start_line     AS def_line,
+    s.parent         AS def_parent,
+    s.signature
+FROM calls c
+LEFT JOIN symbols s
+    ON s.name = c.callee
+   AND s.kind IN ('function','method')
+   AND (c.callee_qname IS NULL OR s.qualified_name = c.callee_qname);
 `
 	_, err := db.Exec(schema)
 	return err

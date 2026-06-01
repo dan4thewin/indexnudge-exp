@@ -1,4 +1,46 @@
-# Bug: `calls.callee_qname` is never populated
+# Bug: `calls.callee_qname` is never populated *in Rust*
+
+**Status: resolved via `callee_candidates` view (2026-05-31).** The column
+remains in the schema — Go populates it via `go/types` and that data is
+genuinely useful for cross-package call resolution. The view exposes it
+on the join surface so agents get the same disambiguation API in both
+languages. Original report below preserved for context.
+
+## Resolution
+
+Rather than drop the column or try to write a Rust type resolver,
+we added a `callee_candidates` view to the shared schema. The view:
+
+- Joins `calls` against `symbols` on the short name `callee`.
+- For Go: when `callee_qname` is populated and matches a local
+  symbol's `qualified_name`, returns exactly that one row.
+- For Go: when `callee_qname` is populated but refers to an
+  unindexed package (`fmt.Println`), returns one row with the qname
+  visible and `candidate_qname IS NULL`.
+- For Rust (today): `callee_qname IS NULL`, so every local symbol
+  with a matching short name is returned. Agents narrow with
+  proximity / parent-type / arity filters at query time.
+
+On the iwe codebase (10,466 calls), the view resolves:
+
+```
+0 candidates  (foreign/std)    7975
+1 candidate   (resolved!)      1579   ← 23x what self-qualification would give
+2-5 candidates                  791   narrow ambiguity, filter-friendly
+6+ candidates                   121   wide ambiguity, needs context
+```
+
+See `AGENTS.md.gpp` for the query patterns now shipped to projects.
+The view is defined identically in `schema/schema.sql.gpp`,
+`rust/src/main.rs::create_schema`, and `go/main.go`'s schema block.
+Schema version bumped to 4 (Rust); freshen rebuilds old DBs.
+
+## Future work
+
+If Rust `callee_qname` resolution is ever implemented (use-tracking
++ type-of-receiver), it slots into the existing view with no schema
+change — the LEFT JOIN already prefers exact qname matches when
+they exist.
 
 ## Summary
 
