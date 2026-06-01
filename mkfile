@@ -49,6 +49,8 @@ shim-test:V: rust go
 	echo 'PASS: tail shim (rust)'
 	env sqlite3 rust/.indexnudge-rust.db 'SELECT count(*) FROM files;' | grep -qE '^[1-9]'
 	echo 'PASS: sqlite3 shim (rust)'
+	bash sqlite3 rust/.indexnudge-rust.db 'SELECT count(*) FROM files;' | grep -qE '^[1-9]'
+	echo 'PASS: bash sqlite3 shim (rust)'
 	PATH=$PWD/bin-go:$clean
 	(cd go && ./indexnudge)
 	echo 'PASS: go full index'
@@ -62,6 +64,8 @@ shim-test:V: rust go
 	echo 'PASS: grep shim (go)'
 	env sqlite3 go/.indexnudge-go.db 'SELECT count(*) FROM files;' | grep -qE '^[1-9]'
 	echo 'PASS: sqlite3 shim (go)'
+	bash sqlite3 go/.indexnudge-go.db 'SELECT count(*) FROM files;' | grep -qE '^[1-9]'
+	echo 'PASS: bash sqlite3 shim (go)'
 	echo 'SHIM TESTS PASSED'
 
 patch:V:
