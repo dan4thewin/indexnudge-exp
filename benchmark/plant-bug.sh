@@ -19,7 +19,7 @@
 # Change the starts_with check to split on first colon and validate the
 # key, but do it wrong.
 set -e
-cd ~/src/iwe
+cd "${IWE_WORKDIR:-$HOME/src/iwe}"
 
 # The bug: after wrapping, strip any line in the header that starts with
 # a space (meant to "normalize indentation") — this breaks YAML sequences

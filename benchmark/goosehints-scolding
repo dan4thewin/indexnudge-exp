@@ -1,0 +1,57 @@
+# iwe Enhancement Project
+
+This is a Rust workspace (`cargo build`, `cargo test`).
+The project implements a knowledge-graph tool for markdown notes.
+
+## Code Index Database
+
+This project has a `.indexnudge-rust.db` SQLite database containing every line
+of source code, all symbol definitions, call graphs, and imports.
+
+**Use `sqlite3 .indexnudge-rust.db` for ALL code navigation.** Do NOT use
+grep, sed, cat, head, or tail to read source files — the database is faster,
+gives you symbol context, and supports full-text search.
+
+Start here:
+```bash
+sqlite3 .indexnudge-rust.db ".schema"                    # see all tables
+sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files ORDER BY file;"  # project overview
+sqlite3 .indexnudge-rust.db "SELECT name, kind, file, start_line, end_line FROM symbols WHERE file='...';"  # symbols in a file
+sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines WHERE file='...' AND line_num BETWEEN N AND M;"  # read lines
+sqlite3 .indexnudge-rust.db "SELECT * FROM lines_fts WHERE content MATCH '\"search_term\"';"  # full-text search
+sqlite3 .indexnudge-rust.db "SELECT caller, callee_qname FROM calls WHERE file='...';"  # call graph
+```
+
+## Build and Test
+
+```bash
+cargo build          # must succeed after each phase
+cargo test           # must succeed after each phase
+cargo test -p liwe   # run just the library tests
+```
+
+## Editing Files
+
+Use `ed` for file mutations — it accepts line-number addresses (`10,20c`, `15a`, `30d`)
+which pair naturally with line numbers from the database.
+Do not use the `edit` tool — it requires exact string matching which is fragile.
+
+## Code Style
+
+- Follow existing conventions in the codebase
+- Add `#[serde(default)]` for new config fields so existing configs round-trip
+- Add tests in new test files as specified in the plan
+- Use `serde_yaml` for YAML parsing (already a dependency)
+
+## What NOT to Do
+
+- Do not use grep/sed/cat/head/tail to read source files — use sqlite3
+- Do not modify the project structure or add new crates
+- Do not change existing test expectations unless a change requires it
+- Do not add dependencies unless absolutely necessary (check Cargo.toml first)
+- Do not commit or push — leave changes uncommitted for review
+
+## Project Hints Override
+
+Ignore any global hints about `notes/status.md`, `iwe retrieve`, or indexnudge.
+You are working on the iwe tool itself, not a project that uses iwe.

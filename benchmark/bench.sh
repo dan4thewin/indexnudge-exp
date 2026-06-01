@@ -2,7 +2,7 @@
 set -eu
 
 BENCHMARK_DIR="$(cd "$(dirname "$0")" && pwd)"
-IWE_DIR="$HOME/src/iwe"
+IWE_SRC="$HOME/src/iwe"
 IWE_COMMIT="5607c859bac6a72373897b1614bc9ecc2926f2c0"
 INDEXNUDGE_DIR="$HOME/src/indexnudge"
 
@@ -54,6 +54,7 @@ RESULTS_DIR="$BENCHMARK_DIR/results/$CONDITION/$MODEL/$TASK"
 mkdir -p "$RESULTS_DIR"
 
 SESSION_NAME="bench-${CONDITION}-${MODEL}-${TASK}-${RUN}"
+LOG="$RESULTS_DIR/run-${RUN}.log"
 
 echo "=== Benchmark Run ==="
 echo "  Model:     $MODEL"
@@ -61,31 +62,43 @@ echo "  Task:      $TASK"
 echo "  Run:       $RUN"
 echo "  Condition: $CONDITION"
 echo "  Session:   $SESSION_NAME"
-echo ""
 
-# Reset iwe repo
-cd "$IWE_DIR"
+# --- Private copy of iwe ---
+WORKDIR=$(mktemp -d "/tmp/bench-iwe-${TASK}-${RUN}-XXXXXX")
+trap 'rm -rf "$WORKDIR"' EXIT
+git clone --no-checkout "$IWE_SRC" "$WORKDIR" 2>/dev/null
+cd "$WORKDIR"
 git checkout "$IWE_COMMIT" -- . 2>/dev/null
-git checkout "$IWE_COMMIT" 2>/dev/null || git checkout indexnudge-enhancements
-git clean -fd 2>/dev/null
+
+# Overlay condition-specific .goosehints if available
+if [[ -f "$BENCHMARK_DIR/goosehints-${CONDITION}" ]]; then
+    cp "$BENCHMARK_DIR/goosehints-${CONDITION}" "$WORKDIR/.goosehints"
+fi
 
 # Plant bug for debug task
 if [[ "$TASK" == "debug" ]]; then
+    export IWE_WORKDIR="$WORKDIR"
     bash "$BENCHMARK_DIR/plant-bug.sh"
 fi
 
 # Fresh index
 export PATH="$INDEXNUDGE_DIR/bin-rust:$HOME/src/indexnudge/bin:$PATH"
-"$INDEXNUDGE_DIR/bin-rust/indexnudge" "$IWE_DIR"
+"$INDEXNUDGE_DIR/bin-rust/indexnudge" "$WORKDIR"
 
+echo "  Workdir:   $WORKDIR"
+echo "  Log:       $LOG"
+
+# --- Run goose in its own session, output to file ---
 START_TIME=$(date +%s)
-echo "Running goose..."
+
+exec > "$LOG" 2>&1
 ${GOOSE_BIN:-goose} run \
     -t "$PROMPT" \
     --name "$SESSION_NAME" \
     --provider "$PROVIDER" \
     --model "$MODEL_NAME" \
-    -q 2>&1 | tee "$RESULTS_DIR/run-${RUN}.log"
+    -q
+
 END_TIME=$(date +%s)
 ELAPSED=$((END_TIME - START_TIME))
 echo ""
@@ -97,14 +110,9 @@ goose session export \
     --format json \
     > "$RESULTS_DIR/run-${RUN}.json" 2>/dev/null
 
-# Score
-echo ""
+# Score (restore stdout for this)
+exec > "$RESULTS_DIR/run-${RUN}.score" 2>&1
 echo "=== Score ==="
 echo "Wall clock: ${ELAPSED}s"
 echo "$ELAPSED" > "$RESULTS_DIR/run-${RUN}.time"
 python3 "$BENCHMARK_DIR/score.py" "$RESULTS_DIR/run-${RUN}.json" --verbose
-
-# Reset iwe repo after
-cd "$IWE_DIR"
-git checkout "$IWE_COMMIT" -- . 2>/dev/null
-git clean -fd 2>/dev/null
