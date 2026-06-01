@@ -874,7 +874,7 @@ want := map[string]int64{
 "SwitchThree":      4, // 1 + 3 case clauses
 "ShortCircuit":     3, // && and || each add 1
 "LoopAndRange":     3, // range + if
-"OuterWithClosure": 2, // outer body has no branches but the FuncLit counts as +1 (Mozilla convention); FuncLit body is its own symbol
+"OuterWithClosure": 3, // outer +1 + FuncLit base +1 + inner `if` +1 — matches Mozilla cyclomatic.sum (recurses into closure)
 }
 for name, w := range want {
 if g, ok := got[name]; !ok {

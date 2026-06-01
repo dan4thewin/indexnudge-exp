@@ -415,7 +415,7 @@ impl Extractor {
         // McCabe cyclomatic complexity over the body
         let cyclomatic = node
             .child_by_field_name("body")
-            .map(|body| 1 + count_decision_points(body));
+            .map(|body| 1 + count_decision_points(body, self.source.as_bytes()));
 
         self.symbols.push(SymbolRecord {
             name: name.clone(),
@@ -931,20 +931,44 @@ fn has_return_outside_closure(node: Node) -> bool {
 ///
 /// Does not recurse into nested function/closure bodies — each nested
 /// function is its own symbol with its own complexity row.
-fn count_decision_points(node: Node) -> usize {
+/// Count McCabe decision points inside a function body. The cyclomatic
+/// complexity of the function is `1 + count_decision_points(body)`.
+///
+/// Convention chosen to match Mozilla's `rust-code-analysis` per-function
+/// `cyclomatic.sum` output (the value safebash's contrib/cyclo.sh and other
+/// scripts typically read), so numbers are comparable to that reference.
+///
+/// Mozilla's per-node Rust rule is exactly:
+///
+///   If | For | While | Loop | MatchArm | MatchArm2 | TryExpression | && | ||
+///
+/// Mozilla also treats every `ClosureExpression` and nested `FunctionItem`
+/// as a separate "space" with its own CC, then merges child-space sums
+/// upward — so a function's reported `cyclomatic.sum` includes the CC of
+/// every closure/nested-fn defined inside it. We emulate that by:
+///   - counting +1 for the closure or nested-fn itself (its "base 1" CC),
+///   - then recursing into its body and counting its decisions as if they
+///     were part of the enclosing function.
+///
+/// What we explicitly do NOT count (Mozilla doesn't either, and counting
+/// them was tested empirically and rejected):
+///   - `matches!` macro invocations
+///   - `let-else` declarations
+///   - match arm guards (`pat if cond => ...`)
+///   - `|`-alternated patterns (`A | B | C => ...` is one decision)
+fn count_decision_points(node: Node, src: &[u8]) -> usize {
+    let _ = src; // src reserved for future per-node text checks
     let mut count = 0;
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         match child.kind() {
-            // Nested function bodies are separate symbols; don't recurse into them.
-            "function_item" => continue,
-            // Closures contribute +1 to the enclosing function (each closure is
-            // an alternative codepath being constructed) and we don't recurse
-            // into the closure body — it's accounted for as its own decision.
-            // Matches Mozilla `rust-code-analysis` convention.
-            "closure_expression" => {
+            // Closures and nested item-level fns: +1 for the new space's
+            // base CC, then recurse so the inner decisions also accumulate.
+            // This mirrors Mozilla's behavior of merging child-space
+            // cyclomatic_sum into the parent.
+            "function_item" | "closure_expression" => {
                 count += 1;
-                continue;
+                count += count_decision_points(child, src);
             }
             "if_expression"
             | "while_expression"
@@ -953,29 +977,7 @@ fn count_decision_points(node: Node) -> usize {
             | "match_arm"
             | "try_expression" => {
                 count += 1;
-                count += count_decision_points(child);
-            }
-            "let_declaration" => {
-                // let-else: `let pat = expr else { ... };` — the `else`
-                // branch surfaces as a `block` child of the let_declaration.
-                let mut c = child.walk();
-                let has_else_block = child.children(&mut c).any(|n| n.kind() == "block");
-                if has_else_block {
-                    count += 1;
-                }
-                count += count_decision_points(child);
-            }
-            "match_pattern" => {
-                // Match arm guard: `pat if cond => ...`. The guard expression
-                // appears as a child of `match_pattern` after the actual
-                // pattern node. First named child is the pattern; any
-                // additional named children form the guard.
-                let mut c = child.walk();
-                let named_children = child.children(&mut c).filter(|n| n.is_named()).count();
-                if named_children > 1 {
-                    count += 1;
-                }
-                count += count_decision_points(child);
+                count += count_decision_points(child, src);
             }
             "binary_expression" => {
                 if let Some(op) = child.child_by_field_name("operator") {
@@ -984,10 +986,10 @@ fn count_decision_points(node: Node) -> usize {
                         count += 1;
                     }
                 }
-                count += count_decision_points(child);
+                count += count_decision_points(child, src);
             }
             _ => {
-                count += count_decision_points(child);
+                count += count_decision_points(child, src);
             }
         }
     }
@@ -1053,7 +1055,7 @@ fn create_schema(conn: &Connection) -> Result<()> {
         "
         PRAGMA journal_mode=DELETE;
         PRAGMA synchronous=OFF;
-        PRAGMA user_version=8;
+        PRAGMA user_version=9;
 
         CREATE TABLE lines (
             file     TEXT,
@@ -1242,7 +1244,7 @@ fn create_schema(conn: &Connection) -> Result<()> {
 
 /// Schema version — bump when tables/columns change.
 /// freshen checks this and falls back to full_index if outdated.
-const SCHEMA_VERSION: i64 = 8;
+const SCHEMA_VERSION: i64 = 9;
 
 /// Returns true if the DB schema is current. If outdated, freshen
 /// should abandon incremental update and do a full rebuild.
@@ -1935,16 +1937,16 @@ fn match_with_or_pattern(x: i32) -> i32 {
         assert_eq!(lookup.get("match_three"),        Some(&Some(4)),  "1 + 3 arms = 4");
         assert_eq!(lookup.get("short_circuit"),      Some(&Some(3)),  "&& and || each add 1 → 3");
         assert_eq!(lookup.get("loop_and_try"),       Some(&Some(3)),  "for + if = 3");
-        assert_eq!(lookup.get("outer_with_closure"), Some(&Some(2)),
-                   "outer fn has no branches but the closure counts as +1 in the outer body (Mozilla convention); closure body is its own symbol");
+        assert_eq!(lookup.get("outer_with_closure"), Some(&Some(3)),
+                   "outer body has 1 closure (+1 base) and the closure body has 1 if (+1) — matches Mozilla `cyclomatic.sum`");
         assert_eq!(lookup.get("if_let_test"),        Some(&Some(2)),
                    "if let uses unified if_expression → +1");
-        assert_eq!(lookup.get("let_else_test"),      Some(&Some(2)),
-                   "let-else adds +1 for the alternative path");
-        assert_eq!(lookup.get("match_with_guard"),   Some(&Some(5)),
-                   "1 base + 3 arms + 1 guard");
+        assert_eq!(lookup.get("let_else_test"),      Some(&Some(1)),
+                   "Mozilla doesn't count let-else as a decision point — confirmed against rust-code-analysis source");
+        assert_eq!(lookup.get("match_with_guard"),   Some(&Some(4)),
+                   "1 base + 3 arms; Mozilla doesn't count guards");
         assert_eq!(lookup.get("match_with_or_pattern"), Some(&Some(4)),
-                   "1 base + 3 arms (or-patterns DON'T count separately — McCabe original, matches Mozilla)");
+                   "1 base + 3 arms (or-patterns are NOT counted — Mozilla matches McCabe original)");
     }
 
     #[test]

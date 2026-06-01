@@ -741,12 +741,20 @@ func extractSymbols(db *sql.DB, fset *token.FileSet, rel string, f *ast.File, in
 	return nil
 }
 
-// cyclomaticComplexity computes McCabe complexity over a function body.
-// 1 + count of decision points. Counts each if, each switch/select case,
-// each for/range loop, each && / || operator. FuncLit (closures) count as
-// +1 in the enclosing function (matching Mozilla rust-code-analysis
-// convention) without recursing — each closure is its own symbol with its
-// own complexity computed separately.
+// cyclomaticComplexity computes McCabe complexity over a function body
+// using Mozilla rust-code-analysis-compatible semantics (per-function
+// cyclomatic.sum, including nested function-literal CCs as if merged into
+// the parent space). Rules:
+//
+//   +1 base per function/method
+//   +1 per IfStmt, ForStmt, RangeStmt, CaseClause (switch), CommClause (select)
+//   +1 per && / ||
+//   +1 per FuncLit (closure) — and recurse INTO the FuncLit body so its
+//     own decisions accumulate, matching how Mozilla merges child-space sums.
+//
+// Not counted: TypeSwitchStmt itself (each case clause already counted),
+// matches!-style macros (Go has none), or-pattern equivalents (case lists
+// like `case 1, 2, 3:` count as ONE CaseClause, not three).
 func cyclomaticComplexity(body *ast.BlockStmt) *int {
 	if body == nil {
 		return nil
@@ -755,21 +763,20 @@ func cyclomaticComplexity(body *ast.BlockStmt) *int {
 	ast.Inspect(body, func(n ast.Node) bool {
 		switch x := n.(type) {
 		case *ast.FuncLit:
-			count++       // closure contributes +1 to enclosing fn
-			return false  // don't recurse — it's its own symbol
+			count++       // closure contributes its base +1 to enclosing fn
+			return true   // recurse — closure decisions also count (Mozilla .sum semantics)
 		case *ast.IfStmt:
 			count++
 		case *ast.CaseClause:
-			count++ // each `case` in a switch (also default)
+			count++
 		case *ast.CommClause:
-			count++ // each `case` in a select
+			count++
 		case *ast.ForStmt:
 			count++
 		case *ast.RangeStmt:
 			count++
 		case *ast.TypeSwitchStmt:
-			// the switch itself contributes 0; each case clause already counted
-			_ = x
+			_ = x // case clauses contribute via CaseClause; switch itself adds nothing
 		case *ast.BinaryExpr:
 			if x.Op == token.LAND || x.Op == token.LOR {
 				count++

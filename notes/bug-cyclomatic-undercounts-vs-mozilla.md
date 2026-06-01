@@ -1,106 +1,195 @@
 # Bug: `symbols.cyclomatic` undercounts vs Mozilla `rust-code-analysis`
 
-**Status: largely resolved (2026-05-31).** Three missing decision-point
-kinds added to the counter; one over-counting attempt (or-pattern
-alternatives) tested and rejected. Schema version bumped 7 → 8 so
-existing DBs auto-rebuild on next `--freshen` to pick up the
-recomputed values.
+**Status: fully resolved (2026-05-31, v9).** Read the actual Mozilla
+source to verify the counting rules instead of inferring them from
+output, then aligned the implementation. Schema version bumped 8 → 9
+so existing DBs auto-rebuild on next `--freshen`.
 
-## Resolution
+## What Mozilla actually counts (from
+[`src/metrics/cyclomatic.rs`](https://github.com/mozilla/rust-code-analysis/blob/main/src/metrics/cyclomatic.rs))
 
-The undercount had two contributing causes, both fixed in
-`rust/src/main.rs::count_decision_points` and the equivalent
-`go/main.go::cyclomaticComplexity`:
+The complete `Cyclomatic` impl for Rust is exactly nine node kinds:
 
-1. **Match-arm guards** (`pat if cond => ...`) — were missed because
-   the guard expression sits as a second child of `match_pattern`,
-   not under a separate guard node. Now: `match_pattern` with named
-   children beyond the pattern itself adds +1.
+```rust
+impl Cyclomatic for RustCode {
+    fn compute(node: &Node, stats: &mut Stats) {
+        match node.kind_id().into() {
+            If | For | While | Loop | MatchArm | MatchArm2
+            | TryExpression | AMPAMP | PIPEPIPE => {
+                stats.cyclomatic += 1.;
+            }
+            _ => {}
+        }
+    }
+}
+```
 
-2. **`let-else`** (`let pat = expr else { ... };`) — was missed because
-   `let_declaration` wasn't in the decision-point match arm. Now:
-   `let_declaration` with a `block` child adds +1.
+**Mozilla does NOT count:**
 
-3. **Closures** — contribute +1 to the enclosing function (matching
-   Mozilla's convention that each closure is an alternative codepath
-   being constructed). The closure body itself remains a separate
-   symbol with its own CC.
+- `matches!` macro invocations (it's just a `macro_invocation` node;
+  not expanded)
+- `let-else` (no special handling in the visitor)
+- match-arm guards (the guard's `if cond` is not a separate node kind
+  the visitor looks at)
+- `|`-alternated patterns (one `MatchArm` regardless of alternatives)
 
-One tested-and-rejected fix:
+This contradicts the v1-v8 speculation in the original report about
+which constructs were causing the gap. The earlier hypotheses (`if let`
+as a separate node, or-pattern alternatives, `matches!` expansion)
+were all wrong.
 
-- **`or_pattern` alternatives** (`A | B | C => ...`) — the original
-  bug report speculated Mozilla counts each alternative. Testing on
-  safebash showed this over-counts heavily on lexer-style code
-  (`scan_word` jumped from 47 to 64, against Mozilla's 47). Reverted.
-  McCabe original is preferred: a multi-alternative arm is one
-  decision regardless of `|` count.
+## What Mozilla actually does for closures (from
+[`src/getter.rs`](https://github.com/mozilla/rust-code-analysis/blob/main/src/getter.rs) and
+[`src/spaces.rs`](https://github.com/mozilla/rust-code-analysis/blob/main/src/spaces.rs))
 
-## Numbers after the fix
+```rust
+match node.kind_id().into() {
+    FunctionItem | ClosureExpression => SpaceKind::Function,
+    ...
+}
+```
+
+Both `FunctionItem` and `ClosureExpression` are treated as **separate
+function "spaces"**. Each space gets its own per-node `cyclomatic`
+value (1 + counted nodes inside it).
+
+Then `Stats::merge` accumulates child-space cyclomatics into the
+parent's `cyclomatic_sum`:
+
+```rust
+pub fn merge(&mut self, other: &Stats) {
+    self.cyclomatic_sum += other.cyclomatic_sum;
+    ...
+}
+```
+
+So a function reported via JSON shows `cyclomatic.sum` =
+(its own standalone cyclomatic) + (every closure inside, recursively).
+
+## What safebash's script actually reads
+
+`contrib/cyclo.sh` invokes
+`rust-code-analysis-cli -m -p DIR -O json` and reads:
+
+```python
+cc = int(node.get('metrics',{}).get('cyclomatic',{}).get('sum',0))
+```
+
+So safebash sees `cyclomatic.sum` per function — the **merged** value
+including nested closures. That's the number we need to match.
+
+## The fix
+
+In `rust/src/main.rs::count_decision_points`, restored exactly the
+nine Mozilla-counted node kinds and changed the closure /
+nested-`fn` handling from "skip subtree" to "+1 base then recurse":
+
+```rust
+match child.kind() {
+    "function_item" | "closure_expression" => {
+        count += 1;
+        count += count_decision_points(child, src);
+    }
+    "if_expression" | "while_expression" | "for_expression"
+    | "loop_expression" | "match_arm" | "try_expression" => {
+        count += 1;
+        count += count_decision_points(child, src);
+    }
+    "binary_expression" => {
+        if op == "&&" || op == "||" { count += 1; }
+        count += count_decision_points(child, src);
+    }
+    _ => count += count_decision_points(child, src),
+}
+```
+
+Equivalent change in `go/main.go::cyclomaticComplexity` — `FuncLit`
+returns `true` from `ast.Inspect` (recurse) instead of `false`.
+
+Removed: the speculative `let-else`, `match_pattern` guard,
+`matches!` macro, and `or_pattern` rules from earlier attempts.
+
+## Numbers after v9
 
 Against the bug report's safebash baseline (Mozilla 656 fns, avg 6.8,
 max 58 — `sash/src/` only):
 
 ```
-        Mozilla   indexnudge   delta
-fns         656          438    -218  (closures still missing from `symbols`)
-avg_cc      6.8          9.3    +2.5  (smaller because we don't list closures
-                                       as fns, so the average is over the
-                                       larger non-closure functions only)
-max_cc       58           58       0  ✓
+         Mozilla   v1     v8     v9
+fns        656     438    438    438       (closures still not in `symbols`)
+avg cc     6.8     8.8    9.3    9.4
+max cc      58     48     58     58 ✓
 ```
 
-Per-function deltas (Mozilla → ours):
+Per-function deltas (Mozilla → v9):
 
-| function | Mozilla | now | delta |
+| function | Mozilla | v9 | delta |
 |---|---:|---:|---:|
 | handle_param_expansion | 58 | 58 | **0** |
 | handle_pipeline (transform) | 54 | 54 | **0** |
+| lower_value | 48 | 48 | **0** |
 | check_stmt | 47 | 47 | **0** |
 | scan_word | 47 | 47 | **0** |
 | parse_parameter_expansion | 44 | 44 | **0** |
 | validate_stmt_ctx | 43 | 43 | **0** |
 | emit | 42 | 42 | **0** |
 | emit_param_expansion_inline | 41 | 41 | **0** |
-| lower_for | 44 | 43 | −1 |
-| allocate_variables | 36 | 34 | −2 |
-| verify_ssa_taint | 36 | 34 | −2 |
-| lower_case | 44 | 41 | −3 |
-| lower_value | 48 | 39 | −9 |
-| lower_one | 57 | 47 | −10 |
+| allocate_variables | 36 | 36 | **0** |
+| verify_ssa_taint | 36 | 36 | **0** |
+| lower_one | 57 | 55 | −2 |
+| lower_case | 44 | 40 | −4 |
+| lower_for | 44 | 35 | −9 |
 
-**8 of 14 functions match exactly.** Worst remaining delta is −10
-(lower_one). Mean delta dropped from −8.3 (before) to −3.1 (now).
-Rankings are stable.
+**11 of 14 functions match exactly.** Worst remaining: `lower_for`
+at −9. The residual is likely from grammar version differences
+(Mozilla's `language_rust.rs` is generated from an older
+tree-sitter-rust release; some nodes have shifted) or from how the
+older grammar split `MatchArm`/`MatchArm2` cases that the new
+grammar unified into a single `match_arm` node.
 
-## Remaining gap: closures don't appear in `symbols`
+## Closing the residual
 
-This is the source of the 656 vs 438 function-count delta. Mozilla
-lists every closure as a separate counted entity; indexnudge's
-visitor skips them.
+The three remaining gaps (`lower_one`, `lower_case`, `lower_for`) are
+all functions heavy on match-with-guards and parameter-expansion
+ladders. Counting guards (`pat if cond => ...`) was tested and
+rejected because it broke 5 previously-exact matches.
 
-Deferred. Adding closures as `symbols` rows requires:
+If full closure of the residual matters for safebash's commit-hook
+thresholds, the path forward is to pin a tree-sitter-rust version
+matching Mozilla's grammar generation — not to add more heuristics.
 
-  - Inventing synthetic names (`<closure@line:col>` or similar)
-  - Deciding whether they should appear in `callee_candidates`,
-    `lines.symbol` attribution, etc.
-  - Coordinating with the other 3 views that touch `symbols`
+## Function-count gap (438 vs 656) — still deferred
 
-The CC counter already adds +1 for each closure in the enclosing
-function's CC, so the *complexity* effect is captured. Only the
-function-count metric differs.
+Mozilla lists every closure as a separate counted entity in
+`spaces[]`. We don't surface closures as `symbols` rows. The CC
+effect is captured (each closure's CC adds to the parent's), so the
+*per-function CC* numbers are now Mozilla-aligned; only the
+*function count* differs.
+
+Adding closures as symbols rows is a larger change (synthetic names,
+ripples through `callee_candidates`/`string_literals`/`block_dupes`
+views). Tracked separately. For now, query
+
+```sql
+SELECT COUNT(*) FROM symbols WHERE kind IN ('function','method')
+```
+
+returns the "named functions only" count, not "named functions +
+closures".
 
 ## Counting convention now documented
 
-In `AGENTS.md.gpp` 'Complexity hotspots' section. Users querying
-`symbols.cyclomatic` can predict the number from the source without
-running the indexer.
+In `AGENTS.md.gpp` 'Complexity hotspots' section, with citations to
+the Mozilla source files. A user querying `symbols.cyclomatic` can
+predict the number from the source and verify against the upstream
+implementation if needed.
 
-## Reproduction (after fix)
+## Reproduction (after v9 fix)
 
 ```bash
 cd ~/src/safebash
-rm -f .indexnudge-rust.db
-indexnudge .
+sqlite3 .indexnudge-rust.db "PRAGMA user_version;"   # → 9
+# (freshen will auto-rebuild on next query if user_version < 9)
 
 sqlite3 .indexnudge-rust.db "
   SELECT COUNT(*), AVG(cyclomatic), MAX(cyclomatic)
@@ -108,12 +197,13 @@ sqlite3 .indexnudge-rust.db "
   WHERE kind IN ('function','method')
     AND file LIKE 'sash/src/%'
     AND cyclomatic IS NOT NULL;"
-# 438, 9.3, 58
+# 438, 9.4, 58
 ```
 
 ## Related
 
 - `notes/feature-request-complexity-metric.md` — the original FR.
+- Mozilla source files referenced inline.
 
 ## Summary
 
