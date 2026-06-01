@@ -1015,7 +1015,7 @@ fn create_schema(conn: &Connection) -> Result<()> {
         "
         PRAGMA journal_mode=DELETE;
         PRAGMA synchronous=OFF;
-        PRAGMA user_version=6;
+        PRAGMA user_version=7;
 
         CREATE TABLE lines (
             file     TEXT,
@@ -1175,6 +1175,28 @@ fn create_schema(conn: &Connection) -> Result<()> {
                END AS context
         FROM peeled
         WHERE value != '';
+
+        CREATE VIEW block_dupes AS
+        WITH ln AS (
+            SELECT file, line_num, trim(lower(content)) AS norm,
+                   ROW_NUMBER() OVER (PARTITION BY file ORDER BY line_num) AS seq
+            FROM lines
+            WHERE trim(content) != ''
+        ),
+        sh AS (
+            SELECT a.file, a.line_num AS start_line, d.line_num AS end_line,
+                   a.norm || char(10) || b.norm || char(10) || c.norm || char(10) || d.norm AS shingle
+            FROM ln a
+            JOIN ln b ON b.file = a.file AND b.seq = a.seq + 1
+            JOIN ln c ON c.file = a.file AND c.seq = a.seq + 2
+            JOIN ln d ON d.file = a.file AND d.seq = a.seq + 3
+        )
+        SELECT shingle,
+               COUNT(*) AS occurrences,
+               GROUP_CONCAT(file || ':' || start_line, ' | ') AS sites
+        FROM sh
+        GROUP BY shingle
+        HAVING COUNT(*) >= 2;
         ",
     )?;
     Ok(())
@@ -1182,7 +1204,7 @@ fn create_schema(conn: &Connection) -> Result<()> {
 
 /// Schema version — bump when tables/columns change.
 /// freshen checks this and falls back to full_index if outdated.
-const SCHEMA_VERSION: i64 = 6;
+const SCHEMA_VERSION: i64 = 7;
 
 /// Returns true if the DB schema is current. If outdated, freshen
 /// should abandon incremental update and do a full rebuild.
@@ -1967,6 +1989,88 @@ fn comment_filter() {}
             .unwrap();
         assert_eq!(comment_hits, 1,
                    "should be exactly 1 dispatch 'echo' (the real if-eq), not 2 with the doc comment");
+    }
+
+    fn setup_db() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        create_schema(&conn).unwrap();
+        conn
+    }
+
+    fn index_sample(conn: &Connection, source: &str) {
+        let mut parser = TsParser::new();
+        parser.set_language(&tree_sitter_rust::LANGUAGE.into()).unwrap();
+        let tree = parser.parse(source, None).unwrap();
+        let mut extractor = Extractor::new("test.rs".to_string(), source);
+        extractor.extract(tree.root_node());
+        insert_lines(conn, "test.rs", source, &extractor.symbol_ranges).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod block_dupes_tests {
+    use super::*;
+
+    // Two identical 5-line setup blocks + a unique-5-line block
+    const DUPE_SAMPLE: &str = r#"fn first() -> i32 {
+    let ctx = make_context();
+    let mut builder = ctx.builder();
+    let result = builder.compile();
+    if result.is_err() { return -1; }
+    result.unwrap()
+}
+
+fn second() -> i32 {
+    let ctx = make_context();
+    let mut builder = ctx.builder();
+    let result = builder.compile();
+    if result.is_err() { return -1; }
+    result.unwrap() + 1
+}
+
+fn third_unique() -> i32 {
+    let raw = load_raw_bytes();
+    let parsed = parse_or_default(raw);
+    let normalized = canonicalize(parsed);
+    let hashed = hash_canon(normalized);
+    hashed.len() as i32
+}
+"#;
+
+    #[test]
+    fn block_dupes_finds_4line_duplicates() {
+        let conn = setup_db();
+        index_sample(&conn, DUPE_SAMPLE);
+
+        // The 4-line `let ctx = ... let mut builder ... let result ... if result.is_err()...`
+        // sequence appears in both `first` and `second`.
+        let occ: i64 = conn.query_row(
+            "SELECT MAX(occurrences) FROM block_dupes",
+            [], |row| row.get(0)
+        ).unwrap_or(0);
+        assert!(occ >= 2,
+                "expected at least one 4-line block duplicated 2+ times, got max={}", occ);
+
+        // Spot-check: the specific shingle for the make_context setup should appear
+        let count: i64 = conn.query_row(
+            "SELECT occurrences FROM block_dupes
+             WHERE shingle LIKE '%make_context%' AND shingle LIKE '%result.is_err%'",
+            [], |row| row.get(0)
+        ).unwrap_or(0);
+        assert_eq!(count, 2, "expected the make_context+compile shingle to occur twice");
+    }
+
+    #[test]
+    fn block_dupes_skips_unique_blocks() {
+        let conn = setup_db();
+        index_sample(&conn, DUPE_SAMPLE);
+
+        // third_unique's body shouldn't appear in block_dupes at all.
+        let unique_hits: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM block_dupes WHERE shingle LIKE '%canonicalize%'",
+            [], |row| row.get(0)
+        ).unwrap_or(0);
+        assert_eq!(unique_hits, 0, "unique block should not appear in block_dupes");
     }
 
     fn setup_db() -> Connection {

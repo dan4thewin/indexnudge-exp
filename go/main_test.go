@@ -1029,3 +1029,61 @@ if len(order) != 2 || order[0] != "false@1" || order[1] != "noop@2" {
 t.Errorf("multi-string ordering wrong: %v", order)
 }
 }
+
+const sampleDupe = `package example
+
+func first() int {
+ctx := makeContext()
+builder := ctx.Builder()
+result := builder.Compile()
+if result == nil {
+return -1
+}
+return *result
+}
+
+func second() int {
+ctx := makeContext()
+builder := ctx.Builder()
+result := builder.Compile()
+if result == nil {
+return -1
+}
+return *result + 1
+}
+
+func thirdUnique() int {
+raw := loadRawBytes()
+parsed := parseOrDefault(raw)
+normalized := canonicalize(parsed)
+hashed := hashCanon(normalized)
+return len(hashed)
+}
+`
+
+func TestBlockDupesFinds4LineDuplicates(t *testing.T) {
+db := setupDB(t)
+indexSample(t, db, sampleDupe, "dupe.go")
+
+max := queryInt(t, db, "SELECT COALESCE(MAX(occurrences), 0) FROM block_dupes")
+if max < 2 {
+t.Fatalf("expected at least one 4-line block duplicated 2+ times, got max=%d", max)
+}
+
+count := queryInt(t, db,
+`SELECT COALESCE(MAX(occurrences), 0) FROM block_dupes
+ WHERE shingle LIKE '%makecontext%' AND shingle LIKE '%builder.compile%'`)
+if count != 2 {
+t.Errorf("expected the makeContext+Compile shingle to occur exactly 2 times, got %d", count)
+}
+}
+
+func TestBlockDupesSkipsUnique(t *testing.T) {
+db := setupDB(t)
+indexSample(t, db, sampleDupe, "dupe.go")
+
+unique := queryInt(t, db, "SELECT COUNT(*) FROM block_dupes WHERE shingle LIKE '%canonicalize%'")
+if unique != 0 {
+t.Errorf("unique block should not appear in block_dupes, got %d hits", unique)
+}
+}

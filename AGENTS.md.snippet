@@ -164,6 +164,40 @@ strings in Go) only appear up to the first newline; escaped `"`
 inside a string can split it early. For the dispatch-discovery use
 case these gaps are rarely material.
 
+### Finding repeated code (extract-helper candidates)
+
+`block_dupes` is a view that surfaces every 4-line block of code that
+appears 2+ times across the codebase. Use it before extracting a helper
+to make sure you find every callsite, not just the obvious ones.
+
+```bash
+# Top duplication hotspots
+sqlite3 "$DB" "SELECT occurrences, substr(replace(shingle, char(10), ' / '), 1, 80) AS preview
+               FROM block_dupes ORDER BY occurrences DESC LIMIT 20;"
+
+# Sites of a specific duplicate (find the locations to refactor)
+sqlite3 "$DB" "SELECT occurrences, sites FROM block_dupes
+               WHERE shingle LIKE '%create_sized_stack_slot%' LIMIT 5;"
+
+# Filter out comma-separated parameter-list noise — focus on real code
+sqlite3 "$DB" "SELECT occurrences, substr(replace(shingle, char(10), ' / '), 1, 100) AS preview
+               FROM block_dupes
+               WHERE shingle NOT LIKE '%,%,%,%,%'
+                 AND length(shingle) > 60
+               ORDER BY occurrences DESC LIMIT 10;"
+```
+
+Limits:
+  - **k=4 fixed.** For a different window size, write your own CTE
+    inline against `lines` with `ROW_NUMBER()` over `(file ORDER BY
+    line_num)`.
+  - **No identifier renaming.** `let ptr = ...` and `let dest = ...`
+    hash differently. In practice the dominant duplicates are
+    literally identical (function signatures, test scaffolding, setup
+    boilerplate), so this matters less than expected.
+  - **Overlapping shingles** within one larger duplicated block all
+    appear separately — merge with your own filter when needed.
+
 ### Schema reference
 
 | Table         | Columns of interest                                                |
@@ -174,6 +208,7 @@ case these gaps are rarely material.
 | `calls`       | `caller_file, caller_symbol, callee, callee_qname, kind, line_num`  |
 | `callee_candidates` | view: `calls` ⨝ `symbols` — one row per (call, candidate symbol) |
 | `string_literals` | view: every double-quoted string on every line, with context bucket |
+| `block_dupes` | view: 4-line duplicated runs across the codebase (extract-helper candidates) |
 | `defs`        | `symbol, file, line_num, var, kind`  *(variable/binding definitions)* |
 | `imports`     | `file, module, line_num`                                           |
 | `files`       | `file, lines, language, indexed_mtime`                             |

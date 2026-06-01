@@ -516,6 +516,28 @@ SELECT file, line_num, symbol, value, pos,
        END AS context
 FROM peeled
 WHERE value != '';
+
+CREATE VIEW block_dupes AS
+WITH ln AS (
+    SELECT file, line_num, trim(lower(content)) AS norm,
+           ROW_NUMBER() OVER (PARTITION BY file ORDER BY line_num) AS seq
+    FROM lines
+    WHERE trim(content) != ''
+),
+sh AS (
+    SELECT a.file, a.line_num AS start_line, d.line_num AS end_line,
+           a.norm || char(10) || b.norm || char(10) || c.norm || char(10) || d.norm AS shingle
+    FROM ln a
+    JOIN ln b ON b.file = a.file AND b.seq = a.seq + 1
+    JOIN ln c ON c.file = a.file AND c.seq = a.seq + 2
+    JOIN ln d ON d.file = a.file AND d.seq = a.seq + 3
+)
+SELECT shingle,
+       COUNT(*) AS occurrences,
+       GROUP_CONCAT(file || ':' || start_line, ' | ') AS sites
+FROM sh
+GROUP BY shingle
+HAVING COUNT(*) >= 2;
 `
 	_, err := db.Exec(schema)
 	return err
