@@ -792,3 +792,121 @@ func TestFuncSignature(t *testing.T) {
 		}
 	}
 }
+
+const sampleCC = `package example
+
+func Trivial(x int) int {
+return x + 1
+}
+
+func Linear(x int) int {
+y := x + 1
+z := y * 2
+return z
+}
+
+func OneBranch(x int) int {
+if x > 0 {
+return 1
+}
+return -1
+}
+
+func SwitchThree(x int) string {
+switch x {
+case 0:
+return "zero"
+case 1:
+return "one"
+default:
+return "other"
+}
+}
+
+func ShortCircuit(a, b, c bool) bool {
+return a && (b || c)
+}
+
+func LoopAndRange(xs []int) int {
+total := 0
+for _, x := range xs {
+if x > 0 {
+total += x
+}
+}
+return total
+}
+
+func OuterWithClosure(x int) int {
+inner := func(y int) int {
+if y > 0 {
+return y
+}
+return -y
+}
+return inner(x)
+}
+`
+
+func TestCyclomaticComputed(t *testing.T) {
+db := setupDB(t)
+indexSample(t, db, sampleCC, "cc.go")
+
+got := map[string]int64{}
+rows, err := db.Query("SELECT name, COALESCE(cyclomatic, -1) FROM symbols WHERE file = 'cc.go' AND kind IN ('function','method')")
+if err != nil {
+t.Fatal(err)
+}
+defer rows.Close()
+for rows.Next() {
+var name string
+var cc int64
+if err := rows.Scan(&name, &cc); err != nil {
+t.Fatal(err)
+}
+got[name] = cc
+}
+
+want := map[string]int64{
+"Trivial":          1, // no branches
+"Linear":           1, // no branches
+"OneBranch":        2, // one if
+"SwitchThree":      4, // 1 + 3 case clauses
+"ShortCircuit":     3, // && and || each add 1
+"LoopAndRange":     3, // range + if
+"OuterWithClosure": 1, // outer body has no branches; FuncLit not recursed into
+}
+for name, w := range want {
+if g, ok := got[name]; !ok {
+t.Errorf("%s: missing from symbols", name)
+} else if g != w {
+t.Errorf("%s: cyclomatic = %d, want %d", name, g, w)
+}
+}
+}
+
+func TestCyclomaticNullForNonFunctions(t *testing.T) {
+db := setupDB(t)
+indexSample(t, db, "package p\n\ntype Foo struct { X int }\n\ntype Bar int\n", "types.go")
+
+rows, err := db.Query("SELECT name, cyclomatic FROM symbols WHERE file = 'types.go' AND kind NOT IN ('function','method')")
+if err != nil {
+t.Fatal(err)
+}
+defer rows.Close()
+any := false
+for rows.Next() {
+any = true
+var name string
+var cc sql.NullInt64
+if err := rows.Scan(&name, &cc); err != nil {
+t.Fatal(err)
+}
+if cc.Valid {
+t.Errorf("%s (non-function) should have NULL cyclomatic, got %d", name, cc.Int64)
+}
+}
+if !any {
+t.Fatal("expected at least one struct/type row")
+}
+}

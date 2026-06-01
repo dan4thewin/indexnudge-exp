@@ -400,7 +400,8 @@ CREATE TABLE symbols (
     start_line     INTEGER,
     end_line       INTEGER,
     parent         TEXT,
-    signature      TEXT
+    signature      TEXT,
+    cyclomatic     INTEGER
 );
 
 CREATE TABLE calls (
@@ -428,6 +429,7 @@ CREATE TABLE imports (
 CREATE INDEX idx_symbols_name ON symbols(name);
 CREATE INDEX idx_symbols_qualified ON symbols(qualified_name);
 CREATE INDEX idx_symbols_file ON symbols(file);
+CREATE INDEX idx_symbols_cyclomatic ON symbols(cyclomatic);
 CREATE INDEX idx_calls_callee ON calls(callee);
 CREATE INDEX idx_calls_caller ON calls(caller_symbol);
 CREATE INDEX idx_defs_var ON defs(var);
@@ -601,7 +603,7 @@ func indexLines(db *sql.DB, fset *token.FileSet, rel string, lines []string, f *
 
 func extractSymbols(db *sql.DB, fset *token.FileSet, rel string, f *ast.File, info *types.Info) error {
 	stmt, err := db.Prepare(
-		"INSERT INTO symbols (name, qualified_name, kind, file, start_line, end_line, parent, signature) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+		"INSERT INTO symbols (name, qualified_name, kind, file, start_line, end_line, parent, signature, cyclomatic) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
 	if err != nil {
 		return err
 	}
@@ -651,7 +653,8 @@ func extractSymbols(db *sql.DB, fset *token.FileSet, rel string, f *ast.File, in
 			}
 			start := fset.Position(d.Pos()).Line
 			end := fset.Position(d.End()).Line
-			if _, err := stmt.Exec(name, qname, kind, rel, start, end, parent, sig); err != nil {
+			cyclo := cyclomaticComplexity(d.Body)
+			if _, err := stmt.Exec(name, qname, kind, rel, start, end, parent, sig, cyclo); err != nil {
 				return err
 			}
 
@@ -668,7 +671,7 @@ func extractSymbols(db *sql.DB, fset *token.FileSet, rel string, f *ast.File, in
 					}
 					start := fset.Position(s.Pos()).Line
 					end := fset.Position(s.End()).Line
-					if _, err := stmt.Exec(s.Name.Name, nil, kind, rel, start, end, nil, nil); err != nil {
+					if _, err := stmt.Exec(s.Name.Name, nil, kind, rel, start, end, nil, nil, nil); err != nil {
 						return err
 					}
 				}
@@ -676,6 +679,43 @@ func extractSymbols(db *sql.DB, fset *token.FileSet, rel string, f *ast.File, in
 		}
 	}
 	return nil
+}
+
+// cyclomaticComplexity computes McCabe complexity over a function body.
+// 1 + count of decision points. Counts each if, each switch/select case,
+// each for/range loop, each type-switch case, and each && / || operator.
+// Nested function literals are not recursed into — each is its own
+// symbol with its own complexity.
+func cyclomaticComplexity(body *ast.BlockStmt) *int {
+	if body == nil {
+		return nil
+	}
+	count := 1
+	ast.Inspect(body, func(n ast.Node) bool {
+		switch x := n.(type) {
+		case *ast.FuncLit:
+			return false // nested closures are separate symbols
+		case *ast.IfStmt:
+			count++
+		case *ast.CaseClause:
+			count++ // each `case` in a switch (also default)
+		case *ast.CommClause:
+			count++ // each `case` in a select
+		case *ast.ForStmt:
+			count++
+		case *ast.RangeStmt:
+			count++
+		case *ast.TypeSwitchStmt:
+			// the switch itself contributes 0; each case clause already counted
+			_ = x
+		case *ast.BinaryExpr:
+			if x.Op == token.LAND || x.Op == token.LOR {
+				count++
+			}
+		}
+		return true
+	})
+	return &count
 }
 
 func extractCalls(db *sql.DB, fset *token.FileSet, rel string, f *ast.File, info *types.Info) error {

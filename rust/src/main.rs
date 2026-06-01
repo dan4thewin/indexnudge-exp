@@ -266,6 +266,7 @@ struct SymbolRecord {
     end_line: usize,
     parent: Option<String>,
     signature: Option<String>,
+    cyclomatic: Option<i64>,
 }
 
 struct CallRecord {
@@ -411,6 +412,11 @@ impl Extractor {
 
         let kind = if parent.is_some() { "method" } else { "function" };
 
+        // McCabe cyclomatic complexity over the body
+        let cyclomatic = node
+            .child_by_field_name("body")
+            .map(|body| 1 + count_decision_points(body));
+
         self.symbols.push(SymbolRecord {
             name: name.clone(),
             qualified_name: qualified.clone(),
@@ -420,6 +426,7 @@ impl Extractor {
             end_line,
             parent,
             signature: Some(sig),
+            cyclomatic: Some(cyclomatic.unwrap_or(1) as i64),
         });
 
         let sym_name = qualified.unwrap_or(name.clone());
@@ -476,6 +483,7 @@ impl Extractor {
             end_line,
             parent: None,
             signature: trait_name.as_ref().map(|t| format!("impl {} for {}", t, type_name)),
+            cyclomatic: None,
         });
 
         self.scope_stack.push(type_name);
@@ -498,6 +506,7 @@ impl Extractor {
             end_line: node.end_position().row + 1,
             parent: None,
             signature: None,
+            cyclomatic: None,
         });
         // Extract references from field types
         let mut cursor = node.walk();
@@ -520,6 +529,7 @@ impl Extractor {
             end_line: node.end_position().row + 1,
             parent: None,
             signature: None,
+            cyclomatic: None,
         });
     }
 
@@ -537,6 +547,7 @@ impl Extractor {
             end_line,
             parent: None,
             signature: None,
+            cyclomatic: None,
         });
         self.scope_stack.push(name);
         if let Some(body) = node.child_by_field_name("body") {
@@ -557,6 +568,7 @@ impl Extractor {
             end_line: node.end_position().row + 1,
             parent: self.current_scope(),
             signature: None,
+            cyclomatic: None,
         });
     }
 
@@ -893,6 +905,57 @@ fn has_return_outside_closure(node: Node) -> bool {
     false
 }
 
+/// Count McCabe decision points inside a function body. The cyclomatic
+/// complexity of the function is `1 + count_decision_points(body)`.
+///
+/// Counted nodes for tree-sitter-rust:
+///   - `if_expression` (each `if` adds one branch)
+///   - `match_arm` (each arm beyond the first; we subtract one match worth
+///     by not counting `match_expression` itself and counting all arms,
+///     which over-counts by 0 — every arm is a decision point)
+///   - `while_expression`, `while_let_expression`, `for_expression`,
+///     `loop_expression` (loop entry is a branch)
+///   - `if_let_expression`
+///   - `try_expression` (the `?` operator: success vs. error propagation)
+///   - `binary_expression` whose operator is `&&` or `||` (short-circuit)
+///
+/// Does not recurse into nested function/closure bodies — each nested
+/// function is its own symbol with its own complexity row.
+fn count_decision_points(node: Node) -> usize {
+    let mut count = 0;
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        match child.kind() {
+            // Nested functions/closures are separate symbols; don't recurse.
+            "function_item" | "closure_expression" => continue,
+            "if_expression"
+            | "if_let_expression"
+            | "while_expression"
+            | "while_let_expression"
+            | "for_expression"
+            | "loop_expression"
+            | "match_arm"
+            | "try_expression" => {
+                count += 1;
+                count += count_decision_points(child);
+            }
+            "binary_expression" => {
+                if let Some(op) = child.child_by_field_name("operator") {
+                    let op_kind = op.kind();
+                    if op_kind == "&&" || op_kind == "||" {
+                        count += 1;
+                    }
+                }
+                count += count_decision_points(child);
+            }
+            _ => {
+                count += count_decision_points(child);
+            }
+        }
+    }
+    count
+}
+
 fn is_keyword(s: &str) -> bool {
     matches!(
         s,
@@ -952,7 +1015,7 @@ fn create_schema(conn: &Connection) -> Result<()> {
         "
         PRAGMA journal_mode=DELETE;
         PRAGMA synchronous=OFF;
-        PRAGMA user_version=4;
+        PRAGMA user_version=5;
 
         CREATE TABLE lines (
             file     TEXT,
@@ -972,7 +1035,8 @@ fn create_schema(conn: &Connection) -> Result<()> {
             start_line     INTEGER,
             end_line       INTEGER,
             parent         TEXT,
-            signature      TEXT
+            signature      TEXT,
+            cyclomatic     INTEGER
         );
 
         CREATE TABLE calls (
@@ -1027,6 +1091,7 @@ fn create_schema(conn: &Connection) -> Result<()> {
         CREATE INDEX idx_symbols_name ON symbols(name);
         CREATE INDEX idx_symbols_qualified ON symbols(qualified_name);
         CREATE INDEX idx_symbols_file ON symbols(file);
+        CREATE INDEX idx_symbols_cyclomatic ON symbols(cyclomatic);
         CREATE INDEX idx_calls_callee ON calls(callee);
         CREATE INDEX idx_calls_caller ON calls(caller_symbol);
         CREATE INDEX idx_defs_var ON defs(var);
@@ -1077,7 +1142,7 @@ fn create_schema(conn: &Connection) -> Result<()> {
 
 /// Schema version — bump when tables/columns change.
 /// freshen checks this and falls back to full_index if outdated.
-const SCHEMA_VERSION: i64 = 4;
+const SCHEMA_VERSION: i64 = 5;
 
 /// Returns true if the DB schema is current. If outdated, freshen
 /// should abandon incremental update and do a full rebuild.
@@ -1092,11 +1157,11 @@ fn schema_is_current(conn: &Connection) -> bool {
 
 fn insert_symbols(conn: &Connection, symbols: &[SymbolRecord]) -> Result<()> {
     let mut stmt = conn.prepare(
-        "INSERT INTO symbols (name, qualified_name, kind, file, start_line, end_line, parent, signature)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        "INSERT INTO symbols (name, qualified_name, kind, file, start_line, end_line, parent, signature, cyclomatic)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
     )?;
     for s in symbols {
-        stmt.execute(rusqlite::params![s.name, s.qualified_name, s.kind, s.file, s.start_line as i64, s.end_line as i64, s.parent, s.signature])?;
+        stmt.execute(rusqlite::params![s.name, s.qualified_name, s.kind, s.file, s.start_line as i64, s.end_line as i64, s.parent, s.signature, s.cyclomatic])?;
     }
     Ok(())
 }
@@ -1674,5 +1739,111 @@ mod early_return_tests {
             "INSERT INTO files (file, lines, language, indexed_mtime, indexed_size) VALUES (?1, ?2, ?3, ?4, ?5)",
             rusqlite::params!["test.rs", line_count, "rust", 0.0, 0i64],
         ).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod cyclomatic_tests {
+    use super::*;
+
+    const CC_SAMPLE: &str = r#"fn trivial(x: i32) -> i32 {
+    x + 1
+}
+
+fn linear(x: i32) -> i32 {
+    let y = x + 1;
+    let z = y * 2;
+    z
+}
+
+fn one_branch(x: i32) -> i32 {
+    if x > 0 { 1 } else { -1 }
+}
+
+fn match_three(x: i32) -> i32 {
+    match x {
+        0 => 0,
+        1 => 1,
+        _ => 99,
+    }
+}
+
+fn short_circuit(a: bool, b: bool, c: bool) -> bool {
+    a && (b || c)
+}
+
+fn loop_and_try(xs: &[i32]) -> Result<i32, ()> {
+    let mut total = 0;
+    for x in xs {
+        let v: i32 = if *x > 0 { *x } else { 0 };
+        total += v;
+    }
+    Ok(total)
+}
+
+fn outer_with_closure(x: i32) -> i32 {
+    let inner = |y: i32| {
+        if y > 0 { y } else { -y }
+    };
+    inner(x)
+}
+"#;
+
+    #[test]
+    fn cyclomatic_computed_for_functions() {
+        let conn = setup_db();
+        index_sample(&conn, CC_SAMPLE);
+
+        let rows: Vec<(String, Option<i64>)> = conn
+            .prepare("SELECT name, cyclomatic FROM symbols WHERE file='test.rs' AND kind IN ('function','method') ORDER BY start_line")
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect();
+
+        let lookup: std::collections::HashMap<_, _> = rows.iter().cloned().collect();
+
+        assert_eq!(lookup.get("trivial"),            Some(&Some(1)),  "trivial: no branches → 1");
+        assert_eq!(lookup.get("linear"),             Some(&Some(1)),  "linear: no branches → 1");
+        assert_eq!(lookup.get("one_branch"),         Some(&Some(2)),  "one if → 2");
+        assert_eq!(lookup.get("match_three"),        Some(&Some(4)),  "1 + 3 arms = 4");
+        assert_eq!(lookup.get("short_circuit"),      Some(&Some(3)),  "&& and || each add 1 → 3");
+        assert_eq!(lookup.get("loop_and_try"),       Some(&Some(3)),  "for + if = 3");
+        assert_eq!(lookup.get("outer_with_closure"), Some(&Some(1)), "outer body has no branches; closure body counts separately");
+    }
+
+    #[test]
+    fn cyclomatic_null_for_non_functions() {
+        let conn = setup_db();
+        index_sample(&conn, "struct Foo { x: i32 }\nenum Bar { A, B }\n");
+
+        let non_fns: Vec<(String, Option<i64>)> = conn
+            .prepare("SELECT name, cyclomatic FROM symbols WHERE file='test.rs' AND kind NOT IN ('function','method')")
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect();
+
+        assert!(!non_fns.is_empty(), "expected struct/enum rows");
+        for (name, cc) in &non_fns {
+            assert!(cc.is_none(), "{} (kind != fn/method) should have NULL cyclomatic, got {:?}", name, cc);
+        }
+    }
+
+    fn setup_db() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        create_schema(&conn).unwrap();
+        conn
+    }
+
+    fn index_sample(conn: &Connection, source: &str) {
+        let mut parser = TsParser::new();
+        parser.set_language(&tree_sitter_rust::LANGUAGE.into()).unwrap();
+        let tree = parser.parse(source, None).unwrap();
+        let mut extractor = Extractor::new("test.rs".to_string(), source);
+        extractor.extract(tree.root_node());
+        insert_symbols(conn, &extractor.symbols).unwrap();
     }
 }

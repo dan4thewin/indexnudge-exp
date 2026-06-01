@@ -50,6 +50,41 @@ sqlite3 "$DB" "SELECT DISTINCT callee FROM calls
 sqlite3 "$DB" "SELECT module, line_num FROM imports WHERE file='src/foo.rs';"
 ```
 
+### Complexity hotspots
+
+`symbols.cyclomatic` is the McCabe cyclomatic complexity of each
+function/method (NULL for non-callables). Use it to find refactor
+targets or check whether a change spiked complexity:
+
+```bash
+# Top complexity in the whole codebase
+sqlite3 "$DB" "SELECT name, qualified_name, file, cyclomatic,
+                      end_line - start_line + 1 AS lines
+               FROM symbols
+               WHERE kind IN ('function','method') AND cyclomatic IS NOT NULL
+               ORDER BY cyclomatic DESC LIMIT 20;"
+
+# Hotspots in one module
+sqlite3 "$DB" "SELECT name, cyclomatic FROM symbols
+               WHERE file LIKE 'src/parse/%' AND kind IN ('function','method')
+               ORDER BY cyclomatic DESC LIMIT 10;"
+
+# Distribution — how many functions sit in each bucket?
+sqlite3 "$DB" "SELECT CASE WHEN cyclomatic <= 5  THEN '1-5'
+                           WHEN cyclomatic <= 10 THEN '6-10'
+                           WHEN cyclomatic <= 20 THEN '11-20'
+                           ELSE '21+' END AS bucket,
+                      COUNT(*) AS fns
+               FROM symbols
+               WHERE kind IN ('function','method') AND cyclomatic IS NOT NULL
+               GROUP BY bucket;"
+```
+
+Counting rules: 1 + (each `if`, loop, switch/match arm, `&&`/`||`
+operator, and Rust `?` operator). Nested closures/functions are
+separate symbols and don't contribute to their enclosing function's
+complexity.
+
 ### Disambiguating call targets
 
 `calls.callee` stores the short name as written at the call site
@@ -94,7 +129,7 @@ symbol with a matching short name" and you narrow from there.
 |---------------|--------------------------------------------------------------------|
 | `lines`       | `file, line_num, content, symbol`                                  |
 | `lines_fts`   | FTS5 over `(file, line_num, content, symbol)`                      |
-| `symbols`     | `name, qualified_name, kind, file, start_line, end_line, parent, signature` |
+| `symbols`     | `name, qualified_name, kind, file, start_line, end_line, parent, signature, cyclomatic` |
 | `calls`       | `caller_file, caller_symbol, callee, callee_qname, kind, line_num`  |
 | `callee_candidates` | view: `calls` ⨝ `symbols` — one row per (call, candidate symbol) |
 | `defs`        | `symbol, file, line_num, var, kind`  *(variable/binding definitions)* |

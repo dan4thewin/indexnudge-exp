@@ -1,5 +1,17 @@
 # Feature Request: Cyclomatic complexity column on `symbols`
 
+**Status: resolved (2026-05-31).** Implemented as a nullable
+`cyclomatic INTEGER` column on `symbols`, populated for `function`
+and `method` kinds in both the Rust (tree-sitter) and Go (`go/ast`)
+indexers. Schema version bumped 4 → 5; freshen rebuilds old DBs.
+Index `idx_symbols_cyclomatic` added for ORDER-BY hotspot queries.
+
+See `AGENTS.md.gpp` "Complexity hotspots" section for query patterns.
+On iwe: 1722 functions in CC 1–5, 49 in 6–10, 49 in 11–20, 10 with
+CC ≥ 21 (hottest is `index_node` at 33).
+
+Original request below preserved for context.
+
 ## Problem
 
 Cyclomatic complexity is one of the most useful per-function signals
