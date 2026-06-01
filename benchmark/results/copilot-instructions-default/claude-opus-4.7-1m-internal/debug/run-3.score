@@ -1,0 +1,114 @@
+Output tokens: 31916
+Tool calls: 69 | Navigation: 36
+  DB structural: 2
+  DB lines:      5
+  DB other:      1
+  Shim hit:      0
+  Shim fallthru: 11
+  Shim evasion:  0
+  Native view:   17
+  Native grep:   0
+  Native glob:   0
+Scores:
+  db_ratio:         0.222
+  native_ratio:     0.472
+  structural_ratio: 0.083
+  evasion_ratio:    0.0
+  line_ratio:       0.139
+  nav_ratio:        0.522
+
+Categories: {'meta_tool': 1, 'direct_db_other': 1, 'direct_db_structural': 2, 'shim_fallthrough': 11, 'direct_db_lines': 5, 'native_view': 17, 'git': 6, 'build_test': 17, 'mutation': 5, 'other': 2, 'other_tool': 2}
+
+Commands:
+  [meta_tool             ] report_intent
+  [direct_db_other       ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && ls && sqlite3 .indexnudge-rust.db ".tables"
+  [direct_db_structural  ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files ORDER BY file;" |
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && cat BARE_FRONTMATTER_SPEC.md
+  [direct_db_structural  ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files WHERE file LIKE '
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines WHERE
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file=
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && sqlite3 .indexnudge-rust.db "SELECT * FROM lines_fts WHERE content MATCH '\"
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file=
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file=
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-rfY3JU/crates/liwe/tests/bare_frontmatter_test.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-rfY3JU/crates/liwe/tests/find_metadata_test.rs
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && git log --oneline -20 crates/liwe/src/markdown.rs
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && git log --all --oneline -20
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && cargo test -p liwe --lib --tests 2>&1 | tail -30
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && cargo test -p liwe 2>&1 | grep -E "(test result|FAILED|failures)" | head -30
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-rfY3JU/crates/liwe/src/markdown.rs
+  [mutation              ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && ed -s crates/liwe/src/markdown.rs <<'EOF'
+50,64c
+    let header_owned: Strin
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-rfY3JU/crates/liwe/src/markdown.rs
+  [mutation              ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && ed -s crates/liwe/src/markdown.rs <<'EOF'
+57d
+w
+q
+EOF
+
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-rfY3JU/crates/liwe/src/markdown.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-rfY3JU/crates/liwe/tests/find_metadata_test.rs
+  [mutation              ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+$a
+
+#[test]
+fn value_i
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && cargo test -p liwe --test find_metadata_test 2>&1 | tail -25
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && git stash push crates/liwe/src/markdown.rs && cargo test -p liwe --test find
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && git stash push crates/liwe/src/markdown.rs && cat crates/liwe/src/markdown.r
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && git diff HEAD crates/liwe/src/markdown.rs
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && git checkout HEAD -- crates/liwe/src/markdown.rs && cat crates/liwe/src/mark
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && cargo test -p liwe --test find_metadata_test value_in_bare 2>&1 | tail -10
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && grep -n "meta" crates/iwe/src/main.rs | head -30
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-rfY3JU/crates/iwe/src/main.rs
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && grep -n "load_graph\|fn load\|fs::Fs\|read_directory" crates/iwe/src/main.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-rfY3JU/crates/iwe/src/main.rs
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && grep -n "fn import\|pub fn import\|fn new_for_path\|MarkdownReader\|markdown
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-rfY3JU/crates/liwe/src/graph.rs
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && grep -n "metadata\|MetadataBlock\|Metadata\|fn metadata" crates/liwe/src/mar
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-rfY3JU/crates/liwe/src/markdown/reader.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-rfY3JU/crates/liwe/src/markdown/reader.rs
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && grep -n "get_metadata\|fn metadata\|self.metadata" crates/liwe/src/graph.rs 
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-rfY3JU/crates/liwe/src/graph.rs
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && grep -n "from_indoc\|to_indoc\|fn from" crates/liwe/src/state.rs | head -20
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-rfY3JU/crates/liwe/src/state.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-rfY3JU/crates/liwe/src/fs.rs
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && grep -n "meta\|bare_frontmatter" crates/iwe/tests/find_test.rs | head -30
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && grep -rn "meta\|bare_frontmatter" crates/iwe/tests/find_test.rs crates/iwec/
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && head -50 crates/iwe/tests/find_test.rs
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && cat > /tmp/debug_test.rs <<'EOF'
+use indoc::indoc;
+use liwe::find::{Document
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && cat > crates/liwe/tests/debug_test.rs <<'EOF'
+use indoc::indoc;
+use liwe::fi
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && cargo build --bin iwe 2>&1 | tail -3
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && rm -rf /tmp/iwe_test && mkdir -p /tmp/iwe_test/.iwe && cat > /tmp/iwe_test/.
+  [other                 ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && printf 'title: Task CRLF\r\ndepends:\r\n  - foo\r\n  - bar\r\n\r\n# Task CRL
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && cat > crates/liwe/tests/debug_test.rs <<'EOF'
+use indoc::indoc;
+use liwe::fi
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-rfY3JU/crates/liwe/src/markdown.rs
+  [mutation              ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && ed -s crates/liwe/src/markdown.rs <<'EOF'
+40,55c
+    // Normalize line endin
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-rfY3JU/crates/liwe/src/markdown.rs
+  [other                 ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && rm crates/liwe/tests/debug_test.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-rfY3JU/crates/liwe/tests/find_metadata_test.rs
+  [mutation              ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+$a
+
+#[test]
+fn value_i
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && cargo test -p liwe --test find_metadata_test 2>&1 | tail -20
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && git stash push crates/liwe/src/markdown.rs && cargo test -p liwe --test find
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && cargo build --bin iwe 2>&1 | tail -3 && cd /tmp/iwe_test && /tmp/copilot-ben
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && rm -rf /tmp/iwe_test && cargo test 2>&1 | grep -E "(test result|FAILED|error
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && cargo test 2>&1 | grep -E "FAILED|test result.*failed" | head -10
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && cargo test 2>&1 | grep -E "^(test result|FAILED|failures)" | sort | uniq -c 
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && cargo test 2>&1 | tail -5
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && git diff
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-rfY3JU && git --no-pager diff --stat
+  [other_tool            ] list_bash {}
+  [other_tool            ] stop_bash {"shellId": "47"}

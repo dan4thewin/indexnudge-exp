@@ -1,0 +1,52 @@
+Output tokens: 7759
+Tool calls: 30 | Navigation: 17
+  DB structural: 0
+  DB lines:      0
+  DB other:      0
+  Shim hit:      0
+  Shim fallthru: 2
+  Shim evasion:  0
+  Native view:   13
+  Native grep:   2
+  Native glob:   0
+Scores:
+  db_ratio:         0.0
+  native_ratio:     0.882
+  structural_ratio: 0.0
+  evasion_ratio:    0.0
+  line_ratio:       0.0
+  nav_ratio:        0.567
+
+Categories: {'meta_tool': 2, 'native_view': 13, 'shim_fallthrough': 2, 'native_grep': 2, 'other': 2, 'mutation': 4, 'build_test': 5}
+
+Commands:
+  [meta_tool             ] report_intent
+  [native_view           ] view /tmp/copilot-bench-iwe-implement-1-0g5lEP
+  [native_view           ] view /tmp/copilot-bench-iwe-implement-1-0g5lEP/crates
+  [shim_fallthrough      ] find /tmp/copilot-bench-iwe-implement-1-0g5lEP/crates -name "*.rs" | xargs grep -l "find" 2>/dev/null | head -20
+  [native_view           ] view /tmp/copilot-bench-iwe-implement-1-0g5lEP/crates/iwe/src/main.rs
+  [native_grep           ] grep 'find|Find|--count|count'
+  [native_view           ] view /tmp/copilot-bench-iwe-implement-1-0g5lEP/crates/iwe/src/main.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-implement-1-0g5lEP/crates/iwe/src/main.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-implement-1-0g5lEP/crates/iwe/src/lib.rs
+  [other                 ] find /tmp/copilot-bench-iwe-implement-1-0g5lEP/crates/liwe/src -path '*find*'
+  [native_view           ] view /tmp/copilot-bench-iwe-implement-1-0g5lEP/crates/liwe/src/find.rs
+  [shim_fallthrough      ] find /tmp/copilot-bench-iwe-implement-1-0g5lEP/crates/iwe/src/help.rs -exec grep -l "find" {} \; 2>/dev/null; find /tmp/
+  [native_grep           ] grep 'find|Find'
+  [other                 ] ls /tmp/copilot-bench-iwe-implement-1-0g5lEP/crates/iwe/help/find/
+  [native_view           ] view /tmp/copilot-bench-iwe-implement-1-0g5lEP/crates/iwe/help/find/long_about.txt
+  [native_view           ] view /tmp/copilot-bench-iwe-implement-1-0g5lEP/crates/iwe/help/find/about.txt
+  [native_view           ] view /tmp/copilot-bench-iwe-implement-1-0g5lEP/crates/iwe/help/find/after_help.txt
+  [native_view           ] view /tmp/copilot-bench-iwe-implement-1-0g5lEP/crates/iwe/tests/find_test.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-implement-1-0g5lEP/crates/iwe/src/main.rs
+  [meta_tool             ] report_intent
+  [mutation              ] edit /tmp/copilot-bench-iwe-implement-1-0g5lEP/crates/iwe/src/main.rs
+  [mutation              ] edit /tmp/copilot-bench-iwe-implement-1-0g5lEP/crates/iwe/src/main.rs
+  [mutation              ] edit /tmp/copilot-bench-iwe-implement-1-0g5lEP/crates/iwe/help/find/after_help.txt
+  [native_view           ] view /tmp/copilot-bench-iwe-implement-1-0g5lEP/crates/iwe/tests/find_test.rs
+  [mutation              ] edit /tmp/copilot-bench-iwe-implement-1-0g5lEP/crates/iwe/tests/find_test.rs
+  [build_test            ] cd /tmp/copilot-bench-iwe-implement-1-0g5lEP && cargo build -p iwe 2>&1 | tail -30
+  [build_test            ] cd /tmp/copilot-bench-iwe-implement-1-0g5lEP && cargo test -p iwe --test find_test 2>&1 | tail -60
+  [build_test            ] cd /tmp/copilot-bench-iwe-implement-1-0g5lEP && cargo build 2>&1 | tail -15
+  [build_test            ] cd /tmp/copilot-bench-iwe-implement-1-0g5lEP && cargo test 2>&1 | tail -80
+  [build_test            ] cd /tmp/copilot-bench-iwe-implement-1-0g5lEP && cargo test 2>&1 | grep -E "^test result:" | sort | uniq -c

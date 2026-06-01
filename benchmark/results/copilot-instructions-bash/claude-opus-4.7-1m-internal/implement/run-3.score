@@ -1,0 +1,58 @@
+Output tokens: 7975
+Tool calls: 27 | Navigation: 18
+  DB structural: 4
+  DB lines:      8
+  DB other:      0
+  Shim hit:      0
+  Shim fallthru: 3
+  Shim evasion:  3
+  Native view:   0
+  Native grep:   0
+  Native glob:   0
+Scores:
+  db_ratio:         0.667
+  native_ratio:     0.0
+  structural_ratio: 0.333
+  evasion_ratio:    0.167
+  line_ratio:       0.444
+  nav_ratio:        0.667
+
+Categories: {'direct_db_structural': 4, 'direct_db_lines': 8, 'build_test': 6, 'mutation': 2, 'shim_evasion': 3, 'shim_fallthrough': 3, 'other': 1}
+
+Commands:
+  [direct_db_structural  ] cd /tmp/copilot-bench-iwe-implement-3-YV1IQe && ls && sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files WHERE f
+  [direct_db_structural  ] cd /tmp/copilot-bench-iwe-implement-3-YV1IQe && sqlite3 .indexnudge-rust.db "SELECT name, kind, start_line, end_line FRO
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-implement-3-YV1IQe && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE f
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-implement-3-YV1IQe && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE f
+  [direct_db_structural  ] cd /tmp/copilot-bench-iwe-implement-3-YV1IQe && sqlite3 .indexnudge-rust.db "SELECT name, kind, start_line, end_line FRO
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-implement-3-YV1IQe && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE f
+  [direct_db_structural  ] cd /tmp/copilot-bench-iwe-implement-3-YV1IQe && sqlite3 .indexnudge-rust.db "SELECT name, kind, start_line, end_line FRO
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-implement-3-YV1IQe && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE f
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-implement-3-YV1IQe && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE f
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-implement-3-YV1IQe && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE f
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-implement-3-YV1IQe && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE f
+  [build_test            ] cd /tmp/copilot-bench-iwe-implement-3-YV1IQe && cargo build 2>&1 | tail -10
+  [mutation              ] cd /tmp/copilot-bench-iwe-implement-3-YV1IQe && ed crates/iwe/src/main.rs <<'EOF'
+156a
+    #[clap(long, help = "Print on
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-implement-3-YV1IQe && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE f
+  [shim_evasion          ] cd /tmp/copilot-bench-iwe-implement-3-YV1IQe && awk 'NR>=134 && NR<=165' crates/iwe/src/main.rs
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-implement-3-YV1IQe && grep -n "fn find_command\|args.format\|match args.format" crates/iwe/src
+  [shim_evasion          ] cd /tmp/copilot-bench-iwe-implement-3-YV1IQe && awk 'NR>=664 && NR<=700' crates/iwe/src/main.rs
+  [mutation              ] cd /tmp/copilot-bench-iwe-implement-3-YV1IQe && ed crates/iwe/src/main.rs <<'EOF'
+679a
+
+    if args.count {
+        prin
+  [shim_evasion          ] cd /tmp/copilot-bench-iwe-implement-3-YV1IQe && awk 'NR>=664 && NR<=705' crates/iwe/src/main.rs
+  [build_test            ] cd /tmp/copilot-bench-iwe-implement-3-YV1IQe && cargo build 2>&1 | tail -10
+  [other                 ] cd /tmp/copilot-bench-iwe-implement-3-YV1IQe && wc -l crates/iwe/tests/find_test.rs
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-implement-3-YV1IQe && awk 'END {print NR}' crates/iwe/tests/find_test.rs && tail -2 crates/iwe
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-implement-3-YV1IQe && cat >> crates/iwe/tests/find_test.rs <<'EOF'
+
+#[test]
+fn test_find_count
+  [build_test            ] cd /tmp/copilot-bench-iwe-implement-3-YV1IQe && cargo build 2>&1 | tail -10
+  [build_test            ] cd /tmp/copilot-bench-iwe-implement-3-YV1IQe && cargo test --test find_test 2>&1 | tail -60
+  [build_test            ] cd /tmp/copilot-bench-iwe-implement-3-YV1IQe && cargo test 2>&1 | tail -30
+  [build_test            ] cd /tmp/copilot-bench-iwe-implement-3-YV1IQe && cargo test 2>&1 | grep -E "^test result|FAILED" | head -40

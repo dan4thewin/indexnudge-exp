@@ -1,0 +1,54 @@
+Output tokens: 9717
+Tool calls: 32 | Navigation: 20
+  DB structural: 4
+  DB lines:      4
+  DB other:      0
+  Shim hit:      0
+  Shim fallthru: 3
+  Shim evasion:  0
+  Native view:   9
+  Native grep:   0
+  Native glob:   0
+Scores:
+  db_ratio:         0.4
+  native_ratio:     0.45
+  structural_ratio: 0.235
+  evasion_ratio:    0.0
+  line_ratio:       0.2
+  nav_ratio:        0.625
+
+Categories: {'meta_tool': 2, 'direct_db_structural': 4, 'direct_db_lines': 4, 'native_view': 9, 'other': 1, 'mutation': 4, 'shim_fallthrough': 3, 'build_test': 5}
+
+Commands:
+  [meta_tool             ] report_intent
+  [direct_db_structural  ] cd /tmp/copilot-bench-iwe-implement-2-LZKsSS && ls && sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files ORDER B
+  [direct_db_structural  ] cd /tmp/copilot-bench-iwe-implement-2-LZKsSS && sqlite3 .indexnudge-rust.db "SELECT name, kind, start_line, end_line FRO
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-implement-2-LZKsSS && sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines W
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-implement-2-LZKsSS && sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines W
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-implement-2-LZKsSS && sqlite3 -separator '|' .indexnudge-rust.db "SELECT line_num, content FRO
+  [direct_db_structural  ] cd /tmp/copilot-bench-iwe-implement-2-LZKsSS && sqlite3 .indexnudge-rust.db "SELECT file FROM files WHERE file LIKE '%fi
+  [direct_db_structural  ] cd /tmp/copilot-bench-iwe-implement-2-LZKsSS && sqlite3 .indexnudge-rust.db "SELECT name, kind, start_line, end_line FRO
+  [native_view           ] view /tmp/copilot-bench-iwe-implement-2-LZKsSS/crates/liwe/src/find.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-implement-2-LZKsSS/crates/iwe/tests/find_test.rs
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-implement-2-LZKsSS && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE f
+  [other                 ] cd /tmp/copilot-bench-iwe-implement-2-LZKsSS && ls crates/iwe/help/find/
+  [native_view           ] view /tmp/copilot-bench-iwe-implement-2-LZKsSS/crates/iwe/help/find/after_help.txt
+  [native_view           ] view /tmp/copilot-bench-iwe-implement-2-LZKsSS/crates/iwe/help/find/long_about.txt
+  [native_view           ] view /tmp/copilot-bench-iwe-implement-2-LZKsSS/crates/iwec/tests/find_test.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-implement-2-LZKsSS/crates/iwe/tests/find_test.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-implement-2-LZKsSS/crates/iwe/tests/find_test.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-implement-2-LZKsSS/crates/iwe/src/main.rs
+  [meta_tool             ] report_intent
+  [mutation              ] edit /tmp/copilot-bench-iwe-implement-2-LZKsSS/crates/iwe/src/main.rs
+  [mutation              ] edit /tmp/copilot-bench-iwe-implement-2-LZKsSS/crates/iwe/src/main.rs
+  [mutation              ] edit /tmp/copilot-bench-iwe-implement-2-LZKsSS/crates/iwe/help/find/after_help.txt
+  [native_view           ] view /tmp/copilot-bench-iwe-implement-2-LZKsSS/crates/iwe/tests/find_test.rs
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-implement-2-LZKsSS && grep -n "test_find_meta\|--meta" crates/iwe/tests/find_test.rs | head -2
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-implement-2-LZKsSS && grep -rn "meta_filter\|metadata_filters" crates/iwe/src/ | head
+  [mutation              ] edit /tmp/copilot-bench-iwe-implement-2-LZKsSS/crates/iwe/tests/find_test.rs
+  [build_test            ] cd /tmp/copilot-bench-iwe-implement-2-LZKsSS && cargo build 2>&1 | tail -30
+  [build_test            ] cd /tmp/copilot-bench-iwe-implement-2-LZKsSS && cargo test --test find_test 2>&1 | tail -50
+  [build_test            ] cd /tmp/copilot-bench-iwe-implement-2-LZKsSS && cargo test 2>&1 | tail -80
+  [build_test            ] cd /tmp/copilot-bench-iwe-implement-2-LZKsSS && cargo test 2>&1 | grep -E "^(test result|failures|error)" | head -40
+  [build_test            ] cd /tmp/copilot-bench-iwe-implement-2-LZKsSS && cargo test 2>&1 | grep -cE "^test result: ok" && cd /tmp/copilot-bench-i
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-implement-2-LZKsSS && ./target/debug/iwe find --help 2>&1 | head -40

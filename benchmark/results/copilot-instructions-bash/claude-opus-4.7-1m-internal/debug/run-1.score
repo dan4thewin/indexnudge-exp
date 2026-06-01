@@ -1,0 +1,49 @@
+Output tokens: 7787
+Tool calls: 24 | Navigation: 12
+  DB structural: 3
+  DB lines:      1
+  DB other:      0
+  Shim hit:      0
+  Shim fallthru: 8
+  Shim evasion:  0
+  Native view:   0
+  Native grep:   0
+  Native glob:   0
+Scores:
+  db_ratio:         0.333
+  native_ratio:     0.0
+  structural_ratio: 0.75
+  evasion_ratio:    0.0
+  line_ratio:       0.083
+  nav_ratio:        0.5
+
+Categories: {'direct_db_structural': 3, 'shim_fallthrough': 8, 'direct_db_lines': 1, 'build_test': 9, 'mutation': 2, 'other': 1}
+
+Commands:
+  [direct_db_structural  ] cd /tmp/copilot-bench-iwe-debug-1-RNja2s && ls && sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files ORDER BY fi
+  [direct_db_structural  ] cd /tmp/copilot-bench-iwe-debug-1-RNja2s && sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files WHERE file LIKE '
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-1-RNja2s && cat BARE_FRONTMATTER_SPEC.md | head -100
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-1-RNja2s && cat crates/liwe/src/find.rs
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-1-RNja2s && cat crates/liwe/tests/bare_frontmatter_test.rs
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-1-RNja2s && cat crates/liwe/tests/find_metadata_test.rs
+  [direct_db_structural  ] cd /tmp/copilot-bench-iwe-debug-1-RNja2s && sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files WHERE file LIKE '
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-debug-1-RNja2s && sqlite3 .indexnudge-rust.db "SELECT * FROM lines_fts WHERE content MATCH 'ba
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-1-RNja2s && cat crates/liwe/src/markdown.rs
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-1-RNja2s && cat crates/liwe/src/markdown/writer.rs | head -80
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-1-RNja2s && cargo build --tests 2>&1 | tail -5
+  [mutation              ] create /tmp/copilot-bench-iwe-debug-1-RNja2s/crates/liwe/tests/repro_bare_meta.rs
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-1-RNja2s && cargo test -p liwe --test repro_bare_meta -- --nocapture 2>&1 | tail -30
+  [mutation              ] edit /tmp/copilot-bench-iwe-debug-1-RNja2s/crates/liwe/src/markdown.rs
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-1-RNja2s && cargo test -p liwe --test repro_bare_meta -- --nocapture 2>&1 | tail -15
+  [other                 ] cd /tmp/copilot-bench-iwe-debug-1-RNja2s && rm crates/liwe/tests/repro_bare_meta.rs
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-1-RNja2s && tail -5 crates/liwe/tests/find_metadata_test.rs
+  [shim_fallthrough      ] cat >> /tmp/copilot-bench-iwe-debug-1-RNja2s/crates/liwe/tests/find_metadata_test.rs << 'EOF'
+
+#[test]
+fn bare_frontmatt
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-1-RNja2s && cargo test -p liwe 2>&1 | tail -40
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-1-RNja2s && cargo test -p liwe 2>&1 | grep -E "(FAIL|failed|test result)" | tail -40
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-1-RNja2s && cargo test 2>&1 | grep -E "(FAILED|test result:|error\[|warning: unused)" | 
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-1-RNja2s && cargo test 2>&1 | grep -B2 -A30 "transform_action_with_static_output"
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-1-RNja2s && cargo test 2>&1 | tail -3
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-1-RNja2s && cargo test 2>&1 | grep -E "(FAILED|^failures:|error\[)" | head -20

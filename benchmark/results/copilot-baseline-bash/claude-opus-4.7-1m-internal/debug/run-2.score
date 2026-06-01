@@ -1,0 +1,63 @@
+Output tokens: 8057
+Tool calls: 32 | Navigation: 18
+  DB structural: 0
+  DB lines:      0
+  DB other:      0
+  Shim hit:      0
+  Shim fallthru: 18
+  Shim evasion:  0
+  Native view:   0
+  Native grep:   0
+  Native glob:   0
+Scores:
+  db_ratio:         0.0
+  native_ratio:     0.0
+  structural_ratio: 0
+  evasion_ratio:    0.0
+  line_ratio:       0.0
+  nav_ratio:        0.562
+
+Categories: {'other': 4, 'shim_fallthrough': 18, 'git': 6, 'mutation': 1, 'build_test': 3}
+
+Commands:
+  [other                 ] cd /tmp/copilot-bench-iwe-debug-2-CegM0R && ls -la
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-2-CegM0R && cat BARE_FRONTMATTER_SPEC.md
+  [other                 ] cd /tmp/copilot-bench-iwe-debug-2-CegM0R && ls crates/
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-2-CegM0R && grep -r "meta" crates/iwe/src/ --include="*.rs" -l 2>/dev/null | head -20
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-2-CegM0R && grep -n "meta\|find\|depends" crates/iwe/src/main.rs | head -40
+  [other                 ] cd /tmp/copilot-bench-iwe-debug-2-CegM0R && ls crates/iwe/src/
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-2-CegM0R && grep -rn "DocumentFinder\|FindOptions" crates/ --include="*.rs" -l
+  [other                 ] cd /tmp/copilot-bench-iwe-debug-2-CegM0R && wc -l crates/liwe/src/find.rs crates/liwe/tests/find_metadata_test.rs
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-2-CegM0R && cat crates/liwe/src/find.rs
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-2-CegM0R && cat crates/liwe/tests/find_metadata_test.rs
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-2-CegM0R && grep -rn "bare_frontmatter\|bare frontmatter" crates/ --include="*.rs" -l
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-2-CegM0R && cat crates/liwe/tests/bare_frontmatter_test.rs
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-2-CegM0R && cat crates/liwe/src/markdown.rs | head -100
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-2-CegM0R && grep -n "starts_with" crates/liwe/src/markdown.rs
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-2-CegM0R && git log --oneline -20
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-2-CegM0R && grep -n "bare_frontmatter\|metadata" crates/liwe/src/markdown/writer.rs | he
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-2-CegM0R && sed -n '1,80p' crates/liwe/src/markdown/writer.rs
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-2-CegM0R && cat > /tmp/repro.rs <<'EOF'
+// quick test logic
+fn main() {
+    let content 
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-2-CegM0R && git log --all --oneline -- crates/liwe/src/markdown.rs | head -20
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-2-CegM0R && git show 5607c85 -- crates/liwe/src/markdown.rs | head -80
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-2-CegM0R && git status
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-2-CegM0R && git diff crates/liwe/src/markdown.rs
+  [mutation              ] edit /tmp/copilot-bench-iwe-debug-2-CegM0R/crates/liwe/src/markdown.rs
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-2-CegM0R && tail -30 crates/liwe/tests/find_metadata_test.rs
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-2-CegM0R && cat >> crates/liwe/tests/bare_frontmatter_test.rs <<'EOF'
+
+#[test]
+fn bare_f
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-2-CegM0R && grep -n "get_metadata\|pub fn keys" crates/liwe/src/graph/mod.rs crates/liwe
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-2-CegM0R && cat >> crates/liwe/tests/find_metadata_test.rs <<'EOF'
+
+#[test]
+fn filters_b
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-2-CegM0R && cargo test -p liwe --test bare_frontmatter_test --test find_metadata_test 2>
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-2-CegM0R && cargo test --workspace 2>&1 | tail -80
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-2-CegM0R && cargo test --workspace 2>&1 | grep -E "^test result|FAIL" | tail -40
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-2-CegM0R && git --no-pager diff --stat && echo "---" && git --no-pager diff crates/liwe/
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-2-CegM0R && sed -n '40,65p' crates/liwe/src/markdown.rs

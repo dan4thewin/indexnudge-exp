@@ -1,0 +1,48 @@
+Output tokens: 6232
+Tool calls: 26 | Navigation: 14
+  DB structural: 0
+  DB lines:      0
+  DB other:      0
+  Shim hit:      0
+  Shim fallthru: 14
+  Shim evasion:  0
+  Native view:   0
+  Native grep:   0
+  Native glob:   0
+Scores:
+  db_ratio:         0.0
+  native_ratio:     0.0
+  structural_ratio: 0
+  evasion_ratio:    0.0
+  line_ratio:       0.0
+  nav_ratio:        0.538
+
+Categories: {'shim_fallthrough': 14, 'other': 4, 'build_test': 5, 'mutation': 3}
+
+Commands:
+  [shim_fallthrough      ] find /tmp/copilot-bench-iwe-implement-2-b3vfpE -type f -name "*.md" | head -5 && echo "---" && ls /tmp/copilot-bench-iwe
+  [other                 ] ls /tmp/copilot-bench-iwe-implement-2-b3vfpE/crates
+  [shim_fallthrough      ] grep -r "find" /tmp/copilot-bench-iwe-implement-2-b3vfpE/crates/iwe/src --include="*.rs" -l 2>/dev/null | head -20
+  [other                 ] ls /tmp/copilot-bench-iwe-implement-2-b3vfpE/crates/iwe/src/
+  [shim_fallthrough      ] grep -n "Find\|find" /tmp/copilot-bench-iwe-implement-2-b3vfpE/crates/iwe/src/main.rs | head -40
+  [shim_fallthrough      ] sed -n '120,220p' /tmp/copilot-bench-iwe-implement-2-b3vfpE/crates/iwe/src/main.rs
+  [shim_fallthrough      ] sed -n '655,720p' /tmp/copilot-bench-iwe-implement-2-b3vfpE/crates/iwe/src/main.rs
+  [shim_fallthrough      ] grep -rn "pub struct FindOptions\|pub struct FindOutput\|impl DocumentFinder" /tmp/copilot-bench-iwe-implement-2-b3vfpE/
+  [shim_fallthrough      ] grep -rn "FindOptions\|FindOutput\|DocumentFinder" /tmp/copilot-bench-iwe-implement-2-b3vfpE/crates/ --include="*.rs"
+  [shim_fallthrough      ] sed -n '1,140p' /tmp/copilot-bench-iwe-implement-2-b3vfpE/crates/liwe/src/find.rs
+  [shim_fallthrough      ] grep -n "find" /tmp/copilot-bench-iwe-implement-2-b3vfpE/crates/iwe/src/help.rs | head -10
+  [shim_fallthrough      ] ls /tmp/copilot-bench-iwe-implement-2-b3vfpE/crates/iwe/help/find/ && echo "---" && cat /tmp/copilot-bench-iwe-implement
+  [shim_fallthrough      ] cat /tmp/copilot-bench-iwe-implement-2-b3vfpE/crates/iwe/help/find/long_about.txt
+  [shim_fallthrough      ] sed -n '100,140p' /tmp/copilot-bench-iwe-implement-2-b3vfpE/crates/iwec/src/lib.rs
+  [build_test            ] cd /tmp/copilot-bench-iwe-implement-2-b3vfpE && cargo build 2>&1 | tail -10
+  [mutation              ] edit /tmp/copilot-bench-iwe-implement-2-b3vfpE/crates/iwe/src/main.rs
+  [mutation              ] edit /tmp/copilot-bench-iwe-implement-2-b3vfpE/crates/iwe/src/main.rs
+  [shim_fallthrough      ] cat /tmp/copilot-bench-iwe-implement-2-b3vfpE/crates/iwe/src/selector.rs
+  [build_test            ] cd /tmp/copilot-bench-iwe-implement-2-b3vfpE && cargo build 2>&1 | tail -15
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-implement-2-b3vfpE && ./target/debug/iwe find --help 2>&1 | head -40
+  [other                 ] cd /tmp && mkdir -p test-iwe-count && cd test-iwe-count && /tmp/copilot-bench-iwe-implement-2-b3vfpE/target/debug/iwe in
+  [other                 ] cd /tmp/test-iwe-count && /tmp/copilot-bench-iwe-implement-2-b3vfpE/target/debug/iwe find --count --roots 2>&1 && echo "
+  [build_test            ] rm -rf /tmp/test-iwe-count && cd /tmp/copilot-bench-iwe-implement-2-b3vfpE && cargo test 2>&1 | tail -40
+  [build_test            ] cd /tmp/copilot-bench-iwe-implement-2-b3vfpE && cargo test 2>&1 | grep -E "test result|FAILED|error" | head -30
+  [mutation              ] edit /tmp/copilot-bench-iwe-implement-2-b3vfpE/crates/iwe/help/find/after_help.txt
+  [build_test            ] cd /tmp/copilot-bench-iwe-implement-2-b3vfpE && cargo build 2>&1 | tail -5

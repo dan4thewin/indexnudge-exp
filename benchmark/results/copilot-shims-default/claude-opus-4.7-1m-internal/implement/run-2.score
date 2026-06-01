@@ -1,0 +1,55 @@
+Output tokens: 9131
+Tool calls: 33 | Navigation: 20
+  DB structural: 2
+  DB lines:      6
+  DB other:      1
+  Shim hit:      1
+  Shim fallthru: 2
+  Shim evasion:  0
+  Native view:   8
+  Native grep:   0
+  Native glob:   0
+Scores:
+  db_ratio:         0.5
+  native_ratio:     0.4
+  structural_ratio: 0.125
+  evasion_ratio:    0.0
+  line_ratio:       0.3
+  nav_ratio:        0.606
+
+Categories: {'meta_tool': 1, 'direct_db_other': 1, 'direct_db_lines': 6, 'direct_db_structural': 2, 'shim_hit': 1, 'other': 1, 'native_view': 8, 'mutation': 4, 'build_test': 7, 'shim_fallthrough': 2}
+
+Commands:
+  [meta_tool             ] report_intent
+  [direct_db_other       ] cd /tmp/copilot-bench-iwe-implement-2-DxTI7H && ls && sqlite3 .indexnudge-rust.db ".schema" 2>&1 | head -100
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-implement-2-DxTI7H && sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines_f
+  [direct_db_structural  ] cd /tmp/copilot-bench-iwe-implement-2-DxTI7H && sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files WHERE file LI
+  [direct_db_structural  ] cd /tmp/copilot-bench-iwe-implement-2-DxTI7H && sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files WHERE file LI
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-implement-2-DxTI7H && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE f
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-implement-2-DxTI7H && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE f
+  [shim_hit              ] cd /tmp/copilot-bench-iwe-implement-2-DxTI7H && grep -n "find_command" crates/iwe/src/main.rs | head -5
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-implement-2-DxTI7H && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE f
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-implement-2-DxTI7H && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE f
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-implement-2-DxTI7H && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE f
+  [other                 ] cd /tmp/copilot-bench-iwe-implement-2-DxTI7H && ls crates/iwe/help/find/
+  [native_view           ] view /tmp/copilot-bench-iwe-implement-2-DxTI7H/crates/iwe/help/find/after_help.txt
+  [native_view           ] view /tmp/copilot-bench-iwe-implement-2-DxTI7H/crates/iwe/help/find/long_about.txt
+  [native_view           ] view /tmp/copilot-bench-iwe-implement-2-DxTI7H/crates/iwe/tests/find_test.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-implement-2-DxTI7H/crates/iwe/tests/find_test.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-implement-2-DxTI7H/crates/iwe/tests/find_test.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-implement-2-DxTI7H/crates/liwe/src/find.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-implement-2-DxTI7H/crates/iwe/src/main.rs
+  [mutation              ] edit /tmp/copilot-bench-iwe-implement-2-DxTI7H/crates/iwe/src/main.rs
+  [mutation              ] edit /tmp/copilot-bench-iwe-implement-2-DxTI7H/crates/iwe/src/main.rs
+  [mutation              ] edit /tmp/copilot-bench-iwe-implement-2-DxTI7H/crates/iwe/help/find/after_help.txt
+  [native_view           ] view /tmp/copilot-bench-iwe-implement-2-DxTI7H/crates/iwe/tests/find_test.rs
+  [mutation              ] edit /tmp/copilot-bench-iwe-implement-2-DxTI7H/crates/iwe/tests/find_test.rs
+  [build_test            ] cd /tmp/copilot-bench-iwe-implement-2-DxTI7H && cargo build 2>&1 | tail -30
+  [build_test            ] cd /tmp/copilot-bench-iwe-implement-2-DxTI7H && cargo test -p iwe --test find_test 2>&1 | tail -50
+  [build_test            ] cd /tmp/copilot-bench-iwe-implement-2-DxTI7H && cargo test 2>&1 | tail -80
+  [build_test            ] cd /tmp/copilot-bench-iwe-implement-2-DxTI7H && cargo test 2>&1 | grep -E "^test result" | sort | uniq -c
+  [build_test            ] cd /tmp/copilot-bench-iwe-implement-2-DxTI7H && cargo test 2>&1 | grep -E "FAILED|^failures:|^---- " | head -30
+  [build_test            ] cd /tmp/copilot-bench-iwe-implement-2-DxTI7H && cargo test 2>&1 | grep -E "FAIL|failed|---" | head -40
+  [build_test            ] cd /tmp/copilot-bench-iwe-implement-2-DxTI7H && cargo test 2>&1 | grep -E "test result:" | awk '{passed += $4; failed +=
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-implement-2-DxTI7H && ./target/debug/iwe find --help 2>&1 | tail -30
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-implement-2-DxTI7H && ./target/debug/iwe find --help 2>&1 | grep -A2 "count"

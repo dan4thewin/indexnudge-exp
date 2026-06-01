@@ -1,0 +1,84 @@
+Output tokens: 10917
+Tool calls: 37 | Navigation: 22
+  DB structural: 3
+  DB lines:      12
+  DB other:      1
+  Shim hit:      2
+  Shim fallthru: 4
+  Shim evasion:  0
+  Native view:   0
+  Native grep:   0
+  Native glob:   0
+Scores:
+  db_ratio:         0.818
+  native_ratio:     0.0
+  structural_ratio: 0.2
+  evasion_ratio:    0.0
+  line_ratio:       0.545
+  nav_ratio:        0.595
+
+Categories: {'direct_db_other': 1, 'direct_db_structural': 3, 'direct_db_lines': 12, 'shim_fallthrough': 4, 'shim_hit': 2, 'other': 3, 'build_test': 6, 'mutation': 6}
+
+Commands:
+  [direct_db_other       ] cd /tmp/copilot-bench-iwe-implement-2-9jTv6X && sqlite3 .indexnudge-rust.db ".schema" | head -100
+  [direct_db_structural  ] cd /tmp/copilot-bench-iwe-implement-2-9jTv6X && sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files WHERE file LI
+  [direct_db_structural  ] cd /tmp/copilot-bench-iwe-implement-2-9jTv6X && sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files WHERE file LI
+  [direct_db_structural  ] cd /tmp/copilot-bench-iwe-implement-2-9jTv6X && sqlite3 .indexnudge-rust.db "SELECT name, kind, file, start_line, end_li
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-implement-2-9jTv6X && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE f
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-implement-2-9jTv6X && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE f
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-implement-2-9jTv6X && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE f
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-implement-2-9jTv6X && ls crates/iwe/help/find/ && cat crates/iwe/help/find/about.txt && echo "
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-implement-2-9jTv6X && cat crates/iwe/help/find/after_help.txt
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-implement-2-9jTv6X && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE f
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-implement-2-9jTv6X && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE f
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-implement-2-9jTv6X && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE f
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-implement-2-9jTv6X && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE f
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-implement-2-9jTv6X && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE f
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-implement-2-9jTv6X && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE f
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-implement-2-9jTv6X && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE f
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-implement-2-9jTv6X && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE f
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-implement-2-9jTv6X && sqlite3 -separator " | " .indexnudge-rust.db "SELECT line_num, content F
+  [shim_hit              ] cd /tmp/copilot-bench-iwe-implement-2-9jTv6X && head -60 crates/iwe/src/selector.rs
+  [other                 ] cd /tmp/copilot-bench-iwe-implement-2-9jTv6X && ls crates/iwe/tests/
+  [build_test            ] cd /tmp/copilot-bench-iwe-implement-2-9jTv6X && cargo build 2>&1 | tail -20
+  [mutation              ] cd /tmp/copilot-bench-iwe-implement-2-9jTv6X && cat > /tmp/edit1.ed <<'EOF'
+156a
+
+    #[clap(long, help = "Print only th
+  [mutation              ] cd /tmp/copilot-bench-iwe-implement-2-9jTv6X && cat > /tmp/edit_fix.ed <<'EOF'
+156,159c
+
+    #[clap(long, help = "Print 
+  [shim_hit              ] cd /tmp/copilot-bench-iwe-implement-2-9jTv6X && sed -n '676,696p' crates/iwe/src/main.rs
+  [mutation              ] cd /tmp/copilot-bench-iwe-implement-2-9jTv6X && cat > /tmp/edit_cmd.ed <<'EOF'
+679a
+
+    if args.count {
+        println
+  [mutation              ] cd /tmp/copilot-bench-iwe-implement-2-9jTv6X && cat > /tmp/edit_cmd2.ed <<'EOF'
+685,686c
+
+.
+w
+q
+EOF
+ed -s crates/iwe/src
+  [mutation              ] cd /tmp/copilot-bench-iwe-implement-2-9jTv6X && cat > /tmp/edit_help.ed <<'EOF'
+$a
+
+COUNT MODE (--count):
+  Print only t
+  [build_test            ] cd /tmp/copilot-bench-iwe-implement-2-9jTv6X && cargo build 2>&1 | tail -10
+  [other                 ] cd /tmp/copilot-bench-iwe-implement-2-9jTv6X && wc -l crates/iwe/tests/find_test.rs
+  [mutation              ] cd /tmp/copilot-bench-iwe-implement-2-9jTv6X && cat > /tmp/edit_tests.ed <<'EOF'
+$a
+
+#[test]
+fn test_find_count_basic() 
+  [build_test            ] cd /tmp/copilot-bench-iwe-implement-2-9jTv6X && cargo test -p iwe --test find_test 2>&1 | tail -50
+  [build_test            ] cd /tmp/copilot-bench-iwe-implement-2-9jTv6X && cargo test 2>&1 | tail -80
+  [build_test            ] cd /tmp/copilot-bench-iwe-implement-2-9jTv6X && cargo test 2>&1 | grep -E "^test result|FAILED|error" | head -40
+  [build_test            ] cd /tmp/copilot-bench-iwe-implement-2-9jTv6X && cargo test 2>&1 | grep -E "FAILED|^error" | head -10
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-implement-2-9jTv6X && ./target/debug/iwe find --help 2>&1 | head -40
+  [shim_fallthrough      ] cd /tmp && rm -rf /tmp/iwe-count-test && mkdir -p /tmp/iwe-count-test/.iwe && cd /tmp/iwe-count-test && echo "[markdown]
+  [other                 ] rm -f /tmp/edit1.ed /tmp/edit_fix.ed /tmp/edit_cmd.ed /tmp/edit_cmd2.ed /tmp/edit_help.ed /tmp/edit_tests.ed

@@ -1,0 +1,92 @@
+Output tokens: 25008
+Tool calls: 67 | Navigation: 29
+  DB structural: 6
+  DB lines:      3
+  DB other:      2
+  Shim hit:      0
+  Shim fallthru: 6
+  Shim evasion:  0
+  Native view:   12
+  Native grep:   0
+  Native glob:   0
+Scores:
+  db_ratio:         0.379
+  native_ratio:     0.414
+  structural_ratio: 0.286
+  evasion_ratio:    0.0
+  line_ratio:       0.103
+  nav_ratio:        0.433
+
+Categories: {'meta_tool': 1, 'other': 3, 'shim_fallthrough': 6, 'direct_db_other': 2, 'direct_db_structural': 6, 'direct_db_lines': 3, 'native_view': 12, 'git': 21, 'build_test': 9, 'mutation': 4}
+
+Commands:
+  [meta_tool             ] report_intent
+  [other                 ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && ls -la
+  [other                 ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && ls crates/
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && cat BARE_FRONTMATTER_SPEC.md
+  [direct_db_other       ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && sqlite3 .indexnudge-rust.db "SELECT name FROM sqlite_master WHERE type='tabl
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && ls crates/iwe/src crates/liwe/src crates/iwec/src crates/iwes/src 2>&1 | hea
+  [direct_db_structural  ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files WHERE file LIKE '
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && sqlite3 .indexnudge-rust.db "SELECT * FROM lines_fts WHERE content MATCH '\"
+  [direct_db_other       ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && sqlite3 .indexnudge-rust.db ".schema files" ".schema lines"
+  [direct_db_structural  ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files WHERE file LIKE '
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-37j3Zg/crates/liwe/src/find.rs
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines_fts W
+  [direct_db_structural  ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && sqlite3 .indexnudge-rust.db "SELECT name, file, start_line, end_line FROM sy
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-37j3Zg/crates/liwe/src/graph.rs
+  [direct_db_structural  ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && sqlite3 .indexnudge-rust.db "SELECT name, file, start_line, end_line FROM sy
+  [direct_db_structural  ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && sqlite3 .indexnudge-rust.db "SELECT name, kind, file, start_line, end_line F
+  [direct_db_structural  ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && sqlite3 .indexnudge-rust.db "SELECT name, file, start_line, end_line FROM sy
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-37j3Zg/crates/liwe/src/markdown/reader.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-37j3Zg/crates/liwe/src/markdown/reader.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-37j3Zg/crates/liwe/src/markdown.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-37j3Zg/crates/liwe/tests/find_metadata_test.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-37j3Zg/crates/liwe/tests/bare_frontmatter_test.rs
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && git log --oneline -10
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && git log --oneline -20 crates/liwe/src/markdown.rs
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && grep -rn "bare_frontmatter\|wrap_bare" --include="*.rs" | head -30
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && grep -n "depends\|meta" crates/iwe/tests/find_test.rs | head -40
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && grep -n "meta" crates/iwe/src/*.rs | head -40
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-37j3Zg/crates/iwe/src/main.rs
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && cargo build 2>&1 | tail -20
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && cargo test -p liwe 2>&1 | tail -30
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && cargo test 2>&1 | tail -5
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-37j3Zg/crates/liwe/src/markdown.rs
+  [mutation              ] edit /tmp/copilot-bench-iwe-debug-3-37j3Zg/crates/liwe/src/markdown.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-37j3Zg/crates/liwe/tests/bare_frontmatter_test.rs
+  [other                 ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && wc -l crates/liwe/tests/bare_frontmatter_test.rs
+  [mutation              ] edit /tmp/copilot-bench-iwe-debug-3-37j3Zg/crates/liwe/tests/bare_frontmatter_test.rs
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && cat >> crates/liwe/tests/bare_frontmatter_test.rs <<'EOF'
+
+#[test]
+fn bare_f
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && cargo test -p liwe --test bare_frontmatter_test 2>&1 | tail -40
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && git stash && cargo test -p liwe --test bare_frontmatter_test bare_frontmatte
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && git diff crates/liwe/src/markdown.rs
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && git stash push -- crates/liwe/src/markdown.rs && cargo test -p liwe --test b
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-37j3Zg/crates/liwe/src/markdown.rs
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && git status && echo "----DIFF----" && git diff crates/liwe/src/markdown.rs
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && git show HEAD:crates/liwe/src/markdown.rs | sed -n '40,70p'
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && git show HEAD --stat | head -20
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && git log --oneline -3 crates/liwe/src/markdown.rs
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file=
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && git show HEAD:crates/liwe/src/markdown.rs | wc -l && wc -l crates/liwe/src/m
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && diff <(git show HEAD:crates/liwe/src/markdown.rs) crates/liwe/src/markdown.r
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && git reflog | head -10
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && git stash list
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && git log --all --source --remotes --pretty=oneline crates/liwe/src/markdown.r
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && git hash-object crates/liwe/src/markdown.rs && git ls-tree HEAD -- crates/li
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && git cat-file -p HEAD:crates/liwe/src/markdown.rs | head -75 | tail -40
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && git stash list && echo "---" && git fsck --lost-found 2>&1 | head -20
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && git show --stat 7b1967f5932b14187336ca15ac6a88597d12e762 2>&1 | head -30
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && git show --stat f167a181e9b7ee80db39104ebeedbbffaeade026 2>&1 | head -30 && 
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && git cat-file -p 5607c85:crates/liwe/src/markdown.rs | sed -n '40,65p'
+  [mutation              ] edit /tmp/copilot-bench-iwe-debug-3-37j3Zg/crates/liwe/src/markdown.rs
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && cargo test -p liwe --test bare_frontmatter_test 2>&1 | tail -25
+  [mutation              ] edit /tmp/copilot-bench-iwe-debug-3-37j3Zg/crates/liwe/src/markdown.rs
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && cargo test 2>&1 | tail -80
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && cargo test 2>&1 | grep -E "^test result:" | sort | uniq -c
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && git diff --stat && echo "---" && git diff crates/liwe/src/markdown.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-37j3Zg/crates/liwe/src/markdown.rs
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && git diff --cached && echo "---NO STAGED---" && git ls-files -s crates/liwe/s
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-37j3Zg && git diff --stat HEAD && echo "---" && git status --short

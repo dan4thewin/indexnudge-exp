@@ -1,0 +1,58 @@
+Output tokens: 7693
+Tool calls: 29 | Navigation: 17
+  DB structural: 5
+  DB lines:      6
+  DB other:      0
+  Shim hit:      2
+  Shim fallthru: 4
+  Shim evasion:  0
+  Native view:   0
+  Native grep:   0
+  Native glob:   0
+Scores:
+  db_ratio:         0.765
+  native_ratio:     0.0
+  structural_ratio: 0.455
+  evasion_ratio:    0.0
+  line_ratio:       0.353
+  nav_ratio:        0.586
+
+Categories: {'direct_db_structural': 5, 'shim_fallthrough': 4, 'direct_db_lines': 6, 'shim_hit': 2, 'build_test': 8, 'git': 4}
+
+Commands:
+  [direct_db_structural  ] cd /tmp/copilot-bench-iwe-debug-1-in6uf6 && ls && sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files ORDER BY fi
+  [direct_db_structural  ] cd /tmp/copilot-bench-iwe-debug-1-in6uf6 && sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files WHERE file LIKE '
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-1-in6uf6 && cat BARE_FRONTMATTER_SPEC.md | head -80
+  [direct_db_structural  ] cd /tmp/copilot-bench-iwe-debug-1-in6uf6 && sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files WHERE file LIKE '
+  [direct_db_structural  ] cd /tmp/copilot-bench-iwe-debug-1-in6uf6 && sqlite3 .indexnudge-rust.db "SELECT name, kind, file, start_line, end_line F
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-debug-1-in6uf6 && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file=
+  [shim_hit              ] cd /tmp/copilot-bench-iwe-debug-1-in6uf6 && cat crates/liwe/tests/bare_frontmatter_test.rs
+  [shim_hit              ] cd /tmp/copilot-bench-iwe-debug-1-in6uf6 && cat crates/liwe/tests/find_metadata_test.rs
+  [direct_db_structural  ] cd /tmp/copilot-bench-iwe-debug-1-in6uf6 && sqlite3 .indexnudge-rust.db "SELECT name, kind, start_line, end_line FROM sy
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-debug-1-in6uf6 && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file=
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-debug-1-in6uf6 && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file=
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-debug-1-in6uf6 && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file=
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-1-in6uf6 && cargo build 2>&1 | tail -5
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-1-in6uf6 && cat > /tmp/test_bug.rs << 'EOF'
+use liwe::markdown::wrap_bare_frontmatter;
+
+
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-1-in6uf6/crates/liwe && mkdir -p examples && cat > examples/bug_repro.rs << 'EOF'
+use li
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-1-in6uf6 && cargo run -p liwe --example bug_repro 2>&1 | tail -20
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-1-in6uf6 && git --no-pager log --oneline -- crates/liwe/src/markdown.rs | head -10
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-1-in6uf6 && git --no-pager show 5607c85 -- crates/liwe/src/markdown.rs | head -100
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-1-in6uf6 && git --no-pager status && echo "----" && git --no-pager diff crates/liwe/src/
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-debug-1-in6uf6 && git checkout crates/liwe/src/markdown.rs && sqlite3 .indexnudge-rust.db "SEL
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-1-in6uf6 && cargo run -p liwe --example bug_repro 2>&1 | tail -15
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-debug-1-in6uf6 && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file=
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-1-in6uf6 && cat >> crates/liwe/tests/find_metadata_test.rs << 'EOF'
+
+#[test]
+fn bare_fro
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-1-in6uf6 && rm -rf crates/liwe/examples && cargo test -p liwe 2>&1 | tail -40
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-1-in6uf6 && cargo test -p liwe 2>&1 | grep -E "^(test result|running)" | tail -30
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-1-in6uf6 && cargo test -p liwe --test find_metadata_test 2>&1 | tail -15
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-1-in6uf6 && cargo test 2>&1 | tail -5
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-1-in6uf6 && cargo test 2>&1 | grep -E "test result:" | awk '{passed+=$4; failed+=$6} END
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-1-in6uf6 && git --no-pager diff && echo "---STATUS---" && git --no-pager status

@@ -1,0 +1,83 @@
+Output tokens: 10989
+Tool calls: 36 | Navigation: 13
+  DB structural: 2
+  DB lines:      2
+  DB other:      0
+  Shim hit:      0
+  Shim fallthru: 1
+  Shim evasion:  0
+  Native view:   8
+  Native grep:   0
+  Native glob:   0
+Scores:
+  db_ratio:         0.308
+  native_ratio:     0.615
+  structural_ratio: 0.167
+  evasion_ratio:    0.0
+  line_ratio:       0.154
+  nav_ratio:        0.361
+
+Categories: {'meta_tool': 1, 'direct_db_structural': 2, 'native_view': 8, 'direct_db_lines': 2, 'shim_fallthrough': 1, 'git': 5, 'mutation': 5, 'build_test': 11, 'other': 1}
+
+Commands:
+  [meta_tool             ] report_intent
+  [direct_db_structural  ] cd /tmp/copilot-bench-iwe-debug-2-RtWxoo && ls && sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files ORDER BY fi
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-2-RtWxoo/BARE_FRONTMATTER_SPEC.md
+  [direct_db_structural  ] cd /tmp/copilot-bench-iwe-debug-2-RtWxoo && sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files WHERE file LIKE '
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-2-RtWxoo/crates/liwe/src/markdown/reader.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-2-RtWxoo/crates/liwe/src/find.rs
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-debug-2-RtWxoo && sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines_fts W
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-2-RtWxoo/crates/liwe/src/markdown.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-2-RtWxoo/crates/liwe/tests/bare_frontmatter_test.rs
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-debug-2-RtWxoo && sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines_fts W
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-2-RtWxoo && cat > /tmp/repro.rs << 'EOF'
+fn main() {
+    let content = "title: Task\ndep
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-2-RtWxoo && git log --oneline crates/liwe/src/markdown.rs | head -10 && echo "---" && gi
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-2-RtWxoo && git log --all --oneline -- crates/liwe/src/markdown.rs && echo "---" && git 
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-2-RtWxoo && git status crates/liwe/src/markdown.rs && echo "---" && git diff crates/liwe
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-2-RtWxoo/crates/liwe/src/markdown.rs
+  [mutation              ] cd /tmp/copilot-bench-iwe-debug-2-RtWxoo && ed -s crates/liwe/src/markdown.rs << 'EOF'
+50,64c
+    if rest.is_empty() {
+ 
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-2-RtWxoo/crates/liwe/tests/find_metadata_test.rs
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-2-RtWxoo && cargo build -p liwe 2>&1 | tail -20
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-2-RtWxoo && cargo test -p liwe --tests 2>&1 | tail -40
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-2-RtWxoo && cargo test -p liwe --tests 2>&1 | grep -E "^(test result|failures:|FAILED)" 
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-2-RtWxoo/crates/liwe/tests/bare_frontmatter_test.rs
+  [other                 ] cd /tmp/copilot-bench-iwe-debug-2-RtWxoo && wc -l crates/liwe/tests/bare_frontmatter_test.rs
+  [mutation              ] cd /tmp/copilot-bench-iwe-debug-2-RtWxoo && ed -s crates/liwe/tests/bare_frontmatter_test.rs << 'EOF'
+1c
+use std::sync::
+  [mutation              ] cd /tmp/copilot-bench-iwe-debug-2-RtWxoo && ed -s crates/liwe/tests/bare_frontmatter_test.rs << 'EOF'
+13,14d
+w
+q
+EOF
+ech
+  [mutation              ] cd /tmp/copilot-bench-iwe-debug-2-RtWxoo && ed -s crates/liwe/tests/bare_frontmatter_test.rs << 'EOF'
+13,18d
+w
+q
+EOF
+ech
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-2-RtWxoo && cargo test -p liwe --test bare_frontmatter_test 2>&1 | tail -30
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-2-RtWxoo && git stash push -- crates/liwe/src/markdown.rs && cargo test -p liwe --test b
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-2-RtWxoo && git diff --stat crates/liwe/src/markdown.rs && git status
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-2-RtWxoo && ed -s crates/liwe/src/markdown.rs << 'EOF'
+50,53c
+    if rest.is_empty() {
+ 
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-2-RtWxoo && cargo test -p liwe --test bare_frontmatter_test 2>&1 | tail -25
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-2-RtWxoo && git checkout crates/liwe/src/markdown.rs && git diff --stat && cargo test 2>
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-2-RtWxoo && cargo test 2>&1 | grep -E "^(test result|failures:|FAILED|error)" | head -30
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-2-RtWxoo && cargo test 2>&1 | grep -E "(FAILED|^failures:|error\[)" | head -20; echo "--
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-2-RtWxoo && git diff --stat && echo "---" && git diff crates/liwe/tests/bare_frontmatter
+  [mutation              ] cd /tmp/copilot-bench-iwe-debug-2-RtWxoo && ed -s crates/liwe/tests/bare_frontmatter_test.rs << 'EOF'
+13d
+w
+q
+EOF
+sed -n
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-2-RtWxoo && cargo test -p liwe --test bare_frontmatter_test 2>&1 | tail -15

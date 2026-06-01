@@ -1,0 +1,61 @@
+Output tokens: 12145
+Tool calls: 37 | Navigation: 20
+  DB structural: 0
+  DB lines:      0
+  DB other:      0
+  Shim hit:      0
+  Shim fallthru: 2
+  Shim evasion:  0
+  Native view:   14
+  Native grep:   4
+  Native glob:   0
+Scores:
+  db_ratio:         0.0
+  native_ratio:     0.9
+  structural_ratio: 0.0
+  evasion_ratio:    0.0
+  line_ratio:       0.0
+  nav_ratio:        0.541
+
+Categories: {'meta_tool': 2, 'native_view': 14, 'shim_fallthrough': 2, 'other': 3, 'native_grep': 4, 'git': 2, 'build_test': 7, 'mutation': 3}
+
+Commands:
+  [meta_tool             ] report_intent
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-1VcWmV
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-1VcWmV/BARE_FRONTMATTER_SPEC.md
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-1VcWmV/crates
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-1VcWmV/crates/iwe
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-1VcWmV/crates/liwe
+  [shim_fallthrough      ] find /tmp/copilot-bench-iwe-debug-3-1VcWmV/crates -type d -name src | head -10 && echo "---" && ls /tmp/copilot-bench-iw
+  [other                 ] ls /tmp/copilot-bench-iwe-debug-3-1VcWmV/crates/liwe/src/markdown && echo "---" && ls /tmp/copilot-bench-iwe-debug-3-1Vc
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-1VcWmV/crates/liwe/src/find.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-1VcWmV/crates/liwe/src/markdown/reader.rs
+  [other                 ] wc -l /tmp/copilot-bench-iwe-debug-3-1VcWmV/crates/liwe/src/markdown/reader.rs /tmp/copilot-bench-iwe-debug-3-1VcWmV/cra
+  [native_grep           ] grep 'bare_frontmatter|bare_front|bare front|title:|metadata'
+  [native_grep           ] grep 'bare_frontmatter|bare_front|metadata|set_metadata'
+  [native_grep           ] grep 'bare_frontmatter|bare_front|---'
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-1VcWmV/crates/liwe/src/markdown.rs
+  [native_grep           ] grep 'wrap_bare_frontmatter|bare_frontmatter'
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-1VcWmV/crates/liwe/tests/bare_frontmatter_test.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-1VcWmV/crates/liwe/src/markdown/writer.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-1VcWmV/crates/liwe/src/markdown/reader.rs
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-3-1VcWmV && cat > /tmp/test_bare.rs << 'EOF'
+fn main() {
+    let content = "title: Foo\n
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-1VcWmV && git log --oneline -20 -- crates/liwe/src/markdown.rs
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-1VcWmV && git show 5607c85 --stat | head -50
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-1VcWmV/crates/liwe/tests/find_metadata_test.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-1VcWmV/crates/liwe/src/markdown/reader.rs
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-1VcWmV && cargo build --tests --quiet 2>&1 | tail -20
+  [meta_tool             ] report_intent
+  [mutation              ] create /tmp/copilot-bench-iwe-debug-3-1VcWmV/crates/liwe/tests/bare_frontmatter_meta_test.rs
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-1VcWmV && cargo test --package liwe --test bare_frontmatter_meta_test 2>&1 | tail -25
+  [mutation              ] edit /tmp/copilot-bench-iwe-debug-3-1VcWmV/crates/liwe/src/markdown.rs
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-1VcWmV && cargo test --package liwe --test bare_frontmatter_meta_test 2>&1 | tail -15
+  [mutation              ] edit /tmp/copilot-bench-iwe-debug-3-1VcWmV/crates/liwe/tests/bare_frontmatter_meta_test.rs
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-1VcWmV && cargo test --workspace 2>&1 | tail -80
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-1VcWmV && cargo test --workspace 2>&1 | grep -E "^test result|FAILED|passed" | tail -4
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-1VcWmV && cargo test --workspace 2>&1 | grep -cE "FAILED|^failures:"
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-1VcWmV && cargo test --workspace 2>&1 | grep -E "^test result" | awk '{print $4}' | pa
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-3-1VcWmV/crates/liwe/src/markdown.rs
+  [other                 ] rm -f /tmp/test_bare.rs /tmp/test_bare

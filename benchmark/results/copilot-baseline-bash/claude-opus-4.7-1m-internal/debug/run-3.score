@@ -1,0 +1,55 @@
+Output tokens: 8438
+Tool calls: 28 | Navigation: 11
+  DB structural: 0
+  DB lines:      0
+  DB other:      0
+  Shim hit:      0
+  Shim fallthru: 11
+  Shim evasion:  0
+  Native view:   0
+  Native grep:   0
+  Native glob:   0
+Scores:
+  db_ratio:         0.0
+  native_ratio:     0.0
+  structural_ratio: 0
+  evasion_ratio:    0.0
+  line_ratio:       0.0
+  nav_ratio:        0.393
+
+Categories: {'git': 6, 'shim_fallthrough': 11, 'other': 2, 'build_test': 7, 'mutation': 2}
+
+Commands:
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-qm79yi && ls -la && git --no-pager log --oneline -10
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-3-qm79yi && cat BARE_FRONTMATTER_SPEC.md
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-3-qm79yi && ls crates/ && find crates -name "*.rs" | xargs grep -l "depends\|--meta\|bar
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-3-qm79yi && grep -rn "find\|meta" crates/iwe/src/ | head -30 && echo "---" && ls crates/
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-3-qm79yi && find crates/liwe -name "find*" -o -name "*find*" | head -20
+  [other                 ] cd /tmp/copilot-bench-iwe-debug-3-qm79yi && wc -l crates/liwe/src/find.rs crates/liwe/tests/find_metadata_test.rs crates
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-3-qm79yi && cat crates/liwe/src/find.rs
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-3-qm79yi && cat crates/liwe/tests/find_metadata_test.rs
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-3-qm79yi && cat crates/liwe/tests/bare_frontmatter_test.rs
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-3-qm79yi && ls crates/liwe/src/markdown* 2>/dev/null && cat crates/liwe/src/markdown.rs 
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-3-qm79yi && cat crates/liwe/src/model/config.rs | head -60
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-qm79yi && cargo test --quiet --package liwe --test find_metadata_test 2>&1 | tail -20
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-qm79yi && cargo test --quiet --package liwe --test bare_frontmatter_test 2>&1 | tail -
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-qm79yi && cat > /tmp/repro_test.rs <<'EOF'
+use indoc::indoc;
+use liwe::find::{Document
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-qm79yi && git --no-pager log --all -p -- crates/liwe/src/markdown.rs 2>&1 | head -100
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-qm79yi && git --no-pager log --all --oneline -- crates/liwe/src/markdown.rs | head -10
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-qm79yi && git --no-pager diff crates/liwe/src/markdown.rs
+  [mutation              ] edit /tmp/copilot-bench-iwe-debug-3-qm79yi/crates/liwe/src/markdown.rs
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-qm79yi && cargo test --quiet --package liwe --test repro_test -- --nocapture 2>&1 | ta
+  [other                 ] cd /tmp/copilot-bench-iwe-debug-3-qm79yi && rm crates/liwe/tests/repro_test.rs
+  [mutation              ] edit /tmp/copilot-bench-iwe-debug-3-qm79yi/crates/liwe/tests/bare_frontmatter_test.rs
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-3-qm79yi && tail -20 crates/liwe/tests/bare_frontmatter_test.rs
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-3-qm79yi && cat >> crates/liwe/tests/bare_frontmatter_test.rs <<'EOF'
+
+#[test]
+fn reader
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-qm79yi && cargo test --quiet --package liwe --test bare_frontmatter_test --test find_m
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-qm79yi && cargo test --workspace --quiet 2>&1 | tail -60
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-qm79yi && cargo test --workspace --quiet 2>&1 | grep -E "test result|FAIL|error" | tai
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-qm79yi && git --no-pager diff --stat && echo "---" && git --no-pager diff crates/liwe/
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-qm79yi && git --no-pager status

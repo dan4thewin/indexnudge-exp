@@ -1,0 +1,59 @@
+Output tokens: 8417
+Tool calls: 28 | Navigation: 16
+  DB structural: 0
+  DB lines:      0
+  DB other:      0
+  Shim hit:      0
+  Shim fallthru: 16
+  Shim evasion:  0
+  Native view:   0
+  Native grep:   0
+  Native glob:   0
+Scores:
+  db_ratio:         0.0
+  native_ratio:     0.0
+  structural_ratio: 0
+  evasion_ratio:    0.0
+  line_ratio:       0.0
+  nav_ratio:        0.571
+
+Categories: {'git': 2, 'shim_fallthrough': 16, 'other': 2, 'build_test': 6, 'mutation': 2}
+
+Commands:
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-1-aSn3ci && ls && git log --oneline -10
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-1-aSn3ci && ls crates/ && cat BARE_FRONTMATTER_SPEC.md | head -100
+  [other                 ] cd /tmp/copilot-bench-iwe-debug-1-aSn3ci && ls crates/liwe/src/ && ls crates/liwe/src/markdown/ 2>/dev/null
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-1-aSn3ci && grep -rn "meta" crates/iwe/src/ | head -30
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-1-aSn3ci && grep -rn "metadata_filters\|metadata_filter\|matches_metadata" crates/ | hea
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-1-aSn3ci && cat crates/liwe/src/find.rs
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-1-aSn3ci && cat crates/liwe/tests/find_metadata_test.rs
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-1-aSn3ci && cat crates/liwe/src/markdown/reader.rs
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-1-aSn3ci && grep -n "bare\|frontmatter\|metadata\|title:" crates/liwe/src/markdown/reade
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-1-aSn3ci && grep -rn "bare_frontmatter\|bare frontmatter\|preprocess\|bare_front" crates
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-1-aSn3ci && cat crates/liwe/src/markdown.rs
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-1-aSn3ci && grep -rn "wrap_bare_frontmatter\|bare_frontmatter" crates/liwe/tests/ crates
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-1-aSn3ci && cat crates/liwe/tests/bare_frontmatter_test.rs
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-1-aSn3ci && cargo test --quiet --lib --test find_metadata_test --test bare_frontmatter_t
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-1-aSn3ci && cat > /tmp/repro.rs << 'EOF'
+use liwe::markdown::wrap_bare_frontmatter;
+
+fn 
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-1-aSn3ci && cat > /tmp/test_repro.rs << 'EOF'
+use indoc::indoc;
+
+use liwe::find::{Docume
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-1-aSn3ci && grep -n "from_indoc\|pub fn\|^use" crates/liwe/src/state.rs | head -20
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-1-aSn3ci && cat > crates/liwe/tests/_repro_test.rs << 'EOF'
+use indoc::indoc;
+
+use liwe:
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-1-aSn3ci && cat crates/liwe/src/markdown/writer.rs | head -80
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-1-aSn3ci && git log --all --oneline crates/liwe/src/markdown.rs 2>/dev/null | head -5
+  [mutation              ] edit /tmp/copilot-bench-iwe-debug-1-aSn3ci/crates/liwe/src/markdown.rs
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-1-aSn3ci && cargo test --quiet --test _repro_test 2>&1 | tail -20
+  [other                 ] rm /tmp/copilot-bench-iwe-debug-1-aSn3ci/crates/liwe/tests/_repro_test.rs /tmp/repro.rs /tmp/test_repro.rs 2>/dev/null; 
+  [mutation              ] edit /tmp/copilot-bench-iwe-debug-1-aSn3ci/crates/liwe/tests/find_metadata_test.rs
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-1-aSn3ci && head -10 crates/liwe/tests/find_metadata_test.rs
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-1-aSn3ci && cargo test --quiet 2>&1 | tail -80
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-1-aSn3ci && cargo test --quiet 2>&1 | grep -E "FAILED|failed|error" | head -20
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-1-aSn3ci && cargo test --test find_metadata_test 2>&1 | tail -15

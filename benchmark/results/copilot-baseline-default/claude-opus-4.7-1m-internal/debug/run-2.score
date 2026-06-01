@@ -1,0 +1,66 @@
+Output tokens: 12596
+Tool calls: 41 | Navigation: 21
+  DB structural: 0
+  DB lines:      0
+  DB other:      0
+  Shim hit:      0
+  Shim fallthru: 3
+  Shim evasion:  0
+  Native view:   17
+  Native grep:   1
+  Native glob:   0
+Scores:
+  db_ratio:         0.0
+  native_ratio:     0.857
+  structural_ratio: 0.0
+  evasion_ratio:    0.0
+  line_ratio:       0.0
+  nav_ratio:        0.512
+
+Categories: {'meta_tool': 1, 'native_view': 17, 'shim_fallthrough': 3, 'build_test': 11, 'git': 4, 'mutation': 3, 'native_grep': 1, 'other': 1}
+
+Commands:
+  [meta_tool             ] report_intent
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-2-PmhwBj
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-2-PmhwBj/BARE_FRONTMATTER_SPEC.md
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-2-PmhwBj/crates
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-2-PmhwBj/crates/iwe
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-2-PmhwBj/crates/liwe
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-2-PmhwBj/crates/iwe/src
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-2-PmhwBj/crates/liwe/src
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-2-PmhwBj/crates/liwe/src/find.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-2-PmhwBj/crates/liwe/src/markdown.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-2-PmhwBj/crates/liwe/src/markdown
+  [shim_fallthrough      ] grep -rn "bare_frontmatter" /tmp/copilot-bench-iwe-debug-2-PmhwBj --include="*.rs" | head -50
+  [shim_fallthrough      ] grep -rn "wrap_bare_frontmatter\|metadata_filters\|--meta\|bare_frontmatter\|depends:" /tmp/copilot-bench-iwe-debug-2-Pm
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-2-PmhwBj/crates/liwe/tests/bare_frontmatter_test.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-2-PmhwBj/crates/liwe/tests/find_metadata_test.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-2-PmhwBj/crates/liwe/src/markdown/writer.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-2-PmhwBj/crates/liwe/src/model/config.rs
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-2-PmhwBj && cargo test --workspace --no-run 2>&1 | tail -30
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-2-PmhwBj && cargo test --workspace 2>&1 | tail -20
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-2-PmhwBj && cargo test --workspace 2>&1 | grep -E "test result|FAILED" | head -30
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-2-PmhwBj && cargo test --workspace 2>&1 | grep -E "FAILED|failed [1-9]" | head -30
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-2-PmhwBj && cat > /tmp/test_bare.rs <<'EOF'
+use std::borrow::Cow;
+
+fn wrap_bare_frontmat
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-2-PmhwBj && git --no-pager log --all --oneline | head -20
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-2-PmhwBj && git --no-pager log --all --oneline -- crates/liwe/src/markdown.rs | head -20
+  [mutation              ] edit /tmp/copilot-bench-iwe-debug-2-PmhwBj/crates/liwe/src/markdown.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-2-PmhwBj/crates/liwe/tests/find_metadata_test.rs
+  [native_grep           ] grep 'get_metadata'
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-2-PmhwBj/crates/liwe/tests/find_metadata_test.rs
+  [mutation              ] edit /tmp/copilot-bench-iwe-debug-2-PmhwBj/crates/liwe/tests/find_metadata_test.rs
+  [mutation              ] edit /tmp/copilot-bench-iwe-debug-2-PmhwBj/crates/liwe/tests/find_metadata_test.rs
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-2-PmhwBj && cargo test --workspace 2>&1 | grep -E "FAILED|failed [1-9]|test result" | ta
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-2-PmhwBj && cargo test --workspace 2>&1 | grep -E "FAILED|test bare_frontmatter|test fin
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-2-PmhwBj && cargo test --workspace 2>&1 | grep -B2 -A20 "transform_action_with_static_ou
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-2-PmhwBj && cargo test --workspace 2>&1 | grep -E "FAILED|^failures" | head -30
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-2-PmhwBj && cargo test --workspace 2>&1 | grep -E "FAILED|^failures" | head -30
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-2-PmhwBj && cargo test -p liwe --test find_metadata_test --test bare_frontmatter_test --
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-2-PmhwBj && for i in 1 2 3; do cargo test --workspace 2>&1 | grep -E "FAILED|^failures:|
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-2-PmhwBj/crates/liwe/src/markdown.rs
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-2-PmhwBj && git --no-pager diff --stat
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-2-PmhwBj && git --no-pager diff crates/liwe/src/markdown.rs
+  [other                 ] cd /tmp/copilot-bench-iwe-debug-2-PmhwBj && rm /tmp/test_bare.rs /tmp/test_bare 2>/dev/null; true

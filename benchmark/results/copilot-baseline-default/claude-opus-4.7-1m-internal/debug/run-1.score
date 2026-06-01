@@ -1,0 +1,57 @@
+Output tokens: 10305
+Tool calls: 33 | Navigation: 21
+  DB structural: 0
+  DB lines:      0
+  DB other:      0
+  Shim hit:      0
+  Shim fallthru: 1
+  Shim evasion:  0
+  Native view:   18
+  Native grep:   2
+  Native glob:   0
+Scores:
+  db_ratio:         0.0
+  native_ratio:     0.952
+  structural_ratio: 0.0
+  evasion_ratio:    0.0
+  line_ratio:       0.0
+  nav_ratio:        0.636
+
+Categories: {'meta_tool': 1, 'native_view': 18, 'native_grep': 2, 'build_test': 5, 'shim_fallthrough': 1, 'git': 2, 'mutation': 4}
+
+Commands:
+  [meta_tool             ] report_intent
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-1-llqVZV
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-1-llqVZV/BARE_FRONTMATTER_SPEC.md
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-1-llqVZV/crates
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-1-llqVZV/crates/liwe
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-1-llqVZV/crates/iwe
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-1-llqVZV/crates/iwe/src
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-1-llqVZV/crates/liwe/src
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-1-llqVZV/crates/liwe/src/find.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-1-llqVZV/crates/liwe/src/markdown
+  [native_grep           ] grep 'bare_frontmatter'
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-1-llqVZV/crates/liwe/src/markdown.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-1-llqVZV/crates/liwe/tests/bare_frontmatter_test.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-1-llqVZV/crates/liwe/src/state.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-1-llqVZV/crates/liwe/src/markdown/writer.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-1-llqVZV/IMPLEMENTATION_PLAN.md
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-1-llqVZV && cargo test --no-run 2>&1 | tail -20
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-1-llqVZV/crates/liwe/tests/find_metadata_test.rs
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-1-llqVZV && cat > /tmp/repro_test.rs << 'EOF'
+use std::borrow::Cow;
+fn wrap_bare_frontma
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-1-llqVZV && git --no-pager log --oneline -- crates/liwe/src/markdown.rs | head -20
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-1-llqVZV && git --no-pager show 5607c85 --stat | head -30
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-1-llqVZV/AUDIT_FINDINGS.md
+  [native_grep           ] grep 'metadata'
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-1-llqVZV/crates/liwe/src/markdown/reader.rs
+  [mutation              ] edit /tmp/copilot-bench-iwe-debug-1-llqVZV/crates/liwe/src/markdown.rs
+  [mutation              ] edit /tmp/copilot-bench-iwe-debug-1-llqVZV/crates/liwe/tests/find_metadata_test.rs
+  [mutation              ] edit /tmp/copilot-bench-iwe-debug-1-llqVZV/crates/liwe/tests/find_metadata_test.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-1-llqVZV/crates/liwe/tests/find_metadata_test.rs
+  [mutation              ] edit /tmp/copilot-bench-iwe-debug-1-llqVZV/crates/liwe/tests/find_metadata_test.rs
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-1-llqVZV && cargo test -p liwe --test find_metadata_test 2>&1 | tail -30
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-1-llqVZV && cargo test -p liwe --test bare_frontmatter_test 2>&1 | tail -20
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-1-llqVZV && cargo test 2>&1 | tail -80
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-1-llqVZV && cargo test 2>&1 | grep -E "^test result:" | awk '{passed+=$4; failed+=$6} EN

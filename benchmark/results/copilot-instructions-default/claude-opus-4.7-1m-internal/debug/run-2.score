@@ -1,0 +1,54 @@
+Output tokens: 9347
+Tool calls: 29 | Navigation: 19
+  DB structural: 5
+  DB lines:      3
+  DB other:      0
+  Shim hit:      0
+  Shim fallthru: 6
+  Shim evasion:  0
+  Native view:   5
+  Native grep:   0
+  Native glob:   0
+Scores:
+  db_ratio:         0.421
+  native_ratio:     0.263
+  structural_ratio: 0.385
+  evasion_ratio:    0.0
+  line_ratio:       0.158
+  nav_ratio:        0.655
+
+Categories: {'meta_tool': 1, 'direct_db_structural': 5, 'shim_fallthrough': 6, 'native_view': 5, 'git': 1, 'direct_db_lines': 3, 'build_test': 4, 'mutation': 3, 'other': 1}
+
+Commands:
+  [meta_tool             ] report_intent
+  [direct_db_structural  ] cd /tmp/copilot-bench-iwe-debug-2-agBKyg && ls && sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files ORDER BY fi
+  [direct_db_structural  ] cd /tmp/copilot-bench-iwe-debug-2-agBKyg && sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files WHERE file LIKE '
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-2-agBKyg && cat BARE_FRONTMATTER_SPEC.md 2>/dev/null | head -100
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-2-agBKyg && cat crates/liwe/tests/find_metadata_test.rs
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-2-agBKyg && cat crates/liwe/tests/bare_frontmatter_test.rs
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-2-agBKyg && cat crates/liwe/src/find.rs
+  [direct_db_structural  ] cd /tmp/copilot-bench-iwe-debug-2-agBKyg && sqlite3 .indexnudge-rust.db "SELECT name, kind, file, start_line, end_line F
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-2-agBKyg/crates/liwe/src/markdown.rs
+  [direct_db_structural  ] cd /tmp/copilot-bench-iwe-debug-2-agBKyg && sqlite3 .indexnudge-rust.db "SELECT name, kind, file, start_line, end_line F
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-2-agBKyg && git log --oneline -20
+  [direct_db_structural  ] cd /tmp/copilot-bench-iwe-debug-2-agBKyg && sqlite3 .indexnudge-rust.db "SELECT name, kind, file, start_line, end_line F
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-2-agBKyg && cat > /tmp/bug_repro.rs << 'EOF'
+use std::borrow::Cow;
+
+pub fn wrap_bare_fro
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-debug-2-agBKyg && sqlite3 .indexnudge-rust.db "SELECT * FROM lines_fts WHERE content MATCH '\"
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-debug-2-agBKyg && sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines WHERE
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-2-agBKyg && cat crates/liwe/tests/frontmatter_title_test.rs | head -50
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-2-agBKyg/crates/liwe/src/graph.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-2-agBKyg/crates/liwe/src/markdown/reader.rs
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-debug-2-agBKyg && sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines WHERE
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-2-agBKyg && cargo test -p liwe --test bare_frontmatter_test --test find_metadata_test 2>
+  [mutation              ] edit /tmp/copilot-bench-iwe-debug-2-agBKyg/crates/liwe/src/markdown.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-2-agBKyg/crates/liwe/tests/find_metadata_test.rs
+  [native_view           ] view /tmp/copilot-bench-iwe-debug-2-agBKyg/crates/liwe/tests/find_metadata_test.rs
+  [mutation              ] edit /tmp/copilot-bench-iwe-debug-2-agBKyg/crates/liwe/tests/find_metadata_test.rs
+  [mutation              ] edit /tmp/copilot-bench-iwe-debug-2-agBKyg/crates/liwe/tests/find_metadata_test.rs
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-2-agBKyg && cargo test -p liwe --test bare_frontmatter_test --test find_metadata_test 2>
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-2-agBKyg && cargo test 2>&1 | tail -60
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-2-agBKyg && cargo test 2>&1 | grep -E "(FAILED|test result|^failures:)" | head -60
+  [other                 ] rm -f /tmp/bug_repro /tmp/bug_repro.rs

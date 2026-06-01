@@ -1,0 +1,60 @@
+Output tokens: 9549
+Tool calls: 30 | Navigation: 15
+  DB structural: 3
+  DB lines:      8
+  DB other:      0
+  Shim hit:      0
+  Shim fallthru: 4
+  Shim evasion:  0
+  Native view:   0
+  Native grep:   0
+  Native glob:   0
+Scores:
+  db_ratio:         0.733
+  native_ratio:     0.0
+  structural_ratio: 0.273
+  evasion_ratio:    0.0
+  line_ratio:       0.533
+  nav_ratio:        0.5
+
+Categories: {'direct_db_structural': 3, 'shim_fallthrough': 4, 'direct_db_lines': 8, 'build_test': 8, 'git': 5, 'mutation': 1, 'other': 1}
+
+Commands:
+  [direct_db_structural  ] cd /tmp/copilot-bench-iwe-debug-3-A69pFt && ls && sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files ORDER BY fi
+  [direct_db_structural  ] cd /tmp/copilot-bench-iwe-debug-3-A69pFt && sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files ORDER BY file;" |
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-3-A69pFt && cat BARE_FRONTMATTER_SPEC.md | head -100
+  [direct_db_structural  ] cd /tmp/copilot-bench-iwe-debug-3-A69pFt && sqlite3 .indexnudge-rust.db "SELECT name, kind, file, start_line, end_line F
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-debug-3-A69pFt && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file=
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-debug-3-A69pFt && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file=
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-debug-3-A69pFt && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file=
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-debug-3-A69pFt && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file=
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-debug-3-A69pFt && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file=
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-debug-3-A69pFt && sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines WHERE
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-debug-3-A69pFt && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file=
+  [direct_db_lines       ] cd /tmp/copilot-bench-iwe-debug-3-A69pFt && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file=
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-A69pFt && cat > /tmp/repro_test.rs <<'EOF'
+// Test to confirm bug
+fn main() {
+    let 
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-A69pFt && cargo test -p liwe --quiet 2>&1 | tail -40
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-A69pFt && cargo test -p liwe 2>&1 | grep -E "(test result|FAILED|running)" | tail -50
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-A69pFt && git log --all --oneline 2>&1 | head -20
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-A69pFt && git log -p 5607c85 -- crates/liwe/src/markdown.rs 2>&1 | head -80
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-A69pFt && git status && echo "---" && git diff crates/liwe/src/markdown.rs | head -60
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-A69pFt && git checkout crates/liwe/src/markdown.rs && git diff crates/liwe/src/markdow
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-3-A69pFt && sed -n '40,65p' crates/liwe/src/markdown.rs
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-3-A69pFt && tail -20 crates/liwe/tests/find_metadata_test.rs
+  [mutation              ] edit /tmp/copilot-bench-iwe-debug-3-A69pFt/crates/liwe/tests/find_metadata_test.rs
+  [shim_fallthrough      ] cd /tmp/copilot-bench-iwe-debug-3-A69pFt && cat >> crates/liwe/tests/find_metadata_test.rs <<'EOF'
+
+#[test]
+fn bare_fron
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-A69pFt && cargo test -p liwe --test find_metadata_test 2>&1 | tail -30
+  [other                 ] cd /tmp/copilot-bench-iwe-debug-3-A69pFt && python3 -c "
+# Simulate the bug to confirm
+header = 'title: Task A\ndepends:
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-A69pFt && cargo test -p liwe 2>&1 | grep -E "(test result|FAILED|error\[)" | tail -40
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-A69pFt && cargo test 2>&1 | grep -E "(test result|FAILED|error\[)" | tail -60
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-A69pFt && cargo test 2>&1 | grep -E "FAILED|failed" | head -20
+  [build_test            ] cd /tmp/copilot-bench-iwe-debug-3-A69pFt && cargo test 2>&1 | grep -E "^(error|FAILED|test result: FAILED|---- .* stdout
+  [git                   ] cd /tmp/copilot-bench-iwe-debug-3-A69pFt && rm -f /tmp/repro_test.rs /tmp/Cargo_test.toml && git status && echo "---FINA
