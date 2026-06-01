@@ -1,0 +1,253 @@
+<!-- BEGIN indexnudge AGENTS.md block -->
+## Code index database
+
+#ifdef LANG_GO
+This project has an **indexnudge** SQLite database at `.indexnudge-go.db`
+in the repo root containing every line of source, every symbol definition,
+every call site, every import, and full-text search over the code. Go
+channel operations are tracked in a dedicated `channels` table.
+#elif defined(LANG_RUST)
+This project has an **indexnudge** SQLite database at `.indexnudge-rust.db`
+in the repo root containing every line of source, every symbol definition,
+every call site, every import, and full-text search over the code.
+#else
+This project has an **indexnudge** SQLite database (`.indexnudge-rust.db`
+or `.indexnudge-go.db`) at the repo root containing every line of source,
+every symbol definition, every call site, every import, and full-text
+search over the code.
+#endif
+
+**Use `sqlite3` against the index for ALL code navigation.** Do NOT use
+`grep`, `sed`, `cat`, `head`, `tail`, `find`, `view`, or `glob` to read
+source files — the database is faster, gives structural context, and
+keeps line numbers stable for editing.
+
+#ifdef LANG_GO
+Find the database and discover the schema on your first read:
+
+```bash
+DB=.indexnudge-go.db
+sqlite3 "$DB" ".schema"
+```
+#elif defined(LANG_RUST)
+Find the database and discover the schema on your first read:
+
+```bash
+DB=.indexnudge-rust.db
+sqlite3 "$DB" ".schema"
+```
+#else
+Find the database and discover the schema on your first read:
+
+```bash
+DB=$(ls .indexnudge*.db 2>/dev/null | head -1)
+sqlite3 "$DB" ".schema"
+```
+#endif
+
+### Core query patterns
+
+#ifdef LANG_GO
+#define SRC_PATH internal/foo.go
+#define SYM_NAME Server
+#define FN_NAME HandleRequest
+#define CALLEE_NAME RenderTemplate
+#define FILE_EXT go
+#define LANG_VAL go
+#define BIN_DIR bin-go
+#define FRESHEN_FLAG -freshen
+#else
+#define SRC_PATH src/foo.rs
+#define SYM_NAME Parser
+#define FN_NAME handle_request
+#define CALLEE_NAME render_template
+#define FILE_EXT rs
+#define LANG_VAL rust
+#define BIN_DIR bin-rust
+#define FRESHEN_FLAG --freshen
+#endif
+
+```bash
+# Project overview
+sqlite3 "$DB" "SELECT file, lines, language FROM files ORDER BY file;"
+
+# Symbols in a file (functions, methods, types)
+sqlite3 "$DB" "SELECT name, kind, start_line, end_line, signature
+               FROM symbols WHERE file='SRC_PATH' ORDER BY start_line;"
+
+# Find a symbol by name across the whole codebase
+sqlite3 "$DB" "SELECT name, kind, file, start_line, end_line
+               FROM symbols WHERE name LIKE '%SYM_NAME%';"
+
+# Read specific lines (use start_line/end_line from symbols query)
+sqlite3 "$DB" "SELECT line_num, content FROM lines
+               WHERE file='SRC_PATH' AND line_num BETWEEN 120 AND 180;"
+
+# Full-text search (FTS5 — supports phrase, prefix, AND/OR/NOT)
+sqlite3 "$DB" "SELECT file, line_num, content FROM lines_fts
+               WHERE content MATCH '\\"CALLEE_NAME\\"';"
+
+# Call graph: who calls X? what does Y call?
+sqlite3 "$DB" "SELECT caller_file, caller_symbol, line_num
+               FROM calls WHERE callee='CALLEE_NAME';"
+sqlite3 "$DB" "SELECT DISTINCT callee FROM calls
+               WHERE caller_symbol='FN_NAME' ORDER BY callee;"
+
+# Imports — what does this file pull in?
+sqlite3 "$DB" "SELECT module, line_num FROM imports WHERE file='SRC_PATH';"
+```
+
+### Disambiguating call targets
+
+`calls.callee` stores the short name as written at the call site
+(`find`, `new`, `parse`). When multiple symbols share that short name,
+use the `callee_candidates` view to enumerate possibilities and narrow
+them with what you know about the context:
+
+```bash
+# All candidate targets for one call site
+sqlite3 "$DB" "SELECT candidate_qname, def_file, def_parent
+               FROM callee_candidates
+               WHERE caller_symbol='FN_NAME' AND callee='CALLEE_NAME';"
+
+# Filter to same-crate / same-directory candidates
+sqlite3 "$DB" "SELECT candidate_qname, def_file FROM callee_candidates
+               WHERE caller_symbol='FN_NAME' AND callee='CALLEE_NAME'
+                 AND def_file LIKE 'src/%';"
+
+# Use a parent type the calling fn's body already mentions
+sqlite3 "$DB" "SELECT cc.candidate_qname, cc.def_parent
+               FROM callee_candidates cc
+               WHERE cc.caller_symbol='FN_NAME' AND cc.callee='CALLEE_NAME'
+                 AND EXISTS (
+                   SELECT 1 FROM lines l
+                   WHERE l.file=cc.caller_file
+                     AND l.symbol=cc.caller_symbol
+                     AND l.content LIKE '%' || cc.def_parent || '%');"
+```
+
+The view returns zero rows for foreign/stdlib calls (no local symbol
+to point at) and exactly one row when the short name is unique in the
+codebase. Multiple rows mean ambiguity — narrow with WHERE clauses.
+
+#ifdef LANG_GO
+`calls.callee_qname` is populated for Go via `go/types`, so calls into
+`fmt`, `errors`, `io`, etc. carry the canonical package-qualified name
+even though those packages aren't indexed. The view honours this: when
+`callee_qname` is set and matches a local symbol's `qualified_name`,
+only that one row is returned.
+
+#else
+For Rust today, `calls.callee_qname` is always NULL — the indexer does
+not resolve qualified names. The view falls back to "every local
+symbol with a matching short name" and you narrow from there.
+
+#endif
+
+#ifdef LANG_GO
+### Go channel tracking
+
+```bash
+# Where is each channel variable created, written, read, closed, ranged, or selected?
+sqlite3 "$DB" "SELECT operation, file, line_num, symbol
+               FROM channels WHERE var='workCh' ORDER BY file, line_num;"
+
+# All goroutines that send on a channel
+sqlite3 "$DB" "SELECT DISTINCT symbol, file FROM channels
+               WHERE var='workCh' AND operation='send';"
+```
+
+The `channels` table uses `go/types` for accuracy: a `range` over a slice
+will not appear here — only true channel operations are tracked.
+
+#endif
+### Schema reference
+
+| Table         | Columns of interest                                                |
+|---------------|--------------------------------------------------------------------|
+| `lines`       | `file, line_num, content, symbol`                                  |
+| `lines_fts`   | FTS5 over `(file, line_num, content, symbol)`                      |
+| `symbols`     | `name, qualified_name, kind, file, start_line, end_line, parent, signature` |
+| `calls`       | `caller_file, caller_symbol, callee, callee_qname, kind, line_num`  |
+| `callee_candidates` | view: `calls` ⨝ `symbols` — one row per (call, candidate symbol) |
+| `defs`        | `symbol, file, line_num, var, kind`  *(variable/binding definitions)* |
+| `imports`     | `file, module, line_num`                                           |
+| `files`       | `file, lines, language, indexed_mtime`                             |
+| `directories` | `path, file_count, total_lines`                                    |
+#ifdef LANG_GO
+| `channels`    | `file, symbol, line_num, operation, var`                           |
+#endif
+
+#ifndef LANG_GO
+#ifndef LANG_RUST
+Go projects additionally have a `channels` table tracking channel
+operations (`make`, `send`, `recv`, `close`, `range`, `select`).
+#endif
+#endif
+
+### Freshness
+
+#ifdef LANG_GO
+The database is re-freshened on-demand by the `sqlite3` shim in
+`indexnudge/bin-go/`. If that shim is first on `PATH`, every shell
+invocation of `sqlite3` re-parses changed files before querying.
+#elif defined(LANG_RUST)
+The database is re-freshened on-demand by the `sqlite3` shim in
+`indexnudge/bin-rust/`. If that shim is first on `PATH`, every shell
+invocation of `sqlite3` re-parses changed files before querying.
+#else
+The database is re-freshened on-demand by the `sqlite3` shim in
+`indexnudge/bin-rust/` or `indexnudge/bin-go/`. If that shim is first
+on `PATH`, every shell invocation of `sqlite3` re-parses changed files
+before querying.
+#endif
+
+**Non-shim callers bypass this.** Anything that links `libsqlite3`
+directly — Python's `sqlite3` module, Rust `rusqlite`, Node
+`better-sqlite3`, `sqlite-utils`, `litecli`, GUI browsers — opens the
+DB file directly and sees whatever snapshot the last shim invocation
+left behind.
+
+| Caller                                | Triggers shim? |
+|---------------------------------------|----------------|
+#ifdef LANG_GO
+| `bash$ sqlite3 .indexnudge-go.db`     | yes            |
+#elif defined(LANG_RUST)
+| `bash$ sqlite3 .indexnudge-rust.db`   | yes            |
+#else
+| `bash$ sqlite3 .indexnudge*.db`       | yes            |
+#endif
+| `python3 -c "import sqlite3; ..."`    | **no**         |
+| Rust `rusqlite::Connection::open()`   | **no**         |
+| Node `better-sqlite3`                 | **no**         |
+| `sqlite-utils`, `litecli`, GUI tools  | **no**         |
+
+When you drive the index from a script, run `indexnudge FRESHEN_FLAG`
+explicitly first:
+
+```bash
+indexnudge FRESHEN_FLAG     # incremental: only re-parses changed files in cwd
+python3 my_helper.py        # now sees current state
+```
+
+Or wrap the shell call inside the script (`subprocess.run(["sqlite3", ...])`)
+so the shim handles it. Within a single script run, one freshen at the
+top is enough — line numbers stay stable until the script itself mutates
+files.
+
+### Editing
+
+When you need to mutate a file, prefer tools that take **line-number
+addresses** (e.g. `ed`, `sed -i` for targeted substitutions) — line
+numbers from `symbols.start_line` and `symbols.end_line` pair naturally
+with these. Avoid exact-string-match editors when the surrounding code
+might appear more than once.
+
+### What NOT to do
+
+- ❌ `grep -r 'pattern' .` — use `lines_fts MATCH 'pattern'`
+- ❌ `cat SRC_PATH` / `view SRC_PATH` — use `SELECT content FROM lines WHERE file=... AND line_num BETWEEN ...`
+- ❌ `sed -n '80,160p' SRC_PATH` — same as above
+- ❌ `find . -name '*.FILE_EXT'` — use `SELECT file FROM files WHERE language='LANG_VAL'`
+- ❌ Routing around the shims with `/usr/bin/grep`, `command cat`, or `awk 'NR>=X && NR<=Y'`
+<!-- END indexnudge AGENTS.md block -->

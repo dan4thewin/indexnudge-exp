@@ -19,6 +19,12 @@ go-test:V:
 all:V: rust go
 	echo 'Build complete'
 
+snippets:V:
+	gpp             AGENTS.md.gpp > AGENTS.md.snippet
+	gpp -DLANG_RUST AGENTS.md.gpp > AGENTS.md.rust.snippet
+	gpp -DLANG_GO   AGENTS.md.gpp > AGENTS.md.go.snippet
+	echo 'Regenerated: AGENTS.md{,.rust,.go}.snippet'
+
 test:V: rust-test go-test shim-test
 	echo 'ALL PASSED'
 

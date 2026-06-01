@@ -181,6 +181,32 @@ export PATH=/path/to/indexnudge/bin:$PATH       # Rust
 export PATH=/path/to/indexnudge/bin-go:$PATH     # Go
 ```
 
+### AGENTS.md snippet
+
+A self-contained, drop-in markdown block describing the database, its schema,
+query patterns, and what not to do. The source is `AGENTS.md.gpp` and three
+preprocessed variants ship in the repo:
+
+| File                      | Generated with     | Use when                            |
+|---------------------------|--------------------|-------------------------------------|
+| `AGENTS.md.snippet`       | `gpp` (no define)  | Language-agnostic / mixed projects  |
+| `AGENTS.md.rust.snippet`  | `gpp -DLANG_RUST`  | Rust projects (hardcodes filenames, `.rs` examples) |
+| `AGENTS.md.go.snippet`    | `gpp -DLANG_GO`    | Go projects (adds `channels` queries and table)     |
+
+Drop the right variant into the target project's agent-instruction file:
+
+```bash
+cat /path/to/indexnudge/AGENTS.md.rust.snippet >> /path/to/project/AGENTS.md
+```
+
+Each variant is delimited with `<!-- BEGIN/END indexnudge AGENTS.md block -->`
+markers so it can be regenerated in place by scripts. Edit `AGENTS.md.gpp`
+and run `mk snippets` to regenerate all three.
+
+In our benchmarks on iwe with Claude Opus 4.7 (1M, xhigh) under Copilot CLI,
+adding this block alone moves `db_ratio` from 0% (no instructions) to
+46–88% depending on task — the bulk of what the full nudge stack achieves.
+
 ## Background
 
 This project grew out of five controlled experiments with goose
