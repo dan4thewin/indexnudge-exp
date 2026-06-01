@@ -1,0 +1,30 @@
+Tokens: 85887 (in=69914, out=3265)
+Tool calls: 10 | Navigation: 8
+  DB structural: 0
+  DB lines:      0
+  DB other:      0
+  Shim hit:      0
+  Shim fallthru: 3
+  Shim evasion:  0
+  File read:     5
+Scores:
+  db_ratio:         0.0
+  structural_ratio: 0.0
+  evasion_ratio:    0.0
+  file_read_ratio:  0.625
+  line_ratio:       0.0
+  nav_ratio:        0.8
+
+Categories: {'shim_fallthrough': 3, 'file_read': 5, 'other': 2}
+
+Commands:
+  [shim_fallthrough      ] ls && find . -type f -name "*.rs" | head -50
+  [shim_fallthrough      ] grep -rn "find" crates/iwec/src/ | grep -i "meta\|cmd\|arg" | head -30
+  [file_read             ] read crates/iwec/src/main.rs
+  [other                 ] ls crates/ && grep -rn "find" crates/iwe/src/ 2>/dev/null | grep -i "meta\|Find\|command" | head -30
+  [file_read             ] read crates/iwe/src/main.rs
+  [file_read             ] read crates/iwe/src/main.rs
+  [other                 ] find crates/liwe -path "*find*" -name "*.rs"
+  [file_read             ] read crates/liwe/src/find.rs
+  [shim_fallthrough      ] grep -n "get_metadata" crates/liwe/src/graph.rs crates/liwe/src/graph/*.rs 2>/dev/null | head
+  [file_read             ] read crates/liwe/src/graph.rs

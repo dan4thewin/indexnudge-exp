@@ -1,0 +1,68 @@
+=== Score ===
+Wall clock: 351s
+Tokens: 44152 (in=43702, out=450)
+Tool calls: 26 | Navigation: 14
+  DB structural: 4
+  DB lines:      10
+  DB other:      0
+  Shim hit:      0
+  Shim fallthru: 0
+  Shim evasion:  0
+Scores:
+  db_ratio:         1.0
+  structural_ratio: 0.286
+  evasion_ratio:    0.0
+  line_ratio:       0.714
+  nav_ratio:        0.538
+
+Categories: {'non_shell_tool': 2, 'other': 3, 'direct_db_structural': 4, 'direct_db_lines': 10, 'build_test': 4, 'mutation': 1, 'git': 2}
+
+Commands:
+  [other                 ] pwd && ls -la && sqlite3 .indexnudge-rust.db '.schema'
+  [direct_db_structural  ] sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files ORDER BY file;"
+  [direct_db_structural  ] sqlite3 .indexnudge-rust.db "SELECT name, qualified_name, kind, start_line, end_line, signature FROM symbols WHERE file=
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWE
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT file,line_num,content FROM lines_fts WHERE content MATCH 'get_metadata OR metadata' 
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/src/markdown/reader.rs' AND lin
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/src/markdown.rs' ORDER BY line_
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/tests/bare_frontmatter_test.rs'
+  [direct_db_structural  ] sqlite3 .indexnudge.db "SELECT file, lines FROM files WHERE file='BARE_FRONTMATTER_SPEC.md' OR file LIKE '%frontmatter%'
+  [other                 ] python3 - <<'PY'
+from pathlib import Path
+p=Path('BARE_FRONTMATTER_SPEC.md')
+print(p.read_text())
+PY
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/src/markdown/writer.rs' AND lin
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/tests/find_metadata_test.rs' AN
+  [direct_db_structural  ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/src/state.rs' ORDER BY line_num
+  [build_test            ] cargo test -p liwe value_in_yaml_sequence_matches --test find_metadata_test -- --nocapture
+  [direct_db_lines       ] ed -s crates/liwe/src/markdown.rs <<'ED'
+50,64c
+    let cleaned_header = header.trim_end();
+    if rest.is_empty() {
+   
+  [other                 ] python3 - <<'PY'
+from pathlib import Path
+p=Path('crates/liwe/src/markdown.rs')
+for i,line in enumerate(p.read_text().sp
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/iwe/tests/common.rs' ORDER BY line_n
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/iwe/tests/find_test.rs' AND line_num
+  [mutation              ] ed -s crates/liwe/tests/find_metadata_test.rs <<'ED'
+8a
+
+fn setup_bare_graph(input: &str) -> Graph {
+    Graph::import(
+
+  [build_test            ] ed -s crates/liwe/tests/find_metadata_test.rs <<'ED'
+1,$c
+use indoc::indoc;
+
+use liwe::find::{DocumentFinder, FindOption
+  [build_test            ] python3 - <<'PY'
+from pathlib import Path
+p=Path('crates/iwe/tests/find_test.rs')
+text=p.read_text()
+insert = '''\nfn se
+  [build_test            ] git diff -- crates/liwe/src/markdown.rs crates/liwe/tests/find_metadata_test.rs crates/iwe/tests/find_test.rs && cargo t
+  [git                   ] git diff --check && git diff --stat && git diff -- crates/liwe/src/markdown.rs crates/liwe/tests/find_metadata_test.rs c
+  [git                   ] git status --short && git diff --name-only

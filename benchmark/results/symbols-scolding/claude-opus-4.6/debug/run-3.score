@@ -1,0 +1,44 @@
+=== Score ===
+Wall clock: 240s
+Tokens: 32202 (in=31856, out=346)
+Tool calls: 24 | Navigation: 17
+  DB structural: 0
+  DB lines:      14
+  DB other:      0
+  Shim hit:      2
+  Shim fallthru: 1
+  Shim evasion:  0
+Scores:
+  db_ratio:         0.941
+  structural_ratio: 0.0
+  evasion_ratio:    0.0
+  line_ratio:       0.824
+  nav_ratio:        0.708
+
+Categories: {'non_shell_tool': 2, 'direct_db_lines': 14, 'shim_hit': 2, 'build_test': 5, 'shim_fallthrough': 1}
+
+Commands:
+  [direct_db_lines       ] cd /tmp/bench-iwe-debug-3-SbY3gs && sqlite3 .indexnudge-rust.db "SELECT * FROM lines_fts WHERE content MATCH 'frontmatte
+  [direct_db_lines       ] cd /tmp/bench-iwe-debug-3-SbY3gs && sqlite3 .indexnudge-rust.db "SELECT * FROM lines_fts WHERE content MATCH 'bare_front
+  [direct_db_lines       ] cd /tmp/bench-iwe-debug-3-SbY3gs && sqlite3 .indexnudge-rust.db "SELECT * FROM lines_fts WHERE content MATCH 'meta' AND 
+  [direct_db_lines       ] cd /tmp/bench-iwe-debug-3-SbY3gs && sqlite3 .indexnudge-rust.db "SELECT * FROM lines_fts WHERE content MATCH 'meta' AND 
+  [direct_db_lines       ] cd /tmp/bench-iwe-debug-3-SbY3gs && sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines_fts WHERE con
+  [direct_db_lines       ] cd /tmp/bench-iwe-debug-3-SbY3gs && sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines_fts WHERE con
+  [direct_db_lines       ] cd /tmp/bench-iwe-debug-3-SbY3gs && sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines_fts WHERE con
+  [direct_db_lines       ] cd /tmp/bench-iwe-debug-3-SbY3gs && sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines_fts WHERE con
+  [direct_db_lines       ] cd /tmp/bench-iwe-debug-3-SbY3gs && sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines WHERE file='c
+  [direct_db_lines       ] cd /tmp/bench-iwe-debug-3-SbY3gs && sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines_fts WHERE con
+  [direct_db_lines       ] cd /tmp/bench-iwe-debug-3-SbY3gs && sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines WHERE file='c
+  [direct_db_lines       ] cd /tmp/bench-iwe-debug-3-SbY3gs && sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines_fts WHERE con
+  [direct_db_lines       ] cd /tmp/bench-iwe-debug-3-SbY3gs && sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines_fts WHERE con
+  [direct_db_lines       ] cd /tmp/bench-iwe-debug-3-SbY3gs && sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines WHERE file='c
+  [shim_hit              ] cd /tmp/bench-iwe-debug-3-SbY3gs && cat crates/liwe/tests/bare_frontmatter_test.rs
+  [build_test            ] cd /tmp/bench-iwe-debug-3-SbY3gs && cargo test 2>&1 | tail -5
+  [build_test            ] cd /tmp/bench-iwe-debug-3-SbY3gs && cargo test 2>&1 | grep -E 'FAILED|test result|error'
+  [shim_hit              ] cd /tmp/bench-iwe-debug-3-SbY3gs && cat crates/liwe/tests/find_metadata_test.rs
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-3-SbY3gs && cat >> crates/liwe/tests/find_metadata_test.rs << 'EOF'
+
+fn setup_graph_bare(input: 
+  [build_test            ] cd /tmp/bench-iwe-debug-3-SbY3gs && cargo test -p liwe bare_frontmatter_sequence 2>&1 | tail -10
+  [build_test            ] cd /tmp/bench-iwe-debug-3-SbY3gs && cargo test -p liwe --test find_metadata_test bare_frontmatter 2>&1 | tail -10
+  [build_test            ] cd /tmp/bench-iwe-debug-3-SbY3gs && cargo test 2>&1 | grep -c 'FAILED'

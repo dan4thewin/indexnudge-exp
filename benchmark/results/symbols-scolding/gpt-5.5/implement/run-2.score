@@ -1,0 +1,77 @@
+=== Score ===
+Wall clock: 247s
+Tokens: 37764 (in=37176, out=588)
+Tool calls: 26 | Navigation: 10
+  DB structural: 2
+  DB lines:      8
+  DB other:      0
+  Shim hit:      0
+  Shim fallthru: 0
+  Shim evasion:  0
+Scores:
+  db_ratio:         1.0
+  structural_ratio: 0.2
+  evasion_ratio:    0.0
+  line_ratio:       0.8
+  nav_ratio:        0.385
+
+Categories: {'non_shell_tool': 3, 'direct_db_structural': 2, 'direct_db_lines': 8, 'other': 6, 'mutation': 3, 'build_test': 2, 'git': 2}
+
+Commands:
+  [direct_db_structural  ] pwd && sqlite3 .indexnudge-rust.db ".schema" && sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files ORDER BY file
+  [direct_db_structural  ] sqlite3 .indexnudge-rust.db "SELECT name, kind, file, start_line, end_line, signature FROM symbols WHERE file IN ('crate
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/iwe/src/main.rs' AND line_num BETWEE
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/iwe/tests/find_test.rs' AND line_num
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/iwe/tests/find_test.rs' AND line_num
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/iwe/src/help.rs' AND line_num BETWEE
+  [other                 ] find crates/iwe/help/find -maxdepth 1 -type f -print -exec wc -l {} \;
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT file,line_num,content FROM lines_fts WHERE content MATCH 'metadata' ORDER BY file,li
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/tests/find_metadata_test.rs' OR
+  [direct_db_lines       ] ed -s crates/iwe/src/main.rs <<'EOF'
+149a
+
+    #[clap(long, help = "Print only the number of matching documents")]
+    c
+  [other                 ] python3 - <<'PY'
+from pathlib import Path
+for path, start, end in [('crates/iwe/src/main.rs',145,165),('crates/iwe/src/m
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+661,696c
+fn find_command(args: Find) {
+    let config = get_configuration();
+    le
+  [other                 ] python3 - <<'PY'
+from pathlib import Path
+p=Path('crates/iwe/src/main.rs')
+for i,line in enumerate(p.read_text().splitli
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+657,703c
+fn parse_meta_filter(s: &str) -> Result<(String, String), String> {
+    s.
+  [other                 ] python3 - <<'PY'
+from pathlib import Path
+for start,end in [(145,165),(657,708)]:
+    for i,line in enumerate(Path('crat
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/iwe/src/selector.rs' ORDER BY line_n
+  [mutation              ] python3 - <<'PY'
+from pathlib import Path
+p=Path('crates/iwe/src/main.rs')
+s=p.read_text()
+s=s.replace('    #[clap(long,
+  [other                 ] python3 - <<'PY'
+from pathlib import Path
+for path, ranges in [('crates/iwe/src/main.rs', [(158,166)]), ('crates/iwe/tes
+  [other                 ] python3 - <<'PY'
+from pathlib import Path
+lines=Path('crates/iwe/tests/find_test.rs').read_text().splitlines()
+for i in 
+  [build_test            ] ed -s crates/iwe/src/main.rs <<'EOF'
+162a
+
+.
+w
+EOF
+cargo fmt && cargo build
+  [build_test            ] cargo test
+  [git                   ] git status --short && git diff --stat
+  [git                   ] git diff -- crates/iwe/src/main.rs crates/iwe/tests/find_test.rs | git diff --check --cached >/dev/null 2>&1; git diff -

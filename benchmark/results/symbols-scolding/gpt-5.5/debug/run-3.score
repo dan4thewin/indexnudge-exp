@@ -1,0 +1,150 @@
+=== Score ===
+Wall clock: 560s
+Tokens: 58207 (in=57707, out=500)
+Tool calls: 55 | Navigation: 21
+  DB structural: 6
+  DB lines:      10
+  DB other:      0
+  Shim hit:      0
+  Shim fallthru: 0
+  Shim evasion:  5
+Scores:
+  db_ratio:         0.762
+  structural_ratio: 0.375
+  evasion_ratio:    0.238
+  line_ratio:       0.476
+  nav_ratio:        0.382
+
+Categories: {'non_shell_tool': 6, 'direct_db_structural': 6, 'direct_db_lines': 10, 'other': 2, 'mutation': 10, 'build_test': 13, 'git': 3, 'shim_evasion': 5}
+
+Commands:
+  [direct_db_structural  ] sqlite3 .indexnudge-rust.db '.schema' && sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files ORDER BY file;"
+  [direct_db_structural  ] sqlite3 .indexnudge-rust.db "SELECT name, kind, file, start_line, end_line, signature FROM symbols WHERE file='crates/li
+  [direct_db_structural  ] sqlite3 .indexnudge-rust.db "SELECT name, kind, file, start_line, end_line, signature FROM symbols WHERE file='crates/li
+  [direct_db_structural  ] sqlite3 .indexnudge-rust.db "SELECT name, kind, file, start_line, end_line, signature FROM symbols WHERE file='crates/li
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWE
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/tests/find_metadata_test.rs' AN
+  [direct_db_structural  ] sqlite3 .indexnudge-rust.db "SELECT name, kind, file, start_line, end_line, signature FROM symbols WHERE name LIKE '%met
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/src/graph.rs' AND line_num BETW
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/src/graph.rs' AND line_num BETW
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/src/markdown/reader.rs' AND lin
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/src/markdown/reader.rs' AND lin
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/tests/bare_frontmatter_test.rs'
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT file,line_num,content FROM lines_fts WHERE content MATCH 'bare_frontmatter' ORDER BY
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/src/markdown.rs' AND line_num B
+  [other                 ] printf '%s
+' 'Current wrap_bare_frontmatter removes all indented lines from the bare header before adding fences; that e
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/src/state.rs' ORDER BY line_num
+  [mutation              ] ed -s crates/liwe/src/markdown.rs <<'EOF'
+50,63c
+    let cleaned_header = header.trim_end();
+
+    if rest.is_empty() {
+ 
+  [build_test            ] cargo test -p liwe value_in_bare_yaml_sequence_matches -- --nocapture
+  [mutation              ] ed -s crates/liwe/src/markdown.rs <<'EOF'
+25,62p
+EOF
+  [build_test            ] ed -s crates/liwe/src/markdown.rs <<'EOF'
+56d
+w
+EOF
+cargo test -p liwe value_in_bare_yaml_sequence_matches -- --nocaptur
+  [mutation              ] ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+115,160p
+EOF
+  [mutation              ] ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+108,180p
+EOF
+  [build_test            ] ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+114,153c
+#[test]
+fn value_in_yaml_sequence_matches() {
+    let gra
+  [mutation              ] ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+100,175p
+EOF
+  [build_test            ] ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+161,168d
+113a
+
+.
+w
+EOF
+cargo test -p liwe value_in_bare_yaml_seque
+  [mutation              ] ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+1,190p
+EOF
+  [mutation              ] ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+190,230p
+EOF
+  [build_test            ] cargo test
+  [git                   ] git diff -- crates/liwe/src/markdown.rs crates/liwe/tests/find_metadata_test.rs && git status --short
+  [shim_evasion          ] git diff -- crates/liwe/src/markdown.rs crates/liwe/tests/find_metadata_test.rs
+printf '\n--- HEAD markdown.rs wrap ---\
+  [build_test            ] git show HEAD:crates/liwe/src/markdown.rs > /tmp/head-markdown.rs
+cp crates/liwe/src/markdown.rs /tmp/current-markdown.r
+  [direct_db_structural  ] sqlite3 .indexnudge-rust.db "SELECT name, kind, start_line, end_line FROM symbols WHERE file='crates/iwe/src/main.rs' AN
+  [shim_evasion          ] git show HEAD:crates/iwe/src/main.rs | awk 'NR>=520 && NR<=700 {printf "%d|%s\n", NR, $0} NR>=1020 && NR<=1045 {printf "
+  [shim_evasion          ] git status --short && printf '\n--- current markdown ---\n' && awk 'NR>=26 && NR<=66 {printf "%d|%s\n", NR, $0}' crates/
+  [build_test            ] tmp=$(mktemp -d)
+cd "$tmp"
+mkdir .iwe
+cat > .iwe/config.toml <<'EOF'
+[markdown]
+bare_frontmatter = true
+EOF
+cat > a.md <
+  [build_test            ] tmp=$(mktemp -d)
+mkdir "$tmp/.iwe"
+cat > "$tmp/.iwe/config.toml" <<'EOF'
+[markdown]
+bare_frontmatter = true
+EOF
+cat > "$
+  [build_test            ] cd /tmp/bench-iwe-debug-3-s4c5Xf
+cp crates/liwe/src/markdown.rs /tmp/markdown-current-with-trim.rs
+git checkout -- crate
+  [other                 ] cd /tmp/bench-iwe-debug-3-s4c5Xf
+for body in \
+$title'A\ndepends:\n- foo\n\n# A\n' \
+$title'A\ndepends:\n - foo\n\n# A\n
+  [build_test            ] cd /tmp/bench-iwe-debug-3-s4c5Xf
+for case in title_first depends_first no_title title_plus_blank_then_dep; do
+  tmp=$(mk
+  [mutation              ] ed -s crates/liwe/src/markdown.rs <<'EOF'
+26,57c
+/// If `bare_frontmatter` is enabled and content starts with a YAML map
+  [mutation              ] ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+10a
+
+fn bare_options() -> MarkdownOptions {
+    MarkdownOptions {
+
+  [build_test            ] ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+108,153c
+#[test]
+fn value_in_yaml_sequence_matches() {
+    let gra
+  [mutation              ] ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+80,180p
+EOF
+  [git                   ] git checkout -- crates/liwe/tests/find_metadata_test.rs
+ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+10a
+
+fn ba
+  [git                   ] git checkout -- crates/liwe/tests/find_metadata_test.rs
+ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+1,190n
+EOF
+  [shim_evasion          ] awk 'NR>=1 && NR<=190 {printf "%d|%s\n", NR, $0}' crates/liwe/tests/find_metadata_test.rs
+printf '\n--- markdown tests r
+  [shim_evasion          ] ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+10a
+
+fn bare_options() -> MarkdownOptions {
+    MarkdownOptions {
+
+  [build_test            ] cargo test -p liwe value_in_bare_yaml_sequence_matches_without_title -- --nocapture
+  [build_test            ] cargo test

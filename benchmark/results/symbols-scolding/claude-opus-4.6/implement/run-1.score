@@ -1,0 +1,42 @@
+=== Score ===
+Wall clock: 235s
+Tokens: 20486 (in=20279, out=207)
+Tool calls: 22 | Navigation: 10
+  DB structural: 2
+  DB lines:      7
+  DB other:      0
+  Shim hit:      0
+  Shim fallthru: 1
+  Shim evasion:  0
+Scores:
+  db_ratio:         0.9
+  structural_ratio: 0.222
+  evasion_ratio:    0.0
+  line_ratio:       0.7
+  nav_ratio:        0.455
+
+Categories: {'non_shell_tool': 4, 'direct_db_lines': 7, 'direct_db_structural': 2, 'build_test': 7, 'other': 1, 'shim_fallthrough': 1}
+
+Commands:
+  [direct_db_lines       ] cd /tmp/bench-iwe-implement-1-WdHqvi && sqlite3 .indexnudge-rust.db "SELECT * FROM lines_fts WHERE content MATCH 'find'"
+  [direct_db_structural  ] cd /tmp/bench-iwe-implement-1-WdHqvi && sqlite3 .indexnudge-rust.db "SELECT file FROM files WHERE file LIKE '%cli%' OR f
+  [direct_db_structural  ] cd /tmp/bench-iwe-implement-1-WdHqvi && sqlite3 .indexnudge-rust.db "SELECT name, kind, file, start_line, end_line FROM 
+  [direct_db_lines       ] cd /tmp/bench-iwe-implement-1-WdHqvi && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='cra
+  [direct_db_lines       ] cd /tmp/bench-iwe-implement-1-WdHqvi && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='cra
+  [build_test            ] cd /tmp/bench-iwe-implement-1-WdHqvi && cargo build 2>&1 | tail -5
+  [build_test            ] cd /tmp/bench-iwe-implement-1-WdHqvi && cargo test -p iwe -- find 2>&1 | tail -20
+  [build_test            ] cd /tmp/bench-iwe-implement-1-WdHqvi && cargo test -p iwe --test find_test 2>&1 | tail -30
+  [direct_db_lines       ] cd /tmp/bench-iwe-implement-1-WdHqvi && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='cra
+  [direct_db_lines       ] cd /tmp/bench-iwe-implement-1-WdHqvi && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='cra
+  [other                 ] cd /tmp/bench-iwe-implement-1-WdHqvi && wc -l crates/iwe/tests/find_test.rs
+  [direct_db_lines       ] cd /tmp/bench-iwe-implement-1-WdHqvi && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='cra
+  [shim_fallthrough      ] cat >> /tmp/bench-iwe-implement-1-WdHqvi/crates/iwe/tests/find_test.rs << 'EOF'
+
+#[test]
+fn test_find_count_flag() {
+   
+  [build_test            ] cd /tmp/bench-iwe-implement-1-WdHqvi && cargo test -p iwe --test find_test 2>&1 | tail -30
+  [direct_db_lines       ] cd /tmp/bench-iwe-implement-1-WdHqvi && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='cra
+  [build_test            ] cd /tmp/bench-iwe-implement-1-WdHqvi && cargo test -p iwe --test find_test 2>&1 | tail -10
+  [build_test            ] cd /tmp/bench-iwe-implement-1-WdHqvi && cargo test 2>&1 | tail -5
+  [build_test            ] cd /tmp/bench-iwe-implement-1-WdHqvi && cargo test 2>&1 | grep -E 'test result|FAILED'

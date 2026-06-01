@@ -1,0 +1,33 @@
+Tokens: 114249 (in=97607, out=3354)
+Tool calls: 13 | Navigation: 12
+  DB structural: 0
+  DB lines:      0
+  DB other:      0
+  Shim hit:      1
+  Shim fallthru: 7
+  Shim evasion:  0
+  File read:     4
+Scores:
+  db_ratio:         0.083
+  structural_ratio: 0.0
+  evasion_ratio:    0.0
+  file_read_ratio:  0.333
+  line_ratio:       0.0
+  nav_ratio:        0.923
+
+Categories: {'shim_fallthrough': 7, 'file_read': 4, 'other': 1, 'shim_hit': 1}
+
+Commands:
+  [shim_fallthrough      ] ls && find . -type f -name "*.rs" | head -50
+  [shim_fallthrough      ] grep -rn "find" crates/iwec/src/main.rs | head -30; echo ---; grep -rn "meta" crates/iwec/src/main.rs | head -30
+  [shim_fallthrough      ] ls crates/iwec/src/ && cat crates/iwec/src/lib.rs | head -50
+  [shim_fallthrough      ] grep -rn "meta\|Meta" crates/iwec/src/main.rs | head -40
+  [shim_fallthrough      ] ls crates/ && find . -path ./target -prune -o -type f -name "*.rs" -print | xargs grep -ln "\"find\"\|Find {\|FindArgs\|
+  [shim_fallthrough      ] grep -n "find\|Find\|meta\|Meta" crates/iwe/src/main.rs | head -60
+  [file_read             ] read crates/iwe/src/main.rs
+  [file_read             ] read crates/iwe/src/main.rs
+  [other                 ] find . -path ./target -prune -o -type f -name "find.rs" -print
+  [file_read             ] read crates/liwe/src/find.rs
+  [shim_fallthrough      ] grep -n "fn get_metadata" crates/liwe/src/graph.rs crates/liwe/src/graph/*.rs 2>/dev/null | head
+  [shim_hit              ] grep -rn "fn get_metadata" crates/liwe/src/ | head
+  [file_read             ] read crates/liwe/src/graph.rs

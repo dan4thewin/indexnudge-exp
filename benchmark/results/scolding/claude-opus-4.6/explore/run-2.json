@@ -1,0 +1,698 @@
+{
+  "id": "20260510_30",
+  "working_dir": "/tmp/bench-iwe-explore-2-vIqls3",
+  "name": "bench-scolding-claude-opus-4.6-explore-2",
+  "user_set_name": true,
+  "session_type": "user",
+  "created_at": "2026-05-10T15:59:59Z",
+  "updated_at": "2026-05-10T16:00:51Z",
+  "extension_data": {
+    "enabled_extensions.v0": {
+      "extensions": [
+        {
+          "type": "platform",
+          "name": "summon",
+          "description": "Load knowledge and delegate tasks to subagents",
+          "display_name": "Summon",
+          "bundled": true,
+          "available_tools": []
+        },
+        {
+          "type": "stdio",
+          "name": "image-extractor",
+          "description": "Extract images from files/URLs and convert to base64 for LLM analysis",
+          "cmd": "node",
+          "args": [
+            "--no-warnings",
+            "/home/linuxbrew/.linuxbrew/lib/node_modules/mcp-image-extractor/dist/index.js"
+          ],
+          "envs": {},
+          "env_keys": [],
+          "timeout": 300,
+          "bundled": null,
+          "available_tools": []
+        },
+        {
+          "type": "platform",
+          "name": "Extension Manager",
+          "description": "Enable extension management tools for discovering, enabling, and disabling extensions",
+          "display_name": "Extension Manager",
+          "bundled": true,
+          "available_tools": []
+        },
+        {
+          "type": "platform",
+          "name": "todo",
+          "description": "Enable a todo list for goose so it can keep track of what it is doing",
+          "display_name": "Todo",
+          "bundled": true,
+          "available_tools": []
+        },
+        {
+          "type": "platform",
+          "name": "apps",
+          "description": "Create and manage custom Goose apps through chat. Apps are HTML/CSS/JavaScript and run in sandboxed windows.",
+          "display_name": "Apps",
+          "bundled": true,
+          "available_tools": []
+        },
+        {
+          "type": "platform",
+          "name": "developer",
+          "description": "Write and edit files, and execute shell commands",
+          "display_name": "Developer",
+          "bundled": true,
+          "available_tools": []
+        },
+        {
+          "type": "platform",
+          "name": "skills",
+          "description": "Discover and provide skill instructions from filesystem and builtins",
+          "display_name": "Skills",
+          "bundled": true,
+          "available_tools": []
+        },
+        {
+          "type": "platform",
+          "name": "tom",
+          "description": "Inject custom context into every turn via GOOSE_MOIM_MESSAGE_TEXT and GOOSE_MOIM_MESSAGE_FILE environment variables",
+          "display_name": "Top Of Mind",
+          "bundled": true,
+          "available_tools": []
+        }
+      ]
+    }
+  },
+  "total_tokens": 20357,
+  "input_tokens": 19334,
+  "output_tokens": 1023,
+  "accumulated_total_tokens": 157626,
+  "accumulated_input_tokens": 155431,
+  "accumulated_output_tokens": 2195,
+  "schedule_id": null,
+  "recipe": null,
+  "user_recipe_values": null,
+  "conversation": [
+    {
+      "id": "msg_20260510_30_c3c8a2c1-9b50-450e-93f5-9b960bc42784",
+      "role": "user",
+      "created": 1778428800,
+      "content": [
+        {
+          "type": "text",
+          "text": "How does `iwe find --meta` filter documents? Trace the data flow from CLI argument parsing through to the filtered result set. List every function involved and explain the filtering logic. Do not modify any files."
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_c726bfe4-433f-4c4e-8d1f-c45a76ad4415",
+      "role": "assistant",
+      "created": 1778428803,
+      "content": [
+        {
+          "type": "toolRequest",
+          "id": "toolu_vrtx_013NqdCjXEhWnxLz6WpRoyNR",
+          "toolCall": {
+            "status": "success",
+            "value": {
+              "name": "shell",
+              "arguments": {
+                "command": "cd /tmp/bench-iwe-explore-2-vIqls3 && sqlite3 .indexnudge-rust.db \"SELECT file, lines FROM files ORDER BY file;\" 2>/dev/null || sqlite3 .codeindex.db \"SELECT file, lines FROM files ORDER BY file;\""
+              }
+            }
+          },
+          "_meta": {
+            "goose_extension": "developer"
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_eb0112b4-854e-4c14-8824-1c7da269e156",
+      "role": "user",
+      "created": 1778428803,
+      "content": [
+        {
+          "type": "toolResponse",
+          "id": "toolu_vrtx_013NqdCjXEhWnxLz6WpRoyNR",
+          "toolResult": {
+            "status": "success",
+            "value": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "crates/iwe/src/export.rs|4\ncrates/iwe/src/export/dot_details_exporter.rs|142\ncrates/iwe/src/export/dot_exporter.rs|67\ncrates/iwe/src/export/graph_colors.rs|101\ncrates/iwe/src/export/graph_data.rs|330\ncrates/iwe/src/help.rs|89\ncrates/iwe/src/lib.rs|8\ncrates/iwe/src/main.rs|1734\ncrates/iwe/src/new.rs|234\ncrates/iwe/src/render.rs|165\ncrates/iwe/src/selector.rs|56\ncrates/iwe/src/stats.rs|14\ncrates/iwe/tests/common.rs|20\ncrates/iwe/tests/delete_test.rs|261\ncrates/iwe/tests/export_dot_test.rs|98\ncrates/iwe/tests/extract_test.rs|380\ncrates/iwe/tests/find_test.rs|495\ncrates/iwe/tests/init_test.rs|220\ncrates/iwe/tests/inline_test.rs|392\ncrates/iwe/tests/new_test.rs|483\ncrates/iwe/tests/normalize_test.rs|411\ncrates/iwe/tests/rename_test.rs|246\ncrates/iwe/tests/retrieve_test.rs|2249\ncrates/iwe/tests/squash_test.rs|512\ncrates/iwe/tests/stats_test.rs|394\ncrates/iwe/tests/tree_test.rs|475\ncrates/iwec/src/lib.rs|1468\ncrates/iwec/src/main.rs|49\ncrates/iwec/src/watcher.rs|113\ncrates/iwec/tests/attach_test.rs|230\ncrates/iwec/tests/extract_test.rs|103\ncrates/iwec/tests/find_test.rs|195\ncrates/iwec/tests/fixture.rs|161\ncrates/iwec/tests/inline_test.rs|133\ncrates/iwec/tests/normalize_test.rs|30\ncrates/iwec/tests/prompt_test.rs|65\ncrates/iwec/tests/resource_test.rs|114\ncrates/iwec/tests/retrieve_test.rs|174\ncrates/iwec/tests/squash_test.rs|42\ncrates/iwec/tests/stats_test.rs|59\ncrates/iwec/tests/tree_test.rs|110\ncrates/iwec/tests/watcher_test.rs|143\ncrates/iwec/tests/write_test.rs|263\ncrates/iwes/src/lib.rs|61\ncrates/iwes/src/main.rs|141\ncrates/iwes/src/router.rs|295\ncrates/iwes/src/router/server.rs|856\ncrates/iwes/src/router/server/actions.rs|396\ncrates/iwes/src/router/server/actions/attach.rs|196\ncrates/iwes/src/router/server/actions/delete.rs|63\ncrates/iwes/src/router/server/actions/extract.rs|66\ncrates/iwes/src/router/server/actions/extract_all.rs|67\ncrates/iwes/src/router/server/actions/inline.rs|57\ncrates/iwes/src/router/server/actions/link.rs|222\ncrates/iwes/src/router/server/actions/list.rs|104\ncrates/iwes/src/router/server/actions/section.rs|54\ncrates/iwes/src/router/server/actions/sort.rs|60\ncrates/iwes/src/router/server/actions/templates.rs|26\ncrates/iwes/src/router/server/actions/transform.rs|206\ncrates/iwes/src/router/server/base_path.rs|120\ncrates/iwes/src/router/server/extensions.rs|389\ncrates/iwes/src/router/server/search.rs|165\ncrates/iwes/tests/attach_test.rs|457\ncrates/iwes/tests/change_list_type_test.rs|45\ncrates/iwes/tests/completion_test.rs|475\ncrates/iwes/tests/custom_actions_test.rs|43\ncrates/iwes/tests/delete_test.rs|244\ncrates/iwes/tests/did_change_test.rs|57\ncrates/iwes/tests/did_save_test.rs|54\ncrates/iwes/tests/extract_all_test.rs|397\ncrates/iwes/tests/extract_test.rs|691\ncrates/iwes/tests/fixture.rs|891\ncrates/iwes/tests/folding_range_test.rs|205\ncrates/iwes/tests/format_document_test.rs|196\ncrates/iwes/tests/go_to_definition_test.rs|260\ncrates/iwes/tests/hover_test.rs|83\ncrates/iwes/tests/inlay_hints_test.rs|169\ncrates/iwes/tests/inline_quote_test.rs|182\ncrates/iwes/tests/inline_section_test.rs|393\ncrates/iwes/tests/link_test.rs|596\ncrates/iwes/tests/list_to_sections_test.rs|194\ncrates/iwes/tests/references_test.rs|58\ncrates/iwes/tests/rename_test.rs|182\ncrates/iwes/tests/sections_to_list_test.rs|138\ncrates/iwes/tests/sort_test.rs|179\ncrates/iwes/tests/transform_test.rs|472\ncrates/iwes/tests/workspace_symbols_test.rs|222\ncrates/liwe/src/file.rs|22\ncrates/liwe/src/find.rs|278\ncrates/liwe/src/fs.rs|200\ncrates/liwe/src/graph.rs|652\ncrates/liwe/src/graph/arena.rs|95\ncrates/liwe/src/graph/basic_iter.rs|129\ncrates/liwe/src/graph/builder.rs|553\ncrates/liwe/src/graph/graph_line.rs|36\ncrates/liwe/src/graph/graph_node.rs|670\ncrates/liwe/src/graph/index.rs|153\ncrates/liwe/src/graph/path.rs|356\ncrates/liwe/src/graph/sections_builder.rs|591\ncrates/liwe/src/graph/squash_iter.rs|130\ncrates/liwe/src/lib.rs|13\ncrates/liwe/src/locale.rs|76\ncrates/liwe/src/markdown.rs|73\ncrates/liwe/src/markdown/reader.rs|703\ncrates/liwe/src/markdown/writer.rs|371\ncrates/liwe/src/model.rs|168\ncrates/liwe/src/model/config.rs|800\ncrates/liwe/src/model/document.rs|947\ncrates/liwe/src/model/graph.rs|670\ncrates/liwe/src/model/node.rs|441\ncrates/liwe/src/model/projector.rs|193\ncrates/liwe/src/model/reference.rs|26\ncrates/liwe/src/model/tree.rs|900\ncrates/liwe/src/operations.rs|15\ncrates/liwe/src/operations/changes.rs|84\ncrates/liwe/src/operations/config.rs|37\ncrates/liwe/src/operations/delete.rs|40\ncrates/liwe/src/operations/extract.rs|260\ncrates/liwe/src/operations/inline.rs|92\ncrates/liwe/src/operations/rename.rs|46\ncrates/liwe/src/operations/util.rs|82\ncrates/liwe/src/parser.rs|197\ncrates/liwe/src/retrieve.rs|403\ncrates/liwe/src/selector.rs|337\ncrates/liwe/src/state.rs|72\ncrates/liwe/src/stats.rs|429\ncrates/liwe/tests/bare_frontmatter_test.rs|208\ncrates/liwe/tests/config_migration_test.rs|326\ncrates/liwe/tests/find_metadata_test.rs|160\ncrates/liwe/tests/formatting_test.rs|425\ncrates/liwe/tests/frontmatter_title_test.rs|146\ncrates/liwe/tests/gitignore_test.rs|81\ncrates/liwe/tests/links_test.rs|332\ncrates/liwe/tests/normalization_headers.rs|370\ncrates/liwe/tests/normalization_html.rs|61\ncrates/liwe/tests/normalization_lists.rs|371\ncrates/liwe/tests/normalization_metadata.rs|52\ncrates/liwe/tests/normalization_misc.rs|344\ncrates/liwe/tests/normalization_raw.rs|163\ncrates/liwe/tests/squash_test.rs|313\ncrates/liwe/tests/toc_test.rs|133\ncrates/liwe/tests/virtual_directories_test.rs|168",
+                  "annotations": {
+                    "priority": 0.0
+                  }
+                }
+              ],
+              "structuredContent": {
+                "stdout": "crates/iwe/src/export.rs|4\ncrates/iwe/src/export/dot_details_exporter.rs|142\ncrates/iwe/src/export/dot_exporter.rs|67\ncrates/iwe/src/export/graph_colors.rs|101\ncrates/iwe/src/export/graph_data.rs|330\ncrates/iwe/src/help.rs|89\ncrates/iwe/src/lib.rs|8\ncrates/iwe/src/main.rs|1734\ncrates/iwe/src/new.rs|234\ncrates/iwe/src/render.rs|165\ncrates/iwe/src/selector.rs|56\ncrates/iwe/src/stats.rs|14\ncrates/iwe/tests/common.rs|20\ncrates/iwe/tests/delete_test.rs|261\ncrates/iwe/tests/export_dot_test.rs|98\ncrates/iwe/tests/extract_test.rs|380\ncrates/iwe/tests/find_test.rs|495\ncrates/iwe/tests/init_test.rs|220\ncrates/iwe/tests/inline_test.rs|392\ncrates/iwe/tests/new_test.rs|483\ncrates/iwe/tests/normalize_test.rs|411\ncrates/iwe/tests/rename_test.rs|246\ncrates/iwe/tests/retrieve_test.rs|2249\ncrates/iwe/tests/squash_test.rs|512\ncrates/iwe/tests/stats_test.rs|394\ncrates/iwe/tests/tree_test.rs|475\ncrates/iwec/src/lib.rs|1468\ncrates/iwec/src/main.rs|49\ncrates/iwec/src/watcher.rs|113\ncrates/iwec/tests/attach_test.rs|230\ncrates/iwec/tests/extract_test.rs|103\ncrates/iwec/tests/find_test.rs|195\ncrates/iwec/tests/fixture.rs|161\ncrates/iwec/tests/inline_test.rs|133\ncrates/iwec/tests/normalize_test.rs|30\ncrates/iwec/tests/prompt_test.rs|65\ncrates/iwec/tests/resource_test.rs|114\ncrates/iwec/tests/retrieve_test.rs|174\ncrates/iwec/tests/squash_test.rs|42\ncrates/iwec/tests/stats_test.rs|59\ncrates/iwec/tests/tree_test.rs|110\ncrates/iwec/tests/watcher_test.rs|143\ncrates/iwec/tests/write_test.rs|263\ncrates/iwes/src/lib.rs|61\ncrates/iwes/src/main.rs|141\ncrates/iwes/src/router.rs|295\ncrates/iwes/src/router/server.rs|856\ncrates/iwes/src/router/server/actions.rs|396\ncrates/iwes/src/router/server/actions/attach.rs|196\ncrates/iwes/src/router/server/actions/delete.rs|63\ncrates/iwes/src/router/server/actions/extract.rs|66\ncrates/iwes/src/router/server/actions/extract_all.rs|67\ncrates/iwes/src/router/server/actions/inline.rs|57\ncrates/iwes/src/router/server/actions/link.rs|222\ncrates/iwes/src/router/server/actions/list.rs|104\ncrates/iwes/src/router/server/actions/section.rs|54\ncrates/iwes/src/router/server/actions/sort.rs|60\ncrates/iwes/src/router/server/actions/templates.rs|26\ncrates/iwes/src/router/server/actions/transform.rs|206\ncrates/iwes/src/router/server/base_path.rs|120\ncrates/iwes/src/router/server/extensions.rs|389\ncrates/iwes/src/router/server/search.rs|165\ncrates/iwes/tests/attach_test.rs|457\ncrates/iwes/tests/change_list_type_test.rs|45\ncrates/iwes/tests/completion_test.rs|475\ncrates/iwes/tests/custom_actions_test.rs|43\ncrates/iwes/tests/delete_test.rs|244\ncrates/iwes/tests/did_change_test.rs|57\ncrates/iwes/tests/did_save_test.rs|54\ncrates/iwes/tests/extract_all_test.rs|397\ncrates/iwes/tests/extract_test.rs|691\ncrates/iwes/tests/fixture.rs|891\ncrates/iwes/tests/folding_range_test.rs|205\ncrates/iwes/tests/format_document_test.rs|196\ncrates/iwes/tests/go_to_definition_test.rs|260\ncrates/iwes/tests/hover_test.rs|83\ncrates/iwes/tests/inlay_hints_test.rs|169\ncrates/iwes/tests/inline_quote_test.rs|182\ncrates/iwes/tests/inline_section_test.rs|393\ncrates/iwes/tests/link_test.rs|596\ncrates/iwes/tests/list_to_sections_test.rs|194\ncrates/iwes/tests/references_test.rs|58\ncrates/iwes/tests/rename_test.rs|182\ncrates/iwes/tests/sections_to_list_test.rs|138\ncrates/iwes/tests/sort_test.rs|179\ncrates/iwes/tests/transform_test.rs|472\ncrates/iwes/tests/workspace_symbols_test.rs|222\ncrates/liwe/src/file.rs|22\ncrates/liwe/src/find.rs|278\ncrates/liwe/src/fs.rs|200\ncrates/liwe/src/graph.rs|652\ncrates/liwe/src/graph/arena.rs|95\ncrates/liwe/src/graph/basic_iter.rs|129\ncrates/liwe/src/graph/builder.rs|553\ncrates/liwe/src/graph/graph_line.rs|36\ncrates/liwe/src/graph/graph_node.rs|670\ncrates/liwe/src/graph/index.rs|153\ncrates/liwe/src/graph/path.rs|356\ncrates/liwe/src/graph/sections_builder.rs|591\ncrates/liwe/src/graph/squash_iter.rs|130\ncrates/liwe/src/lib.rs|13\ncrates/liwe/src/locale.rs|76\ncrates/liwe/src/markdown.rs|73\ncrates/liwe/src/markdown/reader.rs|703\ncrates/liwe/src/markdown/writer.rs|371\ncrates/liwe/src/model.rs|168\ncrates/liwe/src/model/config.rs|800\ncrates/liwe/src/model/document.rs|947\ncrates/liwe/src/model/graph.rs|670\ncrates/liwe/src/model/node.rs|441\ncrates/liwe/src/model/projector.rs|193\ncrates/liwe/src/model/reference.rs|26\ncrates/liwe/src/model/tree.rs|900\ncrates/liwe/src/operations.rs|15\ncrates/liwe/src/operations/changes.rs|84\ncrates/liwe/src/operations/config.rs|37\ncrates/liwe/src/operations/delete.rs|40\ncrates/liwe/src/operations/extract.rs|260\ncrates/liwe/src/operations/inline.rs|92\ncrates/liwe/src/operations/rename.rs|46\ncrates/liwe/src/operations/util.rs|82\ncrates/liwe/src/parser.rs|197\ncrates/liwe/src/retrieve.rs|403\ncrates/liwe/src/selector.rs|337\ncrates/liwe/src/state.rs|72\ncrates/liwe/src/stats.rs|429\ncrates/liwe/tests/bare_frontmatter_test.rs|208\ncrates/liwe/tests/config_migration_test.rs|326\ncrates/liwe/tests/find_metadata_test.rs|160\ncrates/liwe/tests/formatting_test.rs|425\ncrates/liwe/tests/frontmatter_title_test.rs|146\ncrates/liwe/tests/gitignore_test.rs|81\ncrates/liwe/tests/links_test.rs|332\ncrates/liwe/tests/normalization_headers.rs|370\ncrates/liwe/tests/normalization_html.rs|61\ncrates/liwe/tests/normalization_lists.rs|371\ncrates/liwe/tests/normalization_metadata.rs|52\ncrates/liwe/tests/normalization_misc.rs|344\ncrates/liwe/tests/normalization_raw.rs|163\ncrates/liwe/tests/squash_test.rs|313\ncrates/liwe/tests/toc_test.rs|133\ncrates/liwe/tests/virtual_directories_test.rs|168",
+                "stderr": "",
+                "exit_code": 0
+              },
+              "isError": false
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_aff08e60-7f31-4c63-a0ca-d4c7fc50dc44",
+      "role": "assistant",
+      "created": 1778428806,
+      "content": [
+        {
+          "type": "toolRequest",
+          "id": "toolu_vrtx_01UEQitNdR3qMJ3P62Q9k3v2",
+          "toolCall": {
+            "status": "success",
+            "value": {
+              "name": "shell",
+              "arguments": {
+                "command": "cd /tmp/bench-iwe-explore-2-vIqls3 && sqlite3 .codeindex.db \"SELECT file, line_num, content FROM lines WHERE file='crates/liwe/src/find.rs';\""
+              }
+            }
+          },
+          "_meta": {
+            "goose_extension": "developer"
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_dbf89bb8-8f14-4e04-966f-d5daaebacfe9",
+      "role": "user",
+      "created": 1778428806,
+      "content": [
+        {
+          "type": "toolResponse",
+          "id": "toolu_vrtx_01UEQitNdR3qMJ3P62Q9k3v2",
+          "toolResult": {
+            "status": "success",
+            "value": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Parse error in 2nd command line argument: no such table: lines\n\nCommand exited with code 1",
+                  "annotations": {
+                    "priority": 0.0
+                  }
+                }
+              ],
+              "structuredContent": {
+                "stdout": "",
+                "stderr": "Parse error in 2nd command line argument: no such table: lines",
+                "exit_code": 1
+              },
+              "isError": true
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_177810e0-764c-4e25-bec9-676c3151a167",
+      "role": "assistant",
+      "created": 1778428808,
+      "content": [
+        {
+          "type": "toolRequest",
+          "id": "toolu_vrtx_01UVVA2KYKpH9oYYPYR9R33W",
+          "toolCall": {
+            "status": "success",
+            "value": {
+              "name": "shell",
+              "arguments": {
+                "command": "cd /tmp/bench-iwe-explore-2-vIqls3 && sqlite3 .indexnudge-rust.db \"SELECT file, line_num, content FROM lines WHERE file='crates/liwe/src/find.rs';\""
+              }
+            }
+          },
+          "_meta": {
+            "goose_extension": "developer"
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_8a3f5fe6-960e-444d-bee8-78931464294a",
+      "role": "user",
+      "created": 1778428808,
+      "content": [
+        {
+          "type": "toolResponse",
+          "id": "toolu_vrtx_01UVVA2KYKpH9oYYPYR9R33W",
+          "toolResult": {
+            "status": "success",
+            "value": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "crates/liwe/src/find.rs|1|use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};\ncrates/liwe/src/find.rs|2|use itertools::Itertools;\ncrates/liwe/src/find.rs|3|use serde::Serialize;\ncrates/liwe/src/find.rs|4|use crate::graph::{Graph, GraphContext};\ncrates/liwe/src/find.rs|5|use crate::model::node::{NodeIter, NodePointer};\ncrates/liwe/src/find.rs|6|use crate::model::{Key, NodeId};\ncrates/liwe/src/find.rs|7|use crate::selector::Selector;\ncrates/liwe/src/find.rs|8|\ncrates/liwe/src/find.rs|9|#[derive(Debug, Clone, Serialize)]\ncrates/liwe/src/find.rs|10|pub struct ParentDocumentInfo {\ncrates/liwe/src/find.rs|11|    pub key: String,\ncrates/liwe/src/find.rs|12|    pub title: String,\ncrates/liwe/src/find.rs|13|    pub section_path: Vec<String>,\ncrates/liwe/src/find.rs|14|}\ncrates/liwe/src/find.rs|15|\ncrates/liwe/src/find.rs|16|#[derive(Debug, Clone, Serialize)]\ncrates/liwe/src/find.rs|17|pub struct FindResult {\ncrates/liwe/src/find.rs|18|    pub key: String,\ncrates/liwe/src/find.rs|19|    pub title: String,\ncrates/liwe/src/find.rs|20|    pub display_title: String,\ncrates/liwe/src/find.rs|21|    pub is_root: bool,\ncrates/liwe/src/find.rs|22|    pub incoming_refs: usize,\ncrates/liwe/src/find.rs|23|    pub outgoing_refs: usize,\ncrates/liwe/src/find.rs|24|    pub parent_documents: Vec<ParentDocumentInfo>,\ncrates/liwe/src/find.rs|25|}\ncrates/liwe/src/find.rs|26|\ncrates/liwe/src/find.rs|27|#[derive(Debug, Clone, Serialize)]\ncrates/liwe/src/find.rs|28|pub struct FindOutput {\ncrates/liwe/src/find.rs|29|    pub query: Option<String>,\ncrates/liwe/src/find.rs|30|    pub limit: Option<usize>,\ncrates/liwe/src/find.rs|31|    pub total: usize,\ncrates/liwe/src/find.rs|32|    pub results: Vec<FindResult>,\ncrates/liwe/src/find.rs|33|}\ncrates/liwe/src/find.rs|34|\ncrates/liwe/src/find.rs|35|#[derive(Debug, Clone, Default)]\ncrates/liwe/src/find.rs|36|pub struct FindOptions {\ncrates/liwe/src/find.rs|37|    pub query: Option<String>,\ncrates/liwe/src/find.rs|38|    pub roots: bool,\ncrates/liwe/src/find.rs|39|    pub refs_to: Option<Key>,\ncrates/liwe/src/find.rs|40|    pub refs_from: Option<Key>,\ncrates/liwe/src/find.rs|41|    pub selector: Selector,\ncrates/liwe/src/find.rs|42|    pub limit: Option<usize>,\ncrates/liwe/src/find.rs|43|    pub metadata_filters: Vec<(String, String)>,\ncrates/liwe/src/find.rs|44|}\ncrates/liwe/src/find.rs|45|\ncrates/liwe/src/find.rs|46|pub struct DocumentFinder<'a> {\ncrates/liwe/src/find.rs|47|    graph: &'a Graph,\ncrates/liwe/src/find.rs|48|}\ncrates/liwe/src/find.rs|49|\ncrates/liwe/src/find.rs|50|impl<'a> DocumentFinder<'a> {\ncrates/liwe/src/find.rs|51|    pub fn new(graph: &'a Graph) -> Self {\ncrates/liwe/src/find.rs|52|        Self { graph }\ncrates/liwe/src/find.rs|53|    }\ncrates/liwe/src/find.rs|54|\ncrates/liwe/src/find.rs|55|    pub fn find(&self, options: &FindOptions) -> FindOutput {\ncrates/liwe/src/find.rs|56|        let matcher = SkimMatcherV2::default();\ncrates/liwe/src/find.rs|57|\ncrates/liwe/src/find.rs|58|        let candidate_set = if options.selector.is_empty() {\ncrates/liwe/src/find.rs|59|            None\ncrates/liwe/src/find.rs|60|        } else {\ncrates/liwe/src/find.rs|61|            Some(options.selector.resolve(self.graph))\ncrates/liwe/src/find.rs|62|        };\ncrates/liwe/src/find.rs|63|\ncrates/liwe/src/find.rs|64|        let mut results: Vec<(Key, i64)> = self\ncrates/liwe/src/find.rs|65|            .graph\ncrates/liwe/src/find.rs|66|            .keys()\ncrates/liwe/src/find.rs|67|            .into_iter()\ncrates/liwe/src/find.rs|68|            .filter_map(|key| {\ncrates/liwe/src/find.rs|69|                if let Some(set) = &candidate_set {\ncrates/liwe/src/find.rs|70|                    if !set.contains(&key) {\ncrates/liwe/src/find.rs|71|                        return None;\ncrates/liwe/src/find.rs|72|                    }\ncrates/liwe/src/find.rs|73|                }\ncrates/liwe/src/find.rs|74|                if options.roots && !self.is_root(&key) {\ncrates/liwe/src/find.rs|75|                    return None;\ncrates/liwe/src/find.rs|76|                }\ncrates/liwe/src/find.rs|77|                if let Some(ref target) = options.refs_to {\ncrates/liwe/src/find.rs|78|                    if !self.references(&key, target) {\ncrates/liwe/src/find.rs|79|                        return None;\ncrates/liwe/src/find.rs|80|                    }\ncrates/liwe/src/find.rs|81|                }\ncrates/liwe/src/find.rs|82|                if let Some(ref source) = options.refs_from {\ncrates/liwe/src/find.rs|83|                    if !self.references(source, &key) {\ncrates/liwe/src/find.rs|84|                        return None;\ncrates/liwe/src/find.rs|85|                    }\ncrates/liwe/src/find.rs|86|                }\ncrates/liwe/src/find.rs|87|\ncrates/liwe/src/find.rs|88|                if !options.metadata_filters.is_empty()\ncrates/liwe/src/find.rs|89|                    && !self.metadata_matches(&key, &options.metadata_filters)\ncrates/liwe/src/find.rs|90|                {\ncrates/liwe/src/find.rs|91|                    return None;\ncrates/liwe/src/find.rs|92|                }\ncrates/liwe/src/find.rs|93|\ncrates/liwe/src/find.rs|94|                let title = self.graph.get_key_title(&key).unwrap_or_default();\ncrates/liwe/src/find.rs|95|                let search_text = format!(\"{} {}\", key, title);\ncrates/liwe/src/find.rs|96|\ncrates/liwe/src/find.rs|97|                let score = options\ncrates/liwe/src/find.rs|98|                    .query\ncrates/liwe/src/find.rs|99|                    .as_ref()\ncrates/liwe/src/find.rs|100|                    .map(|q| matcher.fuzzy_match(&search_text, q).unwrap_or(0))\ncrates/liwe/src/find.rs|101|                    .unwrap_or(self.node_rank(&key) as i64);\ncrates/liwe/src/find.rs|102|\ncrates/liwe/src/find.rs|103|                if options.query.is_some() && score == 0 {\ncrates/liwe/src/find.rs|104|                    return None;\ncrates/liwe/src/find.rs|105|                }\ncrates/liwe/src/find.rs|106|\ncrates/liwe/src/find.rs|107|                Some((key, score))\ncrates/liwe/src/find.rs|108|            })\ncrates/liwe/src/find.rs|109|            .collect();\ncrates/liwe/src/find.rs|110|\ncrates/liwe/src/find.rs|111|        results.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));\ncrates/liwe/src/find.rs|112|\ncrates/liwe/src/find.rs|113|        let total = results.len();\ncrates/liwe/src/find.rs|114|        let results: Vec<FindResult> = if let Some(limit) = options.limit {\ncrates/liwe/src/find.rs|115|            results\ncrates/liwe/src/find.rs|116|                .into_iter()\ncrates/liwe/src/find.rs|117|                .take(limit)\ncrates/liwe/src/find.rs|118|                .map(|(key, _)| self.build_result(&key))\ncrates/liwe/src/find.rs|119|                .collect()\ncrates/liwe/src/find.rs|120|        } else {\ncrates/liwe/src/find.rs|121|            results\ncrates/liwe/src/find.rs|122|                .into_iter()\ncrates/liwe/src/find.rs|123|                .map(|(key, _)| self.build_result(&key))\ncrates/liwe/src/find.rs|124|                .collect()\ncrates/liwe/src/find.rs|125|        };\ncrates/liwe/src/find.rs|126|\ncrates/liwe/src/find.rs|127|        let limit = options.limit.filter(|&l| l < total);\ncrates/liwe/src/find.rs|128|\ncrates/liwe/src/find.rs|129|        FindOutput {\ncrates/liwe/src/find.rs|130|            query: options.query.clone(),\ncrates/liwe/src/find.rs|131|            limit,\ncrates/liwe/src/find.rs|132|            total,\ncrates/liwe/src/find.rs|133|            results,\ncrates/liwe/src/find.rs|134|        }\ncrates/liwe/src/find.rs|135|    }\ncrates/liwe/src/find.rs|136|\ncrates/liwe/src/find.rs|137|    fn build_result(&self, key: &Key) -> FindResult {\ncrates/liwe/src/find.rs|138|        let title = self.graph.get_key_title(key).unwrap_or_default();\ncrates/liwe/src/find.rs|139|        let parent_documents = self.get_parent_documents(key);\ncrates/liwe/src/find.rs|140|        let display_title = Self::render_display_title(&title, &parent_documents);\ncrates/liwe/src/find.rs|141|\ncrates/liwe/src/find.rs|142|        FindResult {\ncrates/liwe/src/find.rs|143|            key: key.to_string(),\ncrates/liwe/src/find.rs|144|            title,\ncrates/liwe/src/find.rs|145|            display_title,\ncrates/liwe/src/find.rs|146|            is_root: self.is_root(key),\ncrates/liwe/src/find.rs|147|            incoming_refs: self.graph.get_block_references_to(key).len()\ncrates/liwe/src/find.rs|148|                + self.graph.get_inline_references_to(key).len(),\ncrates/liwe/src/find.rs|149|            outgoing_refs: self.graph.get_block_references_in(key).len(),\ncrates/liwe/src/find.rs|150|            parent_documents,\ncrates/liwe/src/find.rs|151|        }\ncrates/liwe/src/find.rs|152|    }\ncrates/liwe/src/find.rs|153|\ncrates/liwe/src/find.rs|154|    fn render_display_title(title: &str, parent_documents: &[ParentDocumentInfo]) -> String {\ncrates/liwe/src/find.rs|155|        if parent_documents.is_empty() {\ncrates/liwe/src/find.rs|156|            title.to_string()\ncrates/liwe/src/find.rs|157|        } else {\ncrates/liwe/src/find.rs|158|            let parents = parent_documents\ncrates/liwe/src/find.rs|159|                .iter()\ncrates/liwe/src/find.rs|160|                .map(|p| format!(\"↖{}\", p.title))\ncrates/liwe/src/find.rs|161|                .collect::<Vec<_>>()\ncrates/liwe/src/find.rs|162|                .join(\" \");\ncrates/liwe/src/find.rs|163|            format!(\"{} {}\", title, parents)\ncrates/liwe/src/find.rs|164|        }\ncrates/liwe/src/find.rs|165|    }\ncrates/liwe/src/find.rs|166|\ncrates/liwe/src/find.rs|167|    fn is_root(&self, key: &Key) -> bool {\ncrates/liwe/src/find.rs|168|        self.graph.get_block_references_to(key).is_empty()\ncrates/liwe/src/find.rs|169|    }\ncrates/liwe/src/find.rs|170|\ncrates/liwe/src/find.rs|171|    fn node_rank(&self, key: &Key) -> usize {\ncrates/liwe/src/find.rs|172|        self.graph.get_inline_references_to(key).len()\ncrates/liwe/src/find.rs|173|            + self.graph.get_block_references_to(key).len()\ncrates/liwe/src/find.rs|174|    }\ncrates/liwe/src/find.rs|175|\ncrates/liwe/src/find.rs|176|    fn references(&self, source: &Key, target: &Key) -> bool {\ncrates/liwe/src/find.rs|177|        let block_refs = self.graph.get_block_references_in(source);\ncrates/liwe/src/find.rs|178|        for ref_id in block_refs {\ncrates/liwe/src/find.rs|179|            if let Some(ref_key) = self.graph.graph_node(ref_id).ref_key() {\ncrates/liwe/src/find.rs|180|                if &ref_key == target {\ncrates/liwe/src/find.rs|181|                    return true;\ncrates/liwe/src/find.rs|182|                }\ncrates/liwe/src/find.rs|183|            }\ncrates/liwe/src/find.rs|184|        }\ncrates/liwe/src/find.rs|185|\ncrates/liwe/src/find.rs|186|        if let Some(node_id) = self.graph.get_node_id(source) {\ncrates/liwe/src/find.rs|187|            let sub_nodes = self.graph.node(node_id).get_all_sub_nodes();\ncrates/liwe/src/find.rs|188|            for sub_node_id in sub_nodes {\ncrates/liwe/src/find.rs|189|                if let Some(line_id) = self.graph.graph_node(sub_node_id).line_id() {\ncrates/liwe/src/find.rs|190|                    let line = self.graph.get_line(line_id);\ncrates/liwe/src/find.rs|191|                    for ref_key in line.ref_keys() {\ncrates/liwe/src/find.rs|192|                        if &ref_key == target {\ncrates/liwe/src/find.rs|193|                            return true;\ncrates/liwe/src/find.rs|194|                        }\ncrates/liwe/src/find.rs|195|                    }\ncrates/liwe/src/find.rs|196|                }\ncrates/liwe/src/find.rs|197|            }\ncrates/liwe/src/find.rs|198|        }\ncrates/liwe/src/find.rs|199|\ncrates/liwe/src/find.rs|200|        false\ncrates/liwe/src/find.rs|201|    }\ncrates/liwe/src/find.rs|202|\ncrates/liwe/src/find.rs|203|    fn get_parent_documents(&self, key: &Key) -> Vec<ParentDocumentInfo> {\ncrates/liwe/src/find.rs|204|        let refs = self.graph.get_block_references_to(key);\ncrates/liwe/src/find.rs|205|        let mut parents = Vec::new();\ncrates/liwe/src/find.rs|206|\ncrates/liwe/src/find.rs|207|        for ref_id in refs {\ncrates/liwe/src/find.rs|208|            let node = self.graph.node(ref_id);\ncrates/liwe/src/find.rs|209|\ncrates/liwe/src/find.rs|210|            if let Some(doc_node) = node.to_document() {\ncrates/liwe/src/find.rs|211|                if let Some(doc_key) = doc_node.document_key() {\ncrates/liwe/src/find.rs|212|                    let title = self\ncrates/liwe/src/find.rs|213|                        .graph\ncrates/liwe/src/find.rs|214|                        .get_key_title(&doc_key)\ncrates/liwe/src/find.rs|215|                        .unwrap_or_else(|| doc_key.to_string());\ncrates/liwe/src/find.rs|216|\ncrates/liwe/src/find.rs|217|                    let section_path = self.get_section_path(ref_id);\ncrates/liwe/src/find.rs|218|\ncrates/liwe/src/find.rs|219|                    parents.push(ParentDocumentInfo {\ncrates/liwe/src/find.rs|220|                        key: doc_key.to_string(),\ncrates/liwe/src/find.rs|221|                        title,\ncrates/liwe/src/find.rs|222|                        section_path,\ncrates/liwe/src/find.rs|223|                    });\ncrates/liwe/src/find.rs|224|                }\ncrates/liwe/src/find.rs|225|            }\ncrates/liwe/src/find.rs|226|        }\ncrates/liwe/src/find.rs|227|\ncrates/liwe/src/find.rs|228|        parents.into_iter().unique_by(|p| p.key.clone()).collect()\ncrates/liwe/src/find.rs|229|    }\ncrates/liwe/src/find.rs|230|\ncrates/liwe/src/find.rs|231|    fn get_section_path(&self, node_id: NodeId) -> Vec<String> {\ncrates/liwe/src/find.rs|232|        let mut path = Vec::new();\ncrates/liwe/src/find.rs|233|        let mut current = self.graph.node(node_id);\ncrates/liwe/src/find.rs|234|\ncrates/liwe/src/find.rs|235|        while let Some(parent) = current.to_parent() {\ncrates/liwe/src/find.rs|236|            if parent.is_section()\ncrates/liwe/src/find.rs|237|                && parent\ncrates/liwe/src/find.rs|238|                    .to_parent()\ncrates/liwe/src/find.rs|239|                    .map(|p| p.is_document())\ncrates/liwe/src/find.rs|240|                    .unwrap_or(true)\ncrates/liwe/src/find.rs|241|            {\ncrates/liwe/src/find.rs|242|                let text = parent.plain_text().trim().to_string();\ncrates/liwe/src/find.rs|243|                path.push(text);\ncrates/liwe/src/find.rs|244|            }\ncrates/liwe/src/find.rs|245|            if parent.is_document() {\ncrates/liwe/src/find.rs|246|                break;\ncrates/liwe/src/find.rs|247|            }\ncrates/liwe/src/find.rs|248|            current = parent;\ncrates/liwe/src/find.rs|249|        }\ncrates/liwe/src/find.rs|250|        path\ncrates/liwe/src/find.rs|251|    }\ncrates/liwe/src/find.rs|252|\ncrates/liwe/src/find.rs|253|    fn metadata_matches(&self, key: &Key, filters: &[(String, String)]) -> bool {\ncrates/liwe/src/find.rs|254|        let raw = match self.graph.get_metadata(key) {\ncrates/liwe/src/find.rs|255|            Some(s) => s,\ncrates/liwe/src/find.rs|256|            None => return false,\ncrates/liwe/src/find.rs|257|        };\ncrates/liwe/src/find.rs|258|        let val: serde_yaml::Value = match serde_yaml::from_str(raw) {\ncrates/liwe/src/find.rs|259|            Ok(v) => v,\ncrates/liwe/src/find.rs|260|            _ => return false,\ncrates/liwe/src/find.rs|261|        };\ncrates/liwe/src/find.rs|262|        filters.iter().all(|(k, v)| {\ncrates/liwe/src/find.rs|263|            val.get(k.as_str())\ncrates/liwe/src/find.rs|264|                .and_then(|node| match node {\ncrates/liwe/src/find.rs|265|                    serde_yaml::Value::String(s) => Some(s.as_str() == v.as_str()),\ncrates/liwe/src/find.rs|266|                    serde_yaml::Value::Bool(b) => Some(b.to_string() == *v),\ncrates/liwe/src/find.rs|267|                    serde_yaml::Value::Number(n) => Some(n.to_string() == *v),\ncrates/liwe/src/find.rs|268|                    serde_yaml::Value::Sequence(items) => Some(\ncrates/liwe/src/find.rs|269|                        items\ncrates/liwe/src/find.rs|270|                            .iter()\ncrates/liwe/src/find.rs|271|                            .any(|i| i.as_str().map(|s| s == v.as_str()).unwrap_or(false)),\ncrates/liwe/src/find.rs|272|                    ),\ncrates/liwe/src/find.rs|273|                    _ => Some(false),\ncrates/liwe/src/find.rs|274|                })\ncrates/liwe/src/find.rs|275|                .unwrap_or(false)\ncrates/liwe/src/find.rs|276|        })\ncrates/liwe/src/find.rs|277|    }\ncrates/liwe/src/find.rs|278|}",
+                  "annotations": {
+                    "priority": 0.0
+                  }
+                }
+              ],
+              "structuredContent": {
+                "stdout": "crates/liwe/src/find.rs|1|use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};\ncrates/liwe/src/find.rs|2|use itertools::Itertools;\ncrates/liwe/src/find.rs|3|use serde::Serialize;\ncrates/liwe/src/find.rs|4|use crate::graph::{Graph, GraphContext};\ncrates/liwe/src/find.rs|5|use crate::model::node::{NodeIter, NodePointer};\ncrates/liwe/src/find.rs|6|use crate::model::{Key, NodeId};\ncrates/liwe/src/find.rs|7|use crate::selector::Selector;\ncrates/liwe/src/find.rs|8|\ncrates/liwe/src/find.rs|9|#[derive(Debug, Clone, Serialize)]\ncrates/liwe/src/find.rs|10|pub struct ParentDocumentInfo {\ncrates/liwe/src/find.rs|11|    pub key: String,\ncrates/liwe/src/find.rs|12|    pub title: String,\ncrates/liwe/src/find.rs|13|    pub section_path: Vec<String>,\ncrates/liwe/src/find.rs|14|}\ncrates/liwe/src/find.rs|15|\ncrates/liwe/src/find.rs|16|#[derive(Debug, Clone, Serialize)]\ncrates/liwe/src/find.rs|17|pub struct FindResult {\ncrates/liwe/src/find.rs|18|    pub key: String,\ncrates/liwe/src/find.rs|19|    pub title: String,\ncrates/liwe/src/find.rs|20|    pub display_title: String,\ncrates/liwe/src/find.rs|21|    pub is_root: bool,\ncrates/liwe/src/find.rs|22|    pub incoming_refs: usize,\ncrates/liwe/src/find.rs|23|    pub outgoing_refs: usize,\ncrates/liwe/src/find.rs|24|    pub parent_documents: Vec<ParentDocumentInfo>,\ncrates/liwe/src/find.rs|25|}\ncrates/liwe/src/find.rs|26|\ncrates/liwe/src/find.rs|27|#[derive(Debug, Clone, Serialize)]\ncrates/liwe/src/find.rs|28|pub struct FindOutput {\ncrates/liwe/src/find.rs|29|    pub query: Option<String>,\ncrates/liwe/src/find.rs|30|    pub limit: Option<usize>,\ncrates/liwe/src/find.rs|31|    pub total: usize,\ncrates/liwe/src/find.rs|32|    pub results: Vec<FindResult>,\ncrates/liwe/src/find.rs|33|}\ncrates/liwe/src/find.rs|34|\ncrates/liwe/src/find.rs|35|#[derive(Debug, Clone, Default)]\ncrates/liwe/src/find.rs|36|pub struct FindOptions {\ncrates/liwe/src/find.rs|37|    pub query: Option<String>,\ncrates/liwe/src/find.rs|38|    pub roots: bool,\ncrates/liwe/src/find.rs|39|    pub refs_to: Option<Key>,\ncrates/liwe/src/find.rs|40|    pub refs_from: Option<Key>,\ncrates/liwe/src/find.rs|41|    pub selector: Selector,\ncrates/liwe/src/find.rs|42|    pub limit: Option<usize>,\ncrates/liwe/src/find.rs|43|    pub metadata_filters: Vec<(String, String)>,\ncrates/liwe/src/find.rs|44|}\ncrates/liwe/src/find.rs|45|\ncrates/liwe/src/find.rs|46|pub struct DocumentFinder<'a> {\ncrates/liwe/src/find.rs|47|    graph: &'a Graph,\ncrates/liwe/src/find.rs|48|}\ncrates/liwe/src/find.rs|49|\ncrates/liwe/src/find.rs|50|impl<'a> DocumentFinder<'a> {\ncrates/liwe/src/find.rs|51|    pub fn new(graph: &'a Graph) -> Self {\ncrates/liwe/src/find.rs|52|        Self { graph }\ncrates/liwe/src/find.rs|53|    }\ncrates/liwe/src/find.rs|54|\ncrates/liwe/src/find.rs|55|    pub fn find(&self, options: &FindOptions) -> FindOutput {\ncrates/liwe/src/find.rs|56|        let matcher = SkimMatcherV2::default();\ncrates/liwe/src/find.rs|57|\ncrates/liwe/src/find.rs|58|        let candidate_set = if options.selector.is_empty() {\ncrates/liwe/src/find.rs|59|            None\ncrates/liwe/src/find.rs|60|        } else {\ncrates/liwe/src/find.rs|61|            Some(options.selector.resolve(self.graph))\ncrates/liwe/src/find.rs|62|        };\ncrates/liwe/src/find.rs|63|\ncrates/liwe/src/find.rs|64|        let mut results: Vec<(Key, i64)> = self\ncrates/liwe/src/find.rs|65|            .graph\ncrates/liwe/src/find.rs|66|            .keys()\ncrates/liwe/src/find.rs|67|            .into_iter()\ncrates/liwe/src/find.rs|68|            .filter_map(|key| {\ncrates/liwe/src/find.rs|69|                if let Some(set) = &candidate_set {\ncrates/liwe/src/find.rs|70|                    if !set.contains(&key) {\ncrates/liwe/src/find.rs|71|                        return None;\ncrates/liwe/src/find.rs|72|                    }\ncrates/liwe/src/find.rs|73|                }\ncrates/liwe/src/find.rs|74|                if options.roots && !self.is_root(&key) {\ncrates/liwe/src/find.rs|75|                    return None;\ncrates/liwe/src/find.rs|76|                }\ncrates/liwe/src/find.rs|77|                if let Some(ref target) = options.refs_to {\ncrates/liwe/src/find.rs|78|                    if !self.references(&key, target) {\ncrates/liwe/src/find.rs|79|                        return None;\ncrates/liwe/src/find.rs|80|                    }\ncrates/liwe/src/find.rs|81|                }\ncrates/liwe/src/find.rs|82|                if let Some(ref source) = options.refs_from {\ncrates/liwe/src/find.rs|83|                    if !self.references(source, &key) {\ncrates/liwe/src/find.rs|84|                        return None;\ncrates/liwe/src/find.rs|85|                    }\ncrates/liwe/src/find.rs|86|                }\ncrates/liwe/src/find.rs|87|\ncrates/liwe/src/find.rs|88|                if !options.metadata_filters.is_empty()\ncrates/liwe/src/find.rs|89|                    && !self.metadata_matches(&key, &options.metadata_filters)\ncrates/liwe/src/find.rs|90|                {\ncrates/liwe/src/find.rs|91|                    return None;\ncrates/liwe/src/find.rs|92|                }\ncrates/liwe/src/find.rs|93|\ncrates/liwe/src/find.rs|94|                let title = self.graph.get_key_title(&key).unwrap_or_default();\ncrates/liwe/src/find.rs|95|                let search_text = format!(\"{} {}\", key, title);\ncrates/liwe/src/find.rs|96|\ncrates/liwe/src/find.rs|97|                let score = options\ncrates/liwe/src/find.rs|98|                    .query\ncrates/liwe/src/find.rs|99|                    .as_ref()\ncrates/liwe/src/find.rs|100|                    .map(|q| matcher.fuzzy_match(&search_text, q).unwrap_or(0))\ncrates/liwe/src/find.rs|101|                    .unwrap_or(self.node_rank(&key) as i64);\ncrates/liwe/src/find.rs|102|\ncrates/liwe/src/find.rs|103|                if options.query.is_some() && score == 0 {\ncrates/liwe/src/find.rs|104|                    return None;\ncrates/liwe/src/find.rs|105|                }\ncrates/liwe/src/find.rs|106|\ncrates/liwe/src/find.rs|107|                Some((key, score))\ncrates/liwe/src/find.rs|108|            })\ncrates/liwe/src/find.rs|109|            .collect();\ncrates/liwe/src/find.rs|110|\ncrates/liwe/src/find.rs|111|        results.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));\ncrates/liwe/src/find.rs|112|\ncrates/liwe/src/find.rs|113|        let total = results.len();\ncrates/liwe/src/find.rs|114|        let results: Vec<FindResult> = if let Some(limit) = options.limit {\ncrates/liwe/src/find.rs|115|            results\ncrates/liwe/src/find.rs|116|                .into_iter()\ncrates/liwe/src/find.rs|117|                .take(limit)\ncrates/liwe/src/find.rs|118|                .map(|(key, _)| self.build_result(&key))\ncrates/liwe/src/find.rs|119|                .collect()\ncrates/liwe/src/find.rs|120|        } else {\ncrates/liwe/src/find.rs|121|            results\ncrates/liwe/src/find.rs|122|                .into_iter()\ncrates/liwe/src/find.rs|123|                .map(|(key, _)| self.build_result(&key))\ncrates/liwe/src/find.rs|124|                .collect()\ncrates/liwe/src/find.rs|125|        };\ncrates/liwe/src/find.rs|126|\ncrates/liwe/src/find.rs|127|        let limit = options.limit.filter(|&l| l < total);\ncrates/liwe/src/find.rs|128|\ncrates/liwe/src/find.rs|129|        FindOutput {\ncrates/liwe/src/find.rs|130|            query: options.query.clone(),\ncrates/liwe/src/find.rs|131|            limit,\ncrates/liwe/src/find.rs|132|            total,\ncrates/liwe/src/find.rs|133|            results,\ncrates/liwe/src/find.rs|134|        }\ncrates/liwe/src/find.rs|135|    }\ncrates/liwe/src/find.rs|136|\ncrates/liwe/src/find.rs|137|    fn build_result(&self, key: &Key) -> FindResult {\ncrates/liwe/src/find.rs|138|        let title = self.graph.get_key_title(key).unwrap_or_default();\ncrates/liwe/src/find.rs|139|        let parent_documents = self.get_parent_documents(key);\ncrates/liwe/src/find.rs|140|        let display_title = Self::render_display_title(&title, &parent_documents);\ncrates/liwe/src/find.rs|141|\ncrates/liwe/src/find.rs|142|        FindResult {\ncrates/liwe/src/find.rs|143|            key: key.to_string(),\ncrates/liwe/src/find.rs|144|            title,\ncrates/liwe/src/find.rs|145|            display_title,\ncrates/liwe/src/find.rs|146|            is_root: self.is_root(key),\ncrates/liwe/src/find.rs|147|            incoming_refs: self.graph.get_block_references_to(key).len()\ncrates/liwe/src/find.rs|148|                + self.graph.get_inline_references_to(key).len(),\ncrates/liwe/src/find.rs|149|            outgoing_refs: self.graph.get_block_references_in(key).len(),\ncrates/liwe/src/find.rs|150|            parent_documents,\ncrates/liwe/src/find.rs|151|        }\ncrates/liwe/src/find.rs|152|    }\ncrates/liwe/src/find.rs|153|\ncrates/liwe/src/find.rs|154|    fn render_display_title(title: &str, parent_documents: &[ParentDocumentInfo]) -> String {\ncrates/liwe/src/find.rs|155|        if parent_documents.is_empty() {\ncrates/liwe/src/find.rs|156|            title.to_string()\ncrates/liwe/src/find.rs|157|        } else {\ncrates/liwe/src/find.rs|158|            let parents = parent_documents\ncrates/liwe/src/find.rs|159|                .iter()\ncrates/liwe/src/find.rs|160|                .map(|p| format!(\"↖{}\", p.title))\ncrates/liwe/src/find.rs|161|                .collect::<Vec<_>>()\ncrates/liwe/src/find.rs|162|                .join(\" \");\ncrates/liwe/src/find.rs|163|            format!(\"{} {}\", title, parents)\ncrates/liwe/src/find.rs|164|        }\ncrates/liwe/src/find.rs|165|    }\ncrates/liwe/src/find.rs|166|\ncrates/liwe/src/find.rs|167|    fn is_root(&self, key: &Key) -> bool {\ncrates/liwe/src/find.rs|168|        self.graph.get_block_references_to(key).is_empty()\ncrates/liwe/src/find.rs|169|    }\ncrates/liwe/src/find.rs|170|\ncrates/liwe/src/find.rs|171|    fn node_rank(&self, key: &Key) -> usize {\ncrates/liwe/src/find.rs|172|        self.graph.get_inline_references_to(key).len()\ncrates/liwe/src/find.rs|173|            + self.graph.get_block_references_to(key).len()\ncrates/liwe/src/find.rs|174|    }\ncrates/liwe/src/find.rs|175|\ncrates/liwe/src/find.rs|176|    fn references(&self, source: &Key, target: &Key) -> bool {\ncrates/liwe/src/find.rs|177|        let block_refs = self.graph.get_block_references_in(source);\ncrates/liwe/src/find.rs|178|        for ref_id in block_refs {\ncrates/liwe/src/find.rs|179|            if let Some(ref_key) = self.graph.graph_node(ref_id).ref_key() {\ncrates/liwe/src/find.rs|180|                if &ref_key == target {\ncrates/liwe/src/find.rs|181|                    return true;\ncrates/liwe/src/find.rs|182|                }\ncrates/liwe/src/find.rs|183|            }\ncrates/liwe/src/find.rs|184|        }\ncrates/liwe/src/find.rs|185|\ncrates/liwe/src/find.rs|186|        if let Some(node_id) = self.graph.get_node_id(source) {\ncrates/liwe/src/find.rs|187|            let sub_nodes = self.graph.node(node_id).get_all_sub_nodes();\ncrates/liwe/src/find.rs|188|            for sub_node_id in sub_nodes {\ncrates/liwe/src/find.rs|189|                if let Some(line_id) = self.graph.graph_node(sub_node_id).line_id() {\ncrates/liwe/src/find.rs|190|                    let line = self.graph.get_line(line_id);\ncrates/liwe/src/find.rs|191|                    for ref_key in line.ref_keys() {\ncrates/liwe/src/find.rs|192|                        if &ref_key == target {\ncrates/liwe/src/find.rs|193|                            return true;\ncrates/liwe/src/find.rs|194|                        }\ncrates/liwe/src/find.rs|195|                    }\ncrates/liwe/src/find.rs|196|                }\ncrates/liwe/src/find.rs|197|            }\ncrates/liwe/src/find.rs|198|        }\ncrates/liwe/src/find.rs|199|\ncrates/liwe/src/find.rs|200|        false\ncrates/liwe/src/find.rs|201|    }\ncrates/liwe/src/find.rs|202|\ncrates/liwe/src/find.rs|203|    fn get_parent_documents(&self, key: &Key) -> Vec<ParentDocumentInfo> {\ncrates/liwe/src/find.rs|204|        let refs = self.graph.get_block_references_to(key);\ncrates/liwe/src/find.rs|205|        let mut parents = Vec::new();\ncrates/liwe/src/find.rs|206|\ncrates/liwe/src/find.rs|207|        for ref_id in refs {\ncrates/liwe/src/find.rs|208|            let node = self.graph.node(ref_id);\ncrates/liwe/src/find.rs|209|\ncrates/liwe/src/find.rs|210|            if let Some(doc_node) = node.to_document() {\ncrates/liwe/src/find.rs|211|                if let Some(doc_key) = doc_node.document_key() {\ncrates/liwe/src/find.rs|212|                    let title = self\ncrates/liwe/src/find.rs|213|                        .graph\ncrates/liwe/src/find.rs|214|                        .get_key_title(&doc_key)\ncrates/liwe/src/find.rs|215|                        .unwrap_or_else(|| doc_key.to_string());\ncrates/liwe/src/find.rs|216|\ncrates/liwe/src/find.rs|217|                    let section_path = self.get_section_path(ref_id);\ncrates/liwe/src/find.rs|218|\ncrates/liwe/src/find.rs|219|                    parents.push(ParentDocumentInfo {\ncrates/liwe/src/find.rs|220|                        key: doc_key.to_string(),\ncrates/liwe/src/find.rs|221|                        title,\ncrates/liwe/src/find.rs|222|                        section_path,\ncrates/liwe/src/find.rs|223|                    });\ncrates/liwe/src/find.rs|224|                }\ncrates/liwe/src/find.rs|225|            }\ncrates/liwe/src/find.rs|226|        }\ncrates/liwe/src/find.rs|227|\ncrates/liwe/src/find.rs|228|        parents.into_iter().unique_by(|p| p.key.clone()).collect()\ncrates/liwe/src/find.rs|229|    }\ncrates/liwe/src/find.rs|230|\ncrates/liwe/src/find.rs|231|    fn get_section_path(&self, node_id: NodeId) -> Vec<String> {\ncrates/liwe/src/find.rs|232|        let mut path = Vec::new();\ncrates/liwe/src/find.rs|233|        let mut current = self.graph.node(node_id);\ncrates/liwe/src/find.rs|234|\ncrates/liwe/src/find.rs|235|        while let Some(parent) = current.to_parent() {\ncrates/liwe/src/find.rs|236|            if parent.is_section()\ncrates/liwe/src/find.rs|237|                && parent\ncrates/liwe/src/find.rs|238|                    .to_parent()\ncrates/liwe/src/find.rs|239|                    .map(|p| p.is_document())\ncrates/liwe/src/find.rs|240|                    .unwrap_or(true)\ncrates/liwe/src/find.rs|241|            {\ncrates/liwe/src/find.rs|242|                let text = parent.plain_text().trim().to_string();\ncrates/liwe/src/find.rs|243|                path.push(text);\ncrates/liwe/src/find.rs|244|            }\ncrates/liwe/src/find.rs|245|            if parent.is_document() {\ncrates/liwe/src/find.rs|246|                break;\ncrates/liwe/src/find.rs|247|            }\ncrates/liwe/src/find.rs|248|            current = parent;\ncrates/liwe/src/find.rs|249|        }\ncrates/liwe/src/find.rs|250|        path\ncrates/liwe/src/find.rs|251|    }\ncrates/liwe/src/find.rs|252|\ncrates/liwe/src/find.rs|253|    fn metadata_matches(&self, key: &Key, filters: &[(String, String)]) -> bool {\ncrates/liwe/src/find.rs|254|        let raw = match self.graph.get_metadata(key) {\ncrates/liwe/src/find.rs|255|            Some(s) => s,\ncrates/liwe/src/find.rs|256|            None => return false,\ncrates/liwe/src/find.rs|257|        };\ncrates/liwe/src/find.rs|258|        let val: serde_yaml::Value = match serde_yaml::from_str(raw) {\ncrates/liwe/src/find.rs|259|            Ok(v) => v,\ncrates/liwe/src/find.rs|260|            _ => return false,\ncrates/liwe/src/find.rs|261|        };\ncrates/liwe/src/find.rs|262|        filters.iter().all(|(k, v)| {\ncrates/liwe/src/find.rs|263|            val.get(k.as_str())\ncrates/liwe/src/find.rs|264|                .and_then(|node| match node {\ncrates/liwe/src/find.rs|265|                    serde_yaml::Value::String(s) => Some(s.as_str() == v.as_str()),\ncrates/liwe/src/find.rs|266|                    serde_yaml::Value::Bool(b) => Some(b.to_string() == *v),\ncrates/liwe/src/find.rs|267|                    serde_yaml::Value::Number(n) => Some(n.to_string() == *v),\ncrates/liwe/src/find.rs|268|                    serde_yaml::Value::Sequence(items) => Some(\ncrates/liwe/src/find.rs|269|                        items\ncrates/liwe/src/find.rs|270|                            .iter()\ncrates/liwe/src/find.rs|271|                            .any(|i| i.as_str().map(|s| s == v.as_str()).unwrap_or(false)),\ncrates/liwe/src/find.rs|272|                    ),\ncrates/liwe/src/find.rs|273|                    _ => Some(false),\ncrates/liwe/src/find.rs|274|                })\ncrates/liwe/src/find.rs|275|                .unwrap_or(false)\ncrates/liwe/src/find.rs|276|        })\ncrates/liwe/src/find.rs|277|    }\ncrates/liwe/src/find.rs|278|}",
+                "stderr": "",
+                "exit_code": 0
+              },
+              "isError": false
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_f6fe7583-d2c1-4a87-a09c-457df904472d",
+      "role": "assistant",
+      "created": 1778428815,
+      "content": [
+        {
+          "type": "toolRequest",
+          "id": "toolu_vrtx_013m3ihqmGjkVodwLArtamJr",
+          "toolCall": {
+            "status": "success",
+            "value": {
+              "name": "shell",
+              "arguments": {
+                "command": "cd /tmp/bench-iwe-explore-2-vIqls3 && sqlite3 .indexnudge-rust.db \"SELECT content FROM lines WHERE file='crates/iwe/src/main.rs' AND content LIKE '%meta%';\""
+              }
+            }
+          },
+          "_meta": {
+            "goose_extension": "developer"
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_58a52064-e93d-4c74-ae8d-dbb683110086",
+      "role": "user",
+      "created": 1778428815,
+      "content": [
+        {
+          "type": "toolResponse",
+          "id": "toolu_vrtx_013m3ihqmGjkVodwLArtamJr",
+          "toolResult": {
+            "status": "success",
+            "value": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "    #[clap(long, help = \"Exclude document content from results (metadata only)\")]\n    #[clap(long = \"meta\", value_parser = parse_meta_filter,\n    meta: Vec<(String, String)>,\nfn parse_meta_filter(s: &str) -> Result<(String, String), String> {\n        metadata_filters: args.meta,",
+                  "annotations": {
+                    "priority": 0.0
+                  }
+                }
+              ],
+              "structuredContent": {
+                "stdout": "    #[clap(long, help = \"Exclude document content from results (metadata only)\")]\n    #[clap(long = \"meta\", value_parser = parse_meta_filter,\n    meta: Vec<(String, String)>,\nfn parse_meta_filter(s: &str) -> Result<(String, String), String> {\n        metadata_filters: args.meta,",
+                "stderr": "",
+                "exit_code": 0
+              },
+              "isError": false
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_1e02b2d7-4f31-4616-abe4-1204242c5fb4",
+      "role": "assistant",
+      "created": 1778428817,
+      "content": [
+        {
+          "type": "toolRequest",
+          "id": "toolu_vrtx_01LncnZRWBAe4Z5cH5sKH1ZF",
+          "toolCall": {
+            "status": "success",
+            "value": {
+              "name": "shell",
+              "arguments": {
+                "command": "cd /tmp/bench-iwe-explore-2-vIqls3 && sqlite3 .indexnudge-rust.db \"SELECT line_num, content FROM lines WHERE file='crates/iwe/src/main.rs' AND content LIKE '%meta%' OR (file='crates/iwe/src/main.rs' AND content LIKE '%parse_meta%');\""
+              }
+            }
+          },
+          "_meta": {
+            "goose_extension": "developer"
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_93015eaa-00d8-4469-9ad3-c80cf1c8aae3",
+      "role": "user",
+      "created": 1778428817,
+      "content": [
+        {
+          "type": "toolResponse",
+          "id": "toolu_vrtx_01LncnZRWBAe4Z5cH5sKH1ZF",
+          "toolResult": {
+            "status": "success",
+            "value": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "108|    #[clap(long, help = \"Exclude document content from results (metadata only)\")]\n153|    #[clap(long = \"meta\", value_parser = parse_meta_filter,\n155|    meta: Vec<(String, String)>,\n654|fn parse_meta_filter(s: &str) -> Result<(String, String), String> {\n673|        metadata_filters: args.meta,",
+                  "annotations": {
+                    "priority": 0.0
+                  }
+                }
+              ],
+              "structuredContent": {
+                "stdout": "108|    #[clap(long, help = \"Exclude document content from results (metadata only)\")]\n153|    #[clap(long = \"meta\", value_parser = parse_meta_filter,\n155|    meta: Vec<(String, String)>,\n654|fn parse_meta_filter(s: &str) -> Result<(String, String), String> {\n673|        metadata_filters: args.meta,",
+                "stderr": "",
+                "exit_code": 0
+              },
+              "isError": false
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_a118048f-e9bf-4e56-acd4-2dfe3bbb1087",
+      "role": "assistant",
+      "created": 1778428819,
+      "content": [
+        {
+          "type": "toolRequest",
+          "id": "toolu_vrtx_01DBtNWf8rxSaJe8tFVmgipy",
+          "toolCall": {
+            "status": "success",
+            "value": {
+              "name": "shell",
+              "arguments": {
+                "command": "cd /tmp/bench-iwe-explore-2-vIqls3 && sqlite3 .indexnudge-rust.db \"SELECT line_num, content FROM lines WHERE file='crates/iwe/src/main.rs' AND line_num BETWEEN 140 AND 180;\""
+              }
+            }
+          },
+          "_meta": {
+            "goose_extension": "developer"
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_d6b478ad-2ab6-4041-9507-aab4f0dded6c",
+      "role": "user",
+      "created": 1778428819,
+      "content": [
+        {
+          "type": "toolResponse",
+          "id": "toolu_vrtx_01DBtNWf8rxSaJe8tFVmgipy",
+          "toolResult": {
+            "status": "success",
+            "value": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "140|\n141|    #[clap(long, help = \"Documents that reference this key\")]\n142|    refs_to: Option<String>,\n143|\n144|    #[clap(long, help = \"Documents referenced by this key\")]\n145|    refs_from: Option<String>,\n146|\n147|    #[clap(long, short = 'l', help = \"Maximum results\")]\n148|    limit: Option<usize>,\n149|\n150|    #[clap(long, short = 'f', value_enum, default_value = \"markdown\")]\n151|    format: FindFormat,\n152|\n153|    #[clap(long = \"meta\", value_parser = parse_meta_filter,\n154|           help = \"Filter by front matter field (key=value); repeatable\")]\n155|    meta: Vec<(String, String)>,\n156|\n157|    #[clap(flatten)]\n158|    selector: SelectorArgs,\n159|}\n160|\n161|#[derive(Debug, Clone, clap::ValueEnum)]\n162|enum FindFormat {\n163|    Markdown,\n164|    Keys,\n165|    Json,\n166|}\n167|\n168|#[derive(Debug, Args)]\n169|#[clap(\n170|    about = help::normalize::ABOUT,\n171|    long_about = help::normalize::LONG_ABOUT,\n172|    after_help = help::normalize::AFTER_HELP\n173|)]\n174|struct Normalize {}\n175|\n176|#[derive(Debug, Args)]\n177|#[clap(\n178|    about = help::init::ABOUT,\n179|    long_about = help::init::LONG_ABOUT,\n180|    after_help = help::init::AFTER_HELP",
+                  "annotations": {
+                    "priority": 0.0
+                  }
+                }
+              ],
+              "structuredContent": {
+                "stdout": "140|\n141|    #[clap(long, help = \"Documents that reference this key\")]\n142|    refs_to: Option<String>,\n143|\n144|    #[clap(long, help = \"Documents referenced by this key\")]\n145|    refs_from: Option<String>,\n146|\n147|    #[clap(long, short = 'l', help = \"Maximum results\")]\n148|    limit: Option<usize>,\n149|\n150|    #[clap(long, short = 'f', value_enum, default_value = \"markdown\")]\n151|    format: FindFormat,\n152|\n153|    #[clap(long = \"meta\", value_parser = parse_meta_filter,\n154|           help = \"Filter by front matter field (key=value); repeatable\")]\n155|    meta: Vec<(String, String)>,\n156|\n157|    #[clap(flatten)]\n158|    selector: SelectorArgs,\n159|}\n160|\n161|#[derive(Debug, Clone, clap::ValueEnum)]\n162|enum FindFormat {\n163|    Markdown,\n164|    Keys,\n165|    Json,\n166|}\n167|\n168|#[derive(Debug, Args)]\n169|#[clap(\n170|    about = help::normalize::ABOUT,\n171|    long_about = help::normalize::LONG_ABOUT,\n172|    after_help = help::normalize::AFTER_HELP\n173|)]\n174|struct Normalize {}\n175|\n176|#[derive(Debug, Args)]\n177|#[clap(\n178|    about = help::init::ABOUT,\n179|    long_about = help::init::LONG_ABOUT,\n180|    after_help = help::init::AFTER_HELP",
+                "stderr": "",
+                "exit_code": 0
+              },
+              "isError": false
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_f7c594fd-a3a9-49ce-95ad-76152a2bb600",
+      "role": "assistant",
+      "created": 1778428821,
+      "content": [
+        {
+          "type": "toolRequest",
+          "id": "toolu_vrtx_011VmiFe9PWeFtF1PdJU26Ls",
+          "toolCall": {
+            "status": "success",
+            "value": {
+              "name": "shell",
+              "arguments": {
+                "command": "cd /tmp/bench-iwe-explore-2-vIqls3 && sqlite3 .indexnudge-rust.db \"SELECT line_num, content FROM lines WHERE file='crates/iwe/src/main.rs' AND line_num BETWEEN 650 AND 690;\""
+              }
+            }
+          },
+          "_meta": {
+            "goose_extension": "developer"
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_9b5f8a60-6701-4246-a529-f601975bd1a7",
+      "role": "user",
+      "created": 1778428821,
+      "content": [
+        {
+          "type": "toolResponse",
+          "id": "toolu_vrtx_011VmiFe9PWeFtF1PdJU26Ls",
+          "toolResult": {
+            "status": "success",
+            "value": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "650|        }\n651|    }\n652|}\n653|\n654|fn parse_meta_filter(s: &str) -> Result<(String, String), String> {\n655|    s.split_once('=')\n656|        .map(|(k, v)| (k.trim().to_string(), v.trim().to_string()))\n657|        .ok_or_else(|| format!(\"expected key=value, got `{}`\", s))\n658|}\n659|\n660|#[tracing::instrument(level = \"debug\")]\n661|fn find_command(args: Find) {\n662|    let config = get_configuration();\n663|    let graph = load_graph(&config);\n664|\n665|    let finder = DocumentFinder::new(&graph);\n666|    let options = FindOptions {\n667|        query: args.query,\n668|        roots: args.roots,\n669|        refs_to: args.refs_to.map(|s| Key::name(&s)),\n670|        refs_from: args.refs_from.map(|s| Key::name(&s)),\n671|        selector: args.selector.into(),\n672|        limit: args.limit,\n673|        metadata_filters: args.meta,\n674|    };\n675|\n676|    let output = finder.find(&options);\n677|\n678|    match args.format {\n679|        FindFormat::Json => {\n680|            let json = serde_json::to_string_pretty(&output).expect(\"Failed to serialize to JSON\");\n681|            println!(\"{}\", json);\n682|        }\n683|        FindFormat::Keys => {\n684|            for result in &output.results {\n685|                println!(\"{}\", result.key);\n686|            }\n687|        }\n688|        FindFormat::Markdown => {\n689|            let rendered = render_find_output(&output);\n690|            print!(\"{}\", rendered);",
+                  "annotations": {
+                    "priority": 0.0
+                  }
+                }
+              ],
+              "structuredContent": {
+                "stdout": "650|        }\n651|    }\n652|}\n653|\n654|fn parse_meta_filter(s: &str) -> Result<(String, String), String> {\n655|    s.split_once('=')\n656|        .map(|(k, v)| (k.trim().to_string(), v.trim().to_string()))\n657|        .ok_or_else(|| format!(\"expected key=value, got `{}`\", s))\n658|}\n659|\n660|#[tracing::instrument(level = \"debug\")]\n661|fn find_command(args: Find) {\n662|    let config = get_configuration();\n663|    let graph = load_graph(&config);\n664|\n665|    let finder = DocumentFinder::new(&graph);\n666|    let options = FindOptions {\n667|        query: args.query,\n668|        roots: args.roots,\n669|        refs_to: args.refs_to.map(|s| Key::name(&s)),\n670|        refs_from: args.refs_from.map(|s| Key::name(&s)),\n671|        selector: args.selector.into(),\n672|        limit: args.limit,\n673|        metadata_filters: args.meta,\n674|    };\n675|\n676|    let output = finder.find(&options);\n677|\n678|    match args.format {\n679|        FindFormat::Json => {\n680|            let json = serde_json::to_string_pretty(&output).expect(\"Failed to serialize to JSON\");\n681|            println!(\"{}\", json);\n682|        }\n683|        FindFormat::Keys => {\n684|            for result in &output.results {\n685|                println!(\"{}\", result.key);\n686|            }\n687|        }\n688|        FindFormat::Markdown => {\n689|            let rendered = render_find_output(&output);\n690|            print!(\"{}\", rendered);",
+                "stderr": "",
+                "exit_code": 0
+              },
+              "isError": false
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_888a807c-7853-4464-a90a-82816016570e",
+      "role": "assistant",
+      "created": 1778428824,
+      "content": [
+        {
+          "type": "toolRequest",
+          "id": "toolu_vrtx_01Jc8fiNiJY24WW88EdeKQ5N",
+          "toolCall": {
+            "status": "success",
+            "value": {
+              "name": "shell",
+              "arguments": {
+                "command": "cd /tmp/bench-iwe-explore-2-vIqls3 && sqlite3 .indexnudge-rust.db \"SELECT file, line_num, content FROM lines WHERE content LIKE '%fn get_metadata%';\""
+              }
+            }
+          },
+          "_meta": {
+            "goose_extension": "developer"
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_666b9caf-81d4-4a36-abeb-6f3b2a488756",
+      "role": "user",
+      "created": 1778428824,
+      "content": [
+        {
+          "type": "toolResponse",
+          "id": "toolu_vrtx_01Jc8fiNiJY24WW88EdeKQ5N",
+          "toolResult": {
+            "status": "success",
+            "value": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "crates/liwe/src/graph.rs|223|    pub fn get_metadata(&self, key: &Key) -> Option<&str> {",
+                  "annotations": {
+                    "priority": 0.0
+                  }
+                }
+              ],
+              "structuredContent": {
+                "stdout": "crates/liwe/src/graph.rs|223|    pub fn get_metadata(&self, key: &Key) -> Option<&str> {",
+                "stderr": "",
+                "exit_code": 0
+              },
+              "isError": false
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_9ae11e8c-74b3-4363-955a-1317f38b83fb",
+      "role": "assistant",
+      "created": 1778428826,
+      "content": [
+        {
+          "type": "toolRequest",
+          "id": "toolu_vrtx_01UhnjsontZhyEYXX6eJre3t",
+          "toolCall": {
+            "status": "success",
+            "value": {
+              "name": "shell",
+              "arguments": {
+                "command": "cd /tmp/bench-iwe-explore-2-vIqls3 && sqlite3 .indexnudge-rust.db \"SELECT line_num, content FROM lines WHERE file='crates/liwe/src/graph.rs' AND line_num BETWEEN 223 AND 250;\""
+              }
+            }
+          },
+          "_meta": {
+            "goose_extension": "developer"
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_d066bc0b-08f6-4f43-9f18-795043388f66",
+      "role": "user",
+      "created": 1778428826,
+      "content": [
+        {
+          "type": "toolResponse",
+          "id": "toolu_vrtx_01UhnjsontZhyEYXX6eJre3t",
+          "toolResult": {
+            "status": "success",
+            "value": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "223|    pub fn get_metadata(&self, key: &Key) -> Option<&str> {\n224|        self.metadata.get(key).map(|s| s.as_str())\n225|    }\n226|\n227|    pub fn build_key_and<F>(&mut self, key: &Key, f: F) -> &mut Self\n228|    where\n229|        F: FnOnce(&mut GraphBuilder),\n230|    {\n231|        let id = self.arena.new_node_id();\n232|        self.keys.insert(key.clone(), id);\n233|        self.arena\n234|            .set_node(id, GraphNode::new_root(key.clone(), id, None));\n235|        f(&mut GraphBuilder::new(self, id));\n236|\n237|        self.extract_ref_text(key)\n238|            .map(|text| self.keys_to_ref_text.insert(key.clone(), text));\n239|\n240|        let mut index = RefIndex::new();\n241|        index.index_node(self, id);\n242|        self.index.merge(index);\n243|\n244|        self\n245|    }\n246|\n247|    fn extract_ref_text(&self, key: &Key) -> Option<String> {\n248|        if let Some(title) = self.extract_frontmatter_title(key) {\n249|            return Some(title);\n250|        }",
+                  "annotations": {
+                    "priority": 0.0
+                  }
+                }
+              ],
+              "structuredContent": {
+                "stdout": "223|    pub fn get_metadata(&self, key: &Key) -> Option<&str> {\n224|        self.metadata.get(key).map(|s| s.as_str())\n225|    }\n226|\n227|    pub fn build_key_and<F>(&mut self, key: &Key, f: F) -> &mut Self\n228|    where\n229|        F: FnOnce(&mut GraphBuilder),\n230|    {\n231|        let id = self.arena.new_node_id();\n232|        self.keys.insert(key.clone(), id);\n233|        self.arena\n234|            .set_node(id, GraphNode::new_root(key.clone(), id, None));\n235|        f(&mut GraphBuilder::new(self, id));\n236|\n237|        self.extract_ref_text(key)\n238|            .map(|text| self.keys_to_ref_text.insert(key.clone(), text));\n239|\n240|        let mut index = RefIndex::new();\n241|        index.index_node(self, id);\n242|        self.index.merge(index);\n243|\n244|        self\n245|    }\n246|\n247|    fn extract_ref_text(&self, key: &Key) -> Option<String> {\n248|        if let Some(title) = self.extract_frontmatter_title(key) {\n249|            return Some(title);\n250|        }",
+                "stderr": "",
+                "exit_code": 0
+              },
+              "isError": false
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_20260510_30_37b24a9b-e09b-4e36-93f9-c51b78c29e2c",
+      "role": "assistant",
+      "created": 1778428851,
+      "content": [
+        {
+          "type": "text",
+          "text": "Here's the complete data flow for `iwe find --meta`:\n\n---\n\n## Data Flow: `--meta` filtering\n\n### 1. CLI Argument Parsing\n\n**`parse_meta_filter`** (`main.rs:654–658`)\nClap calls this for each `--meta key=value` argument. It splits on the first `=`, trims whitespace, and returns a `(String, String)` tuple. Errors if no `=` is present.\n\nThe parsed tuples accumulate into `Find.meta: Vec<(String, String)>` (clap's `Vec` collection for repeatable args).\n\n### 2. Command Dispatch\n\n**`find_command`** (`main.rs:661–693`)\nBuilds a `FindOptions` struct, copying `args.meta` into `FindOptions.metadata_filters` (line 673). Then calls `DocumentFinder::new(&graph).find(&options)`.\n\n### 3. Core Find Loop\n\n**`DocumentFinder::find`** (`find.rs:55–135`)\nIterates over every key in the graph (`self.graph.keys()`). For each key, a chain of `filter_map` guards runs:\n\n1. Selector filter (lines 69–73)\n2. Roots filter (line 74–76)\n3. `refs_to` filter (lines 77–81)\n4. `refs_from` filter (lines 82–86)\n5. **Metadata filter** (lines 88–92) — if `metadata_filters` is non-empty, calls `self.metadata_matches(&key, &options.metadata_filters)`. Returns `None` (excludes) if it returns `false`.\n\n### 4. Metadata Matching\n\n**`DocumentFinder::metadata_matches`** (`find.rs:253–277`)\n\nThis is the actual filtering logic:\n\n1. **Get raw metadata**: calls `self.graph.get_metadata(key)` → returns `Option<&str>` from `Graph.metadata` HashMap. If `None` → document has no front matter → **excluded**.\n\n2. **Parse YAML**: `serde_yaml::from_str(raw)` → parses the front matter string into a `serde_yaml::Value`. If parsing fails → **excluded**.\n\n3. **Match ALL filters** (`filters.iter().all(...)`): every `(key, value)` pair must match (AND semantics). For each filter:\n   - Looks up `val.get(k)` in the YAML mapping\n   - If the key is missing → **no match**\n   - If the YAML value is a **String** → exact string comparison\n   - If **Bool** → stringified (`\"true\"`/`\"false\"`) compared to filter value\n   - If **Number** → stringified compared to filter value\n   - If **Sequence** (array) → checks if *any* element's string value equals the filter value (membership test)\n   - Any other YAML type → **no match**\n\n### 5. Metadata Storage\n\n**`Graph::get_metadata`** (`graph.rs:223–225`)\nSimple HashMap lookup: `self.metadata.get(key).map(|s| s.as_str())`. The `metadata` field is populated during graph building when front matter blocks are encountered in markdown files.\n\n---\n\n## Summary of Functions Involved\n\n| Function | File | Role |\n|---|---|---|\n| `parse_meta_filter` | `main.rs:654` | Parse `key=value` CLI arg |\n| `find_command` | `main.rs:661` | Wire CLI args → `FindOptions`, invoke finder |\n| `DocumentFinder::find` | `find.rs:55` | Iterate all keys, apply filter chain |\n| `DocumentFinder::metadata_matches` | `find.rs:253` | YAML parse + per-field matching |\n| `Graph::get_metadata` | `graph.rs:223` | Retrieve raw front matter string for a key |\n\n## Key Design Points\n\n- **AND semantics**: multiple `--meta` flags must *all* match.\n- **No front matter = excluded**: documents without metadata never match.\n- **Array membership**: `--meta tags=foo` matches if `tags` is a YAML list containing `\"foo\"`.\n- **Stringified comparison** for bools/numbers: `--meta draft=true` matches `draft: true`."
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    }
+  ],
+  "message_count": 20,
+  "provider_name": "github_copilot",
+  "model_config": {
+    "model_name": "claude-opus-4.6",
+    "context_limit": 1000000,
+    "temperature": null,
+    "max_tokens": 128000,
+    "toolshim": false,
+    "toolshim_model": null,
+    "reasoning": true
+  },
+  "goose_mode": "auto",
+  "thread_id": null
+}

@@ -1,0 +1,57 @@
+=== Score ===
+Wall clock: 244s
+Tokens: 37937 (in=37549, out=388)
+Tool calls: 24 | Navigation: 12
+  DB structural: 0
+  DB lines:      2
+  DB other:      2
+  Shim hit:      6
+  Shim fallthru: 2
+  Shim evasion:  0
+Scores:
+  db_ratio:         0.833
+  structural_ratio: 0.0
+  evasion_ratio:    0.0
+  line_ratio:       0.167
+  nav_ratio:        0.5
+
+Categories: {'non_shell_tool': 4, 'direct_db_other': 2, 'shim_fallthrough': 2, 'direct_db_lines': 2, 'shim_hit': 6, 'build_test': 5, 'other': 1, 'git': 2}
+
+Commands:
+  [direct_db_other       ] pwd && ls -la && (test -f .indexnudge.db && sqlite3 .indexnudge.db '.tables' || true) && (test -f .codeindex.db && sqlit
+  [shim_fallthrough      ] grep -R "meta" -n crates src tests 2>/dev/null | head -100
+  [direct_db_lines       ] sqlite3 .indexnudge.db "SELECT file,line,text FROM lines WHERE text LIKE '%metadata%' OR text LIKE '%meta%' ORDER BY fil
+  [direct_db_other       ] sqlite3 .indexnudge.db '.schema lines' && sqlite3 .indexnudge.db '.schema symbols'
+  [direct_db_lines       ] sqlite3 .indexnudge.db "SELECT file,line_num,content FROM lines WHERE content LIKE '%metadata%' OR content LIKE '%meta%'
+  [shim_hit              ] sed -n '1,140p' crates/liwe/src/markdown.rs && sed -n '1,145p' crates/liwe/src/markdown/reader.rs && sed -n '240,275p' c
+  [shim_hit              ] sed -n '1,230p' crates/liwe/tests/bare_frontmatter_test.rs && sed -n '1,190p' crates/liwe/tests/find_metadata_test.rs &&
+  [shim_fallthrough      ] sed -n '1,220p' BARE_FRONTMATTER_SPEC.md && sed -n '1,180p' IMPLEMENTATION_PLAN.md | sed -n '1,100p'
+  [shim_hit              ] sed -n '1,120p' crates/liwe/src/state.rs && sed -n '1,120p' crates/liwe/tests/common.rs
+  [shim_hit              ] sed -n '1,120p' crates/liwe/src/find.rs && sed -n '120,240p' crates/liwe/src/find.rs
+  [shim_hit              ] sed -n '1,190p' crates/liwe/tests/find_metadata_test.rs
+  [build_test            ] ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+10a
+
+fn setup_bare_graph(input: &str) -> Graph {
+    let options =
+  [shim_hit              ] sed -n '100,175p' crates/liwe/tests/find_metadata_test.rs
+  [other                 ] python3 - <<'PY'
+from pathlib import Path
+for i,line in enumerate(Path('crates/liwe/tests/find_metadata_test.rs').read_t
+  [build_test            ] ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+117,158c
+fn value_in_yaml_sequence_matches() {
+    let graph = set
+  [build_test            ] ed -s crates/liwe/src/markdown.rs <<'EOF'
+50,64c
+    let cleaned_header = header.trim_end();
+
+    if rest.is_empty() {
+ 
+  [build_test            ] cargo test
+  [git                   ] git diff -- crates/liwe/src/markdown.rs crates/liwe/tests/find_metadata_test.rs && cargo fmt --check
+  [git                   ] git diff -- crates/liwe/src/markdown.rs crates/liwe/tests/find_metadata_test.rs | sed -n '1,220p'
+rustfmt --check crates
+  [build_test            ] python3 - <<'PY'
+from pathlib import Path
+for i,line in enumerate(Path('crates/liwe/src/markdown.rs').read_text().splitl

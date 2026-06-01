@@ -1,0 +1,98 @@
+=== Score ===
+Wall clock: 321s
+Tokens: 38503 (in=38324, out=179)
+Tool calls: 32 | Navigation: 9
+  DB structural: 2
+  DB lines:      7
+  DB other:      0
+  Shim hit:      0
+  Shim fallthru: 0
+  Shim evasion:  0
+Scores:
+  db_ratio:         1.0
+  structural_ratio: 0.222
+  evasion_ratio:    0.0
+  line_ratio:       0.778
+  nav_ratio:        0.281
+
+Categories: {'non_shell_tool': 3, 'direct_db_structural': 2, 'direct_db_lines': 7, 'other': 4, 'mutation': 9, 'build_test': 3, 'git': 4}
+
+Commands:
+  [direct_db_structural  ] sqlite3 .indexnudge-rust.db ".schema" && sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files ORDER BY file;"
+  [direct_db_structural  ] sqlite3 .indexnudge-rust.db "SELECT name, kind, file, start_line, end_line, signature FROM symbols WHERE file IN ('crate
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/iwe/src/main.rs' AND line_num BETWEE
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/iwe/tests/find_test.rs' AND line_num
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/iwe/tests/find_test.rs' AND line_num
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/iwe/src/help.rs' AND line_num BETWEE
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines_fts WHERE content MATCH 'find NEAR count' OR cont
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines_fts WHERE content MATCH 'meta' ORDER BY file,line
+  [direct_db_lines       ] ed -s crates/iwe/src/main.rs <<'EOF'
+146a
+
+    #[clap(long, help = "Print only the number of matching documents")]
+    c
+  [other                 ] python3 - <<'PY'
+from pathlib import Path
+p=Path('crates/iwe/src/main.rs')
+for i,line in enumerate(p.read_text().splitli
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+147,150c
+
+    #[clap(long, help = "Print only the number of matching documents")]
+ 
+  [other                 ] python3 - <<'PY'
+from pathlib import Path
+p=Path('crates/iwe/tests/find_test.rs')
+text=p.read_text()
+insert='''\n#[test]
+  [other                 ] python3 - <<'PY'
+from pathlib import Path
+for path, ranges in [('crates/iwe/src/main.rs', [(134,165),(661,690)]), ('crat
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+670,700p
+EOF
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+674a
+    let finder = DocumentFinder::new(&graph);
+
+.
+686,690c
+    if args.count {
+
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+670,715p
+EOF
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+684,690c
+
+    let output = finder.find(&options);
+    if args.count {
+        print
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+670,710p
+EOF
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+670,707c
+#[tracing::instrument(level = "debug")]
+fn find_command(args: Find) {
+    
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+700,715p
+EOF
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+708d
+w
+EOF
+cargo fmt
+  [other                 ] python3 - <<'PY'
+from pathlib import Path
+for path, ranges in [('crates/iwe/src/main.rs', [(145,168),(670,708)]), ('crat
+  [build_test            ] cargo build
+  [build_test            ] cargo test
+  [git                   ] git diff --stat && git status --short
+  [git                   ] git diff -- crates/iwe/src/main.rs crates/iwe/tests/find_test.rs | git diff --check --cached >/dev/null 2>&1; git diff -
+  [git                   ] git checkout -- . ':!crates/iwe/src/main.rs' ':!crates/iwe/tests/find_test.rs'
+
+git show HEAD:crates/iwe/src/main.rs > /
+  [build_test            ] git diff -- crates/iwe/src/main.rs crates/iwe/tests/find_test.rs && cargo build && cargo test
+  [git                   ] git diff --stat -- crates/iwe/src/main.rs crates/iwe/tests/find_test.rs && git status --short

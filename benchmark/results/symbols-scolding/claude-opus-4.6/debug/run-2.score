@@ -1,0 +1,102 @@
+=== Score ===
+Wall clock: 756s
+Tokens: 51921 (in=51665, out=256)
+Tool calls: 58 | Navigation: 27
+  DB structural: 3
+  DB lines:      18
+  DB other:      0
+  Shim hit:      2
+  Shim fallthru: 4
+  Shim evasion:  0
+Scores:
+  db_ratio:         0.852
+  structural_ratio: 0.143
+  evasion_ratio:    0.0
+  line_ratio:       0.667
+  nav_ratio:        0.466
+
+Categories: {'non_shell_tool': 4, 'direct_db_lines': 18, 'direct_db_structural': 3, 'git': 7, 'shim_hit': 2, 'build_test': 20, 'shim_fallthrough': 4}
+
+Commands:
+  [direct_db_lines       ] cd /tmp/bench-iwe-debug-2-tNzw5L && sqlite3 .indexnudge-rust.db "SELECT * FROM lines_fts WHERE content MATCH 'frontmatte
+  [direct_db_lines       ] cd /tmp/bench-iwe-debug-2-tNzw5L && sqlite3 .indexnudge-rust.db "SELECT * FROM lines_fts WHERE content MATCH 'bare_front
+  [direct_db_lines       ] cd /tmp/bench-iwe-debug-2-tNzw5L && sqlite3 .indexnudge-rust.db "SELECT * FROM lines_fts WHERE content MATCH 'meta' AND 
+  [direct_db_lines       ] cd /tmp/bench-iwe-debug-2-tNzw5L && sqlite3 .indexnudge-rust.db "SELECT * FROM lines_fts WHERE content MATCH 'meta' AND 
+  [direct_db_lines       ] cd /tmp/bench-iwe-debug-2-tNzw5L && sqlite3 .indexnudge-rust.db "SELECT * FROM lines_fts WHERE content MATCH 'metadata' 
+  [direct_db_lines       ] cd /tmp/bench-iwe-debug-2-tNzw5L && sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines WHERE file='c
+  [direct_db_structural  ] cd /tmp/bench-iwe-debug-2-tNzw5L && sqlite3 .indexnudge-rust.db "SELECT name, kind, file, start_line, end_line FROM symb
+  [direct_db_lines       ] cd /tmp/bench-iwe-debug-2-tNzw5L && sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines WHERE file='c
+  [direct_db_lines       ] cd /tmp/bench-iwe-debug-2-tNzw5L && sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines WHERE file='c
+  [direct_db_lines       ] cd /tmp/bench-iwe-debug-2-tNzw5L && sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines WHERE file='c
+  [git                   ] cd /tmp/bench-iwe-debug-2-tNzw5L && git log --all --oneline -20 -- crates/liwe/src/markdown.rs
+  [git                   ] cd /tmp/bench-iwe-debug-2-tNzw5L && git log --all -1 -p -- crates/liwe/src/markdown.rs | head -200
+  [git                   ] cd /tmp/bench-iwe-debug-2-tNzw5L && git log --all --oneline -- crates/liwe/src/markdown.rs
+  [git                   ] cd /tmp/bench-iwe-debug-2-tNzw5L && git log --all -p -S "starts_with(' ')" -- crates/liwe/src/markdown.rs | head -80
+  [git                   ] cd /tmp/bench-iwe-debug-2-tNzw5L && git blame crates/liwe/src/markdown.rs | head -65
+  [git                   ] cd /tmp/bench-iwe-debug-2-tNzw5L && git diff crates/liwe/src/markdown.rs
+  [git                   ] cd /tmp/bench-iwe-debug-2-tNzw5L && git checkout crates/liwe/src/markdown.rs
+  [direct_db_structural  ] cd /tmp/bench-iwe-debug-2-tNzw5L && sqlite3 .indexnudge-rust.db "SELECT name, kind, file, start_line, end_line FROM symb
+  [direct_db_lines       ] cd /tmp/bench-iwe-debug-2-tNzw5L && sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines WHERE file='c
+  [direct_db_lines       ] cd /tmp/bench-iwe-debug-2-tNzw5L && sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines WHERE file='c
+  [shim_hit              ] cd /tmp/bench-iwe-debug-2-tNzw5L && cat crates/liwe/src/markdown.rs
+  [direct_db_lines       ] cd /tmp/bench-iwe-debug-2-tNzw5L && sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines WHERE file='c
+  [direct_db_lines       ] cd /tmp/bench-iwe-debug-2-tNzw5L && sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines WHERE file='c
+  [shim_hit              ] cd /tmp/bench-iwe-debug-2-tNzw5L && cat crates/liwe/src/markdown.rs | head -65
+  [build_test            ] cd /tmp/bench-iwe-debug-2-tNzw5L && cargo test -p liwe -- bare_frontmatter 2>&1 | tail -20
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-2-tNzw5L && cat > /tmp/test_wrap.rs << 'EOF'
+fn main() {
+    let content = "title: My Doc\ndepen
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-2-tNzw5L && cat > /tmp/test_meta.rs << 'EOF'
+fn main() {
+    // Bare frontmatter with sequence —
+  [build_test            ] cd /tmp/bench-iwe-debug-2-tNzw5L && cargo test -p liwe -- find_metadata 2>&1 | tail -15
+  [build_test            ] cd /tmp/bench-iwe-debug-2-tNzw5L && cargo test -p liwe 2>&1 | grep find_metadata
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-2-tNzw5L && cat > /tmp/test_pcm.rs << 'EOF'
+use pulldown_cmark::{Options, Parser, Event, Tag, Ta
+  [direct_db_lines       ] cd /tmp/bench-iwe-debug-2-tNzw5L && sqlite3 .indexnudge-rust.db "SELECT * FROM lines_fts WHERE content MATCH 'MetadataBl
+  [direct_db_lines       ] cd /tmp/bench-iwe-debug-2-tNzw5L && grep -r "bare.*meta\|meta.*bare" crates/liwe/tests/ 2>/dev/null; sqlite3 .indexnudge
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-2-tNzw5L && cat > /tmp/test_bare_meta.rs << 'TESTEOF'
+use liwe::graph::Graph;
+use liwe::model::c
+  [build_test            ] cd /tmp/bench-iwe-debug-2-tNzw5L && cat > /tmp/test_bare_find/src/main.rs << 'EOF'
+EOF
+mkdir -p /tmp/test_bare_find/src
+
+  [direct_db_structural  ] cd /tmp/bench-iwe-debug-2-tNzw5L && sqlite3 .indexnudge-rust.db "SELECT name, kind FROM symbols WHERE file='crates/liwe/
+  [build_test            ] cat > /tmp/test_bare_find/src/main.rs << 'MAINEOF'
+use liwe::graph::Graph;
+use liwe::model::config::MarkdownOptions;
+use
+  [build_test            ] cat > /tmp/test_bare_find/src/main.rs << 'MAINEOF'
+use liwe::markdown::wrap_bare_frontmatter;
+
+fn main() {
+    // Case: 
+  [build_test            ] cat > /tmp/test_bare_find/src/main.rs << 'MAINEOF'
+use liwe::graph::Graph;
+use liwe::model::config::MarkdownOptions;
+use
+  [build_test            ] cat > /tmp/test_bare_find/src/main.rs << 'MAINEOF'
+use liwe::graph::Graph;
+use liwe::model::config::MarkdownOptions;
+use
+  [build_test            ] cat > /tmp/test_bare_find/src/main.rs << 'MAINEOF'
+use liwe::graph::Graph;
+use liwe::model::config::MarkdownOptions;
+use
+  [direct_db_lines       ] cd /tmp/bench-iwe-debug-2-tNzw5L && sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines WHERE file='c
+  [direct_db_lines       ] cd /tmp/bench-iwe-debug-2-tNzw5L && sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines WHERE file='c
+  [direct_db_lines       ] cd /tmp/bench-iwe-debug-2-tNzw5L && sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines WHERE file='c
+  [build_test            ] cd /tmp/bench-iwe-debug-2-tNzw5L && cargo test -p liwe 2>&1 | tail -30
+  [build_test            ] cd /tmp/bench-iwe-debug-2-tNzw5L && cargo test 2>&1 | grep -E '(FAILED|test result:)' 
+  [build_test            ] cd /tmp/bench-iwe-debug-2-tNzw5L && cargo test transform_action_with_env_vars 2>&1 | tail -20
+  [build_test            ] cd /tmp/bench-iwe-debug-2-tNzw5L && cargo test 2>&1 | grep -B5 'FAILED'
+  [build_test            ] cd /tmp/bench-iwe-debug-2-tNzw5L && cargo test 2>&1 | grep 'FAILED\|failures'
+  [build_test            ] cd /tmp/bench-iwe-debug-2-tNzw5L && cargo test 2>&1 | grep -E 'FAILED|^error' 
+  [build_test            ] cd /tmp/bench-iwe-debug-2-tNzw5L && cargo test 2>&1 | tail -5
+  [build_test            ] cd /tmp/bench-iwe-debug-2-tNzw5L && git stash && cargo test -p iwes --test transform_test -- transform_action_with_env_v
+  [build_test            ] cd /tmp/bench-iwe-debug-2-tNzw5L && git stash pop && cargo test -p iwes --test transform_test -- transform_action_with_e
+  [build_test            ] cd /tmp/bench-iwe-debug-2-tNzw5L && cargo test 2>&1 | grep -c 'test result: ok' && cargo test 2>&1 | grep 'FAILED' || ec
+  [build_test            ] cd /tmp/test_bare_find && cat > src/main.rs << 'MAINEOF'
+use liwe::graph::Graph;
+use liwe::model::config::MarkdownOption

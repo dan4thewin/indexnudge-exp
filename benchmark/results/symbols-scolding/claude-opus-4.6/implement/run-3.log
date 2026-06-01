@@ -1,0 +1,208 @@
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /tmp/bench-iwe-implement-3-sHLaCv && sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files WHERE file LIKE '%find%' OR file LIKE '%cli%' ORDER BY file;"
+
+crates/iwe/tests/find_test.rs|495
+crates/iwec/tests/find_test.rs|195
+crates/liwe/src/find.rs|278
+crates/liwe/tests/find_metadata_test.rs|160
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /tmp/bench-iwe-implement-3-sHLaCv && sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files WHERE file LIKE '%cmd%' OR file LIKE '%command%' OR file LIKE '%args%' ORDER BY file;"
+
+(no output)
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /tmp/bench-iwe-implement-3-sHLaCv && sqlite3 .indexnudge-rust.db "SELECT DISTINCT file FROM symbols WHERE name LIKE '%find%' OR name LIKE '%Find%' ORDER BY file;"
+
+crates/iwe/src/main.rs
+crates/iwe/src/new.rs
+crates/iwe/tests/extract_test.rs
+crates/iwe/tests/find_test.rs
+crates/iwec/src/lib.rs
+crates/iwec/tests/find_test.rs
+crates/liwe/src/find.rs
+crates/liwe/src/graph/index.rs
+crates/liwe/src/model/tree.rs
+crates/liwe/src/parser.rs
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /tmp/bench-iwe-implement-3-sHLaCv && sqlite3 .indexnudge-rust.db "SELECT name, kind, start_line, end_line FROM symbols WHERE file='crates/iwe/src/main.rs' AND name LIKE '%find%' OR file='crates/iwe/src/main.rs' AND name LIKE '%Find%' ORDER BY start_line;"
+
+Find|struct|134|134
+FindFormat|enum|162|166
+find_command|function|661|693
+render_find_output|function|695|712
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /tmp/bench-iwe-implement-3-sHLaCv && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/iwe/src/main.rs' AND line_num BETWEEN 130 AND 170;"
+
+130|    about = help::find::ABOUT,
+131|    long_about = help::find::LONG_ABOUT,
+132|    after_help = help::find::AFTER_HELP
+133|)]
+134|struct Find {
+135|    #[clap(help = "Search query (fuzzy match on title and key)")]
+136|    query: Option<String>,
+137|
+138|    #[clap(long, help = "Only root documents (no incoming block refs)")]
+139|    roots: bool,
+140|
+141|    #[clap(long, help = "Documents that reference this key")]
+142|    refs_to: Option<String>,
+143|
+144|    #[clap(long, help = "Documents referenced by this key")]
+145|    refs_from: Option<String>,
+146|
+147|    #[clap(long, short = 'l', help = "Maximum results")]
+148|    limit: Option<usize>,
+149|
+150|    #[clap(long, short = 'f', value_enum, default_value = "markdown")]
+151|    format: FindFormat,
+152|
+153|    #[clap(long = "meta", value_parser = parse_meta_filter,
+154|           help = "Filter by front matter field (key=value); repeatable")]
+155|    meta: Vec<(String, String)>,
+156|
+157|    #[clap(flatten)]
+158|    selector: SelectorArgs,
+159|}
+160|
+161|#[derive(Debug, Clone, clap::ValueEnum)]
+162|enum FindFormat {
+163|    Markdown,
+164|    Keys,
+165|    Json,
+166|}
+167|
+168|#[derive(Debug, Args)]
+169|#[clap(
+170|    about = help::normalize::ABOUT,
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /tmp/bench-iwe-implement-3-sHLaCv && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/iwe/src/main.rs' AND line_num BETWEEN 661 AND 712;"
+
+661|fn find_command(args: Find) {
+662|    let config = get_configuration();
+663|    let graph = load_graph(&config);
+664|
+665|    let finder = DocumentFinder::new(&graph);
+666|    let options = FindOptions {
+667|        query: args.query,
+668|        roots: args.roots,
+669|        refs_to: args.refs_to.map(|s| Key::name(&s)),
+670|        refs_from: args.refs_from.map(|s| Key::name(&s)),
+671|        selector: args.selector.into(),
+672|        limit: args.limit,
+673|        metadata_filters: args.meta,
+674|    };
+675|
+676|    let output = finder.find(&options);
+677|
+678|    match args.format {
+679|        FindFormat::Json => {
+680|            let json = serde_json::to_string_pretty(&output).expect("Failed to serialize to JSON");
+681|            println!("{}", json);
+682|        }
+683|        FindFormat::Keys => {
+684|            for result in &output.results {
+685|                println!("{}", result.key);
+686|            }
+687|        }
+688|        FindFormat::Markdown => {
+689|            let rendered = render_find_output(&output);
+690|            print!("{}", rendered);
+691|        }
+692|    }
+693|}
+694|
+695|fn render_find_output(output: &iwe::find::FindOutput) -> String {
+696|    let mut result = String::new();
+697|
+698|    result.push_str(&format!("Found {} results", output.total));
+699|    if let Some(ref query) = output.query {
+700|        result.push_str(&format!(" for \"{}\"", query));
+701|    }
+702|    if let Some(limit) = output.limit {
+703|        result.push_str(&format!(" (showing {})", limit));
+704|    }
+705|    result.push_str(":\n\n");
+706|
+707|    for r in &output.results {
+708|        result.push_str(&format!("{}   #{}\n", r.display_title, r.key));
+709|    }
+710|
+711|    result
+712|}
+  ────────────────────────────────────────
+  ▸ edit
+    path crates/iwe/src/main.rs
+    before:     #[clap(long, short = 'f', value_enum, default_value = "markdown")]
+    format: FindFormat,
+    after:     #[clap(long, short = 'f', value_enum, default_value = "markdown")]
+    format: FindFormat,
+
+    #[clap(long, help = "Print only the count of matching documents")]
+    count: bool,
+
+Edited crates/iwe/src/main.rs (2 lines -> 5 lines)
+  ────────────────────────────────────────
+  ▸ edit
+    path crates/iwe/src/main.rs
+    before:     let output = finder.find(&options);
+
+    match args.format {
+    after:     let output = finder.find(&options);
+
+    if args.count {
+        println!("{}", output.total);
+        return;
+    }
+
+    match args.format {
+
+Edited crates/iwe/src/main.rs (3 lines -> 8 lines)
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /tmp/bench-iwe-implement-3-sHLaCv && cargo build 2>&1 | tail -5
+
+   Compiling liwe v0.0.70 (/tmp/bench-iwe-implement-3-sHLaCv/crates/liwe)
+   Compiling iwe v0.0.70 (/tmp/bench-iwe-implement-3-sHLaCv/crates/iwe)
+   Compiling iwes v0.0.70 (/tmp/bench-iwe-implement-3-sHLaCv/crates/iwes)
+   Compiling iwec v0.0.70 (/tmp/bench-iwe-implement-3-sHLaCv/crates/iwec)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 37.00s
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /tmp/bench-iwe-implement-3-sHLaCv && cargo test 2>&1 | tail -20
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests iwec
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests iwes
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests liwe
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+Build and tests pass. Here's what I did:
+
+1. **Added `--count` flag** to the `Find` struct in `crates/iwe/src/main.rs`:
+   ```rust
+   #[clap(long, help = "Print only the count of matching documents")]
+   count: bool,
+   ```
+
+2. **Added early return** in `find_command` — after computing results but before format rendering, if `--count` is set it prints `output.total` and returns. This means it works with all existing filters (`--meta`, `--roots`, `--refs-to`, `--refs-from`, `--limit`, query, selector) since those are all applied before the count check.
+
+Wall clock: 135s

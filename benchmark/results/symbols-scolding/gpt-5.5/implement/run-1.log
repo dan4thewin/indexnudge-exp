@@ -1,0 +1,3189 @@
+
+  ────────────────────────────────────────
+  ▸ todo_write todo
+    content: - [ ] Add `--count` flag to `iwe find`
+  - [ ] Locate `iwe find` CLI and filter implementation using `.indexnudge-rust.db`
+  - [ ] Implement flag so it prints only number of matching documents
+  - [ ] Ensure it composes with all existing filters (`--meta`, `--roots`, `--refs-to`, etc.)
+  - [ ] Add or update tests for count behavior
+  - [ ] Run `cargo build`
+  - [ ] Run `cargo test`
+- [ ] Leave changes uncommitted for review
+
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge-rust.db ".schema" && sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files ORDER BY file;"
+    timeout_secs: 10
+
+CREATE TABLE lines (
+            file     TEXT,
+            line_num INTEGER,
+            content  TEXT,
+            symbol   TEXT,
+            PRIMARY KEY (file, line_num)
+        );
+CREATE VIRTUAL TABLE lines_fts USING fts5(file, line_num, content, symbol)
+/* lines_fts(file,line_num,content,symbol) */;
+CREATE TABLE 'lines_fts_data'(id INTEGER PRIMARY KEY, block BLOB);
+CREATE TABLE 'lines_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
+CREATE TABLE 'lines_fts_content'(id INTEGER PRIMARY KEY, c0, c1, c2, c3);
+CREATE TABLE 'lines_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
+CREATE TABLE 'lines_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID;
+CREATE TABLE symbols (
+            id             INTEGER PRIMARY KEY,
+            name           TEXT,
+            qualified_name TEXT,
+            kind           TEXT,
+            file           TEXT,
+            start_line     INTEGER,
+            end_line       INTEGER,
+            parent         TEXT,
+            signature      TEXT
+        );
+CREATE TABLE calls (
+            caller_file   TEXT,
+            caller_symbol TEXT,
+            callee        TEXT,
+            callee_qname  TEXT,
+            kind          TEXT,
+            line_num      INTEGER
+        );
+CREATE TABLE defs (
+            symbol TEXT,
+            file   TEXT,
+            line_num INTEGER,
+            var    TEXT,
+            kind   TEXT
+        );
+CREATE TABLE imports (
+            file   TEXT,
+            module TEXT,
+            line_num INTEGER
+        );
+CREATE INDEX idx_symbols_name ON symbols(name);
+CREATE INDEX idx_symbols_qualified ON symbols(qualified_name);
+CREATE INDEX idx_symbols_file ON symbols(file);
+CREATE INDEX idx_calls_callee ON calls(callee);
+CREATE INDEX idx_calls_caller ON calls(caller_symbol);
+CREATE INDEX idx_defs_var ON defs(var);
+CREATE INDEX idx_imports_module ON imports(module);
+CREATE TABLE files (
+            file           TEXT PRIMARY KEY,
+            lines          INTEGER,
+            language       TEXT,
+            indexed_mtime  REAL,
+            parse_error    INTEGER DEFAULT 0
+        );
+CREATE TABLE directories (
+            path        TEXT PRIMARY KEY,
+            file_count  INTEGER,
+            total_lines INTEGER
+        );
+crates/iwe/src/export.rs|4
+crates/iwe/src/export/dot_details_exporter.rs|142
+crates/iwe/src/export/dot_exporter.rs|67
+crates/iwe/src/export/graph_colors.rs|101
+crates/iwe/src/export/graph_data.rs|330
+crates/iwe/src/help.rs|89
+crates/iwe/src/lib.rs|8
+crates/iwe/src/main.rs|1734
+crates/iwe/src/new.rs|234
+crates/iwe/src/render.rs|165
+crates/iwe/src/selector.rs|56
+crates/iwe/src/stats.rs|14
+crates/iwe/tests/common.rs|20
+crates/iwe/tests/delete_test.rs|261
+crates/iwe/tests/export_dot_test.rs|98
+crates/iwe/tests/extract_test.rs|380
+crates/iwe/tests/find_test.rs|495
+crates/iwe/tests/init_test.rs|220
+crates/iwe/tests/inline_test.rs|392
+crates/iwe/tests/new_test.rs|483
+crates/iwe/tests/normalize_test.rs|411
+crates/iwe/tests/rename_test.rs|246
+crates/iwe/tests/retrieve_test.rs|2249
+crates/iwe/tests/squash_test.rs|512
+crates/iwe/tests/stats_test.rs|394
+crates/iwe/tests/tree_test.rs|475
+crates/iwec/src/lib.rs|1468
+crates/iwec/src/main.rs|49
+crates/iwec/src/watcher.rs|113
+crates/iwec/tests/attach_test.rs|230
+crates/iwec/tests/extract_test.rs|103
+crates/iwec/tests/find_test.rs|195
+crates/iwec/tests/fixture.rs|161
+crates/iwec/tests/inline_test.rs|133
+crates/iwec/tests/normalize_test.rs|30
+crates/iwec/tests/prompt_test.rs|65
+crates/iwec/tests/resource_test.rs|114
+crates/iwec/tests/retrieve_test.rs|174
+crates/iwec/tests/squash_test.rs|42
+crates/iwec/tests/stats_test.rs|59
+crates/iwec/tests/tree_test.rs|110
+crates/iwec/tests/watcher_test.rs|143
+crates/iwec/tests/write_test.rs|263
+crates/iwes/src/lib.rs|61
+crates/iwes/src/main.rs|141
+crates/iwes/src/router.rs|295
+crates/iwes/src/router/server.rs|856
+crates/iwes/src/router/server/actions.rs|396
+crates/iwes/src/router/server/actions/attach.rs|196
+crates/iwes/src/router/server/actions/delete.rs|63
+crates/iwes/src/router/server/actions/extract.rs|66
+crates/iwes/src/router/server/actions/extract_all.rs|67
+crates/iwes/src/router/server/actions/inline.rs|57
+crates/iwes/src/router/server/actions/link.rs|222
+crates/iwes/src/router/server/actions/list.rs|104
+crates/iwes/src/router/server/actions/section.rs|54
+crates/iwes/src/router/server/actions/sort.rs|60
+crates/iwes/src/router/server/actions/templates.rs|26
+crates/iwes/src/router/server/actions/transform.rs|206
+crates/iwes/src/router/server/base_path.rs|120
+crates/iwes/src/router/server/extensions.rs|389
+crates/iwes/src/router/server/search.rs|165
+crates/iwes/tests/attach_test.rs|457
+crates/iwes/tests/change_list_type_test.rs|45
+crates/iwes/tests/completion_test.rs|475
+crates/iwes/tests/custom_actions_test.rs|43
+crates/iwes/tests/delete_test.rs|244
+crates/iwes/tests/did_change_test.rs|57
+crates/iwes/tests/did_save_test.rs|54
+crates/iwes/tests/extract_all_test.rs|397
+crates/iwes/tests/extract_test.rs|691
+crates/iwes/tests/fixture.rs|891
+crates/iwes/tests/folding_range_test.rs|205
+crates/iwes/tests/format_document_test.rs|196
+crates/iwes/tests/go_to_definition_test.rs|260
+crates/iwes/tests/hover_test.rs|83
+crates/iwes/tests/inlay_hints_test.rs|169
+crates/iwes/tests/inline_quote_test.rs|182
+crates/iwes/tests/inline_section_test.rs|393
+crates/iwes/tests/link_test.rs|596
+crates/iwes/tests/list_to_sections_test.rs|194
+crates/iwes/tests/references_test.rs|58
+crates/iwes/tests/rename_test.rs|182
+crates/iwes/tests/sections_to_list_test.rs|138
+crates/iwes/tests/sort_test.rs|179
+crates/iwes/tests/transform_test.rs|472
+crates/iwes/tests/workspace_symbols_test.rs|222
+crates/liwe/src/file.rs|22
+crates/liwe/src/find.rs|278
+crates/liwe/src/fs.rs|200
+crates/liwe/src/graph.rs|652
+crates/liwe/src/graph/arena.rs|95
+crates/liwe/src/graph/basic_iter.rs|129
+crates/liwe/src/graph/builder.rs|553
+crates/liwe/src/graph/graph_line.rs|36
+crates/liwe/src/graph/graph_node.rs|670
+crates/liwe/src/graph/index.rs|153
+crates/liwe/src/graph/path.rs|356
+crates/liwe/src/graph/sections_builder.rs|591
+crates/liwe/src/graph/squash_iter.rs|130
+crates/liwe/src/lib.rs|13
+crates/liwe/src/locale.rs|76
+crates/liwe/src/markdown.rs|73
+crates/liwe/src/markdown/reader.rs|703
+crates/liwe/src/markdown/writer.rs|371
+crates/liwe/src/model.rs|168
+crates/liwe/src/model/config.rs|800
+crates/liwe/src/model/document.rs|947
+crates/liwe/src/model/graph.rs|670
+crates/liwe/src/model/node.rs|441
+crates/liwe/src/model/projector.rs|193
+crates/liwe/src/model/reference.rs|26
+crates/liwe/src/model/tree.rs|900
+crates/liwe/src/operations.rs|15
+crates/liwe/src/operations/changes.rs|84
+crates/liwe/src/operations/config.rs|37
+crates/liwe/src/operations/delete.rs|40
+crates/liwe/src/operations/extract.rs|260
+crates/liwe/src/operations/inline.rs|92
+crates/liwe/src/operations/rename.rs|46
+crates/liwe/src/operations/util.rs|82
+crates/liwe/src/parser.rs|197
+crates/liwe/src/retrieve.rs|403
+crates/liwe/src/selector.rs|337
+crates/liwe/src/state.rs|72
+crates/liwe/src/stats.rs|429
+crates/liwe/tests/bare_frontmatter_test.rs|208
+crates/liwe/tests/config_migration_test.rs|326
+crates/liwe/tests/find_metadata_test.rs|160
+crates/liwe/tests/formatting_test.rs|425
+crates/liwe/tests/frontmatter_title_test.rs|146
+crates/liwe/tests/gitignore_test.rs|81
+crates/liwe/tests/links_test.rs|332
+crates/liwe/tests/normalization_headers.rs|370
+crates/liwe/tests/normalization_html.rs|61
+crates/liwe/tests/normalization_lists.rs|371
+crates/liwe/tests/normalization_metadata.rs|52
+crates/liwe/tests/normalization_misc.rs|344
+crates/liwe/tests/normalization_raw.rs|163
+crates/liwe/tests/squash_test.rs|313
+crates/liwe/tests/toc_test.rs|133
+crates/liwe/tests/virtual_directories_test.rs|168
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge-rust.db "SELECT name, kind, file, start_line, end_line, signature FROM symbols WHERE file IN ('crates/iwe/src/main.rs','crates/liwe/src/find.rs','crates/iwe/tests/find_test.rs') ORDER BY file,start_line;"
+    timeout_secs: 10
+
+CONFIG_FILE_NAME|const|crates/iwe/src/main.rs|35|35|
+IWE_MARKER|const|crates/iwe/src/main.rs|36|36|
+App|struct|crates/iwe/src/main.rs|40|40|
+Command|enum|crates/iwe/src/main.rs|49|65|
+Retrieve|struct|crates/iwe/src/main.rs|73|73|
+RetrieveFormat|enum|crates/iwe/src/main.rs|116|120|
+Search|struct|crates/iwe/src/main.rs|123|123|
+Find|struct|crates/iwe/src/main.rs|134|134|
+FindFormat|enum|crates/iwe/src/main.rs|162|166|
+Normalize|struct|crates/iwe/src/main.rs|174|174|
+Init|struct|crates/iwe/src/main.rs|182|182|
+New|struct|crates/iwe/src/main.rs|190|190|
+TreeArgs|struct|crates/iwe/src/main.rs|219|219|
+TreeFormat|enum|crates/iwe/src/main.rs|249|253|
+TreeNode|struct|crates/iwe/src/main.rs|256|256|
+Stats|struct|crates/iwe/src/main.rs|269|269|
+StatsFormat|enum|crates/iwe/src/main.rs|288|292|
+Export|struct|crates/iwe/src/main.rs|300|300|
+Format|enum|crates/iwe/src/main.rs|337|339|
+Squash|struct|crates/iwe/src/main.rs|347|347|
+GlobalOpts|struct|crates/iwe/src/main.rs|356|356|
+Rename|struct|crates/iwe/src/main.rs|367|367|
+Delete|struct|crates/iwe/src/main.rs|390|390|
+Extract|struct|crates/iwe/src/main.rs|413|413|
+Update|struct|crates/iwe/src/main.rs|445|445|
+Attach|struct|crates/iwe/src/main.rs|469|469|
+Inline|struct|crates/iwe/src/main.rs|495|495|
+main|function|crates/iwe/src/main.rs|527|567|
+retrieve_command|function|crates/iwe/src/main.rs|570|652|
+parse_meta_filter|function|crates/iwe/src/main.rs|654|658|parse_meta_filter(s: &str) -> Result<(String, String), String>
+find_command|function|crates/iwe/src/main.rs|661|693|
+render_find_output|function|crates/iwe/src/main.rs|695|712|render_find_output(output: &iwe::find::FindOutput) -> String
+init_command|function|crates/iwe/src/main.rs|715|733|
+new_command|function|crates/iwe/src/main.rs|736|771|
+open_in_editor|function|crates/iwe/src/main.rs|773|788|
+tree_command|function|crates/iwe/src/main.rs|791|878|
+build_tree_node|function|crates/iwe/src/main.rs|880|917|build_tree_node(
+    graph: &Graph,
+    key: &Key,
+    max_depth: u8,
+    visited: &mut std::collections::HashSet<Key>,
+) -> Option<TreeNode>
+build_tree_lines|function|crates/iwe/src/main.rs|920|975|
+normalize_command|function|crates/iwe/src/main.rs|978|982|
+squash_command|function|crates/iwe/src/main.rs|985|994|
+write_graph|function|crates/iwe/src/main.rs|996|999|
+apply_changes|function|crates/iwe/src/main.rs|1001|1023|
+load_graph|function|crates/iwe/src/main.rs|1025|1034|load_graph(configuration: &Configuration) -> Graph
+get_library_path|function|crates/iwe/src/main.rs|1036|1046|get_library_path(configuration: &Configuration) -> PathBuf
+get_configuration|function|crates/iwe/src/main.rs|1048|1056|get_configuration() -> Configuration
+stats_command|function|crates/iwe/src/main.rs|1059|1102|
+export_command|function|crates/iwe/src/main.rs|1105|1141|
+rename_command|function|crates/iwe/src/main.rs|1144|1186|
+delete_command|function|crates/iwe/src/main.rs|1189|1249|
+collect_sections|function|crates/iwe/src/main.rs|1251|1262|
+collect_block_references|function|crates/iwe/src/main.rs|1264|1279|
+get_extract_config|function|crates/iwe/src/main.rs|1281|1297|get_extract_config(config: &Configuration, action_name: Option<&str>) -> (String, Option<LinkType>)
+get_inline_config|function|crates/iwe/src/main.rs|1299|1329|get_inline_config(
+    config: &Configuration,
+    action_name: Option<&str>,
+    as_quote: bool,
+    keep_target: bool,
+) -> (InlineType, bool)
+extract_command|function|crates/iwe/src/main.rs|1332|1442|
+inline_command|function|crates/iwe/src/main.rs|1445|1561|
+update_command|function|crates/iwe/src/main.rs|1564|1602|
+attach_command|function|crates/iwe/src/main.rs|1605|1702|
+render_key_template|function|crates/iwe/src/main.rs|1704|1717|render_key_template(template: &str) -> String
+render_attach_title|function|crates/iwe/src/main.rs|1719|1734|render_attach_title(template: &str) -> String
+setup_workspace|function|crates/iwe/tests/find_test.rs|9|32|setup_workspace() -> TempDir
+run_iwe|function|crates/iwe/tests/find_test.rs|34|49|run_iwe(dir: &std::path::Path, args: &[&str]) -> (String, String, bool)
+test_find_lists_all_documents|function|crates/iwe/tests/find_test.rs|52|86|
+test_find_fuzzy_search|function|crates/iwe/tests/find_test.rs|89|105|
+test_find_roots_only|function|crates/iwe/tests/find_test.rs|108|136|
+test_find_refs_to|function|crates/iwe/tests/find_test.rs|139|178|
+test_find_refs_from|function|crates/iwe/tests/find_test.rs|181|213|
+test_find_limit|function|crates/iwe/tests/find_test.rs|216|234|
+test_find_limit_shown_in_markdown|function|crates/iwe/tests/find_test.rs|237|254|
+test_find_keys_format|function|crates/iwe/tests/find_test.rs|257|270|
+test_find_markdown_format|function|crates/iwe/tests/find_test.rs|273|290|
+test_find_with_parent_documents|function|crates/iwe/tests/find_test.rs|293|326|
+test_find_is_root_flag|function|crates/iwe/tests/find_test.rs|329|356|
+test_find_incoming_outgoing_refs|function|crates/iwe/tests/find_test.rs|359|398|
+test_find_empty_workspace|function|crates/iwe/tests/find_test.rs|401|411|
+test_find_query_with_no_match|function|crates/iwe/tests/find_test.rs|414|426|
+test_find_search_query_in_output|function|crates/iwe/tests/find_test.rs|429|440|
+test_find_no_query_null_in_output|function|crates/iwe/tests/find_test.rs|443|454|
+test_find_markdown_with_query|function|crates/iwe/tests/find_test.rs|457|467|
+test_find_refs_to_inline_link|function|crates/iwe/tests/find_test.rs|470|495|
+ParentDocumentInfo|struct|crates/liwe/src/find.rs|10|10|
+FindResult|struct|crates/liwe/src/find.rs|17|17|
+FindOutput|struct|crates/liwe/src/find.rs|28|28|
+FindOptions|struct|crates/liwe/src/find.rs|36|36|
+DocumentFinder|struct|crates/liwe/src/find.rs|46|46|
+DocumentFinder|impl|crates/liwe/src/find.rs|50|278|
+new|method|crates/liwe/src/find.rs|51|53|new(graph: &'a Graph) -> Self
+find|method|crates/liwe/src/find.rs|55|135|find(&self, options: &FindOptions) -> FindOutput
+build_result|method|crates/liwe/src/find.rs|137|152|build_result(&self, key: &Key) -> FindResult
+render_display_title|method|crates/liwe/src/find.rs|154|165|render_display_title(title: &str, parent_documents: &[ParentDocumentInfo]) -> String
+is_root|method|crates/liwe/src/find.rs|167|169|is_root(&self, key: &Key) -> bool
+node_rank|method|crates/liwe/src/find.rs|171|174|node_rank(&self, key: &Key) -> usize
+references|method|crates/liwe/src/find.rs|176|201|references(&self, source: &Key, target: &Key) -> bool
+get_parent_documents|method|crates/liwe/src/find.rs|203|229|get_parent_documents(&self, key: &Key) -> Vec<ParentDocumentInfo>
+get_section_path|method|crates/liwe/src/find.rs|231|251|get_section_path(&self, node_id: NodeId) -> Vec<String>
+metadata_matches|method|crates/liwe/src/find.rs|253|277|metadata_matches(&self, key: &Key, filters: &[(String, String)]) -> bool
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/iwe/src/main.rs' AND line_num BETWEEN 123 AND 172 ORDER BY line_num; SELECT line_num, content FROM lines WHERE file='crates/iwe/src/main.rs' AND line_num BETWEEN 661 AND 712 ORDER BY line_num; SELECT line_num, content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWEEN 1 AND 140 ORDER BY line_num;"
+    timeout_secs: 10
+
+123|struct Search {
+124|    #[clap(long, short = 'p')]
+125|    prompt: String,
+126|}
+127|
+128|#[derive(Debug, Args)]
+129|#[clap(
+130|    about = help::find::ABOUT,
+131|    long_about = help::find::LONG_ABOUT,
+132|    after_help = help::find::AFTER_HELP
+133|)]
+134|struct Find {
+135|    #[clap(help = "Search query (fuzzy match on title and key)")]
+136|    query: Option<String>,
+137|
+138|    #[clap(long, help = "Only root documents (no incoming block refs)")]
+139|    roots: bool,
+140|
+141|    #[clap(long, help = "Documents that reference this key")]
+142|    refs_to: Option<String>,
+143|
+144|    #[clap(long, help = "Documents referenced by this key")]
+145|    refs_from: Option<String>,
+146|
+147|    #[clap(long, short = 'l', help = "Maximum results")]
+148|    limit: Option<usize>,
+149|
+150|    #[clap(long, short = 'f', value_enum, default_value = "markdown")]
+151|    format: FindFormat,
+152|
+153|    #[clap(long = "meta", value_parser = parse_meta_filter,
+154|           help = "Filter by front matter field (key=value); repeatable")]
+155|    meta: Vec<(String, String)>,
+156|
+157|    #[clap(flatten)]
+158|    selector: SelectorArgs,
+159|}
+160|
+161|#[derive(Debug, Clone, clap::ValueEnum)]
+162|enum FindFormat {
+163|    Markdown,
+164|    Keys,
+165|    Json,
+166|}
+167|
+168|#[derive(Debug, Args)]
+169|#[clap(
+170|    about = help::normalize::ABOUT,
+171|    long_about = help::normalize::LONG_ABOUT,
+172|    after_help = help::normalize::AFTER_HELP
+661|fn find_command(args: Find) {
+662|    let config = get_configuration();
+663|    let graph = load_graph(&config);
+664|
+665|    let finder = DocumentFinder::new(&graph);
+666|    let options = FindOptions {
+667|        query: args.query,
+668|        roots: args.roots,
+669|        refs_to: args.refs_to.map(|s| Key::name(&s)),
+670|        refs_from: args.refs_from.map(|s| Key::name(&s)),
+671|        selector: args.selector.into(),
+672|        limit: args.limit,
+673|        metadata_filters: args.meta,
+674|    };
+675|
+676|    let output = finder.find(&options);
+677|
+678|    match args.format {
+679|        FindFormat::Json => {
+680|            let json = serde_json::to_string_pretty(&output).expect("Failed to serialize to JSON");
+681|            println!("{}", json);
+682|        }
+683|        FindFormat::Keys => {
+684|            for result in &output.results {
+685|                println!("{}", result.key);
+686|            }
+687|        }
+688|        FindFormat::Markdown => {
+689|            let rendered = render_find_output(&output);
+690|            print!("{}", rendered);
+691|        }
+692|    }
+693|}
+694|
+695|fn render_find_output(output: &iwe::find::FindOutput) -> String {
+696|    let mut result = String::new();
+697|
+698|    result.push_str(&format!("Found {} results", output.total));
+699|    if let Some(ref query) = output.query {
+700|        result.push_str(&format!(" for \"{}\"", query));
+701|    }
+702|    if let Some(limit) = output.limit {
+703|        result.push_str(&format!(" (showing {})", limit));
+704|    }
+705|    result.push_str(":\n\n");
+706|
+707|    for r in &output.results {
+708|        result.push_str(&format!("{}   #{}\n", r.display_title, r.key));
+709|    }
+710|
+711|    result
+712|}
+1|use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
+2|use itertools::Itertools;
+3|use serde::Serialize;
+4|use crate::graph::{Graph, GraphContext};
+5|use crate::model::node::{NodeIter, NodePointer};
+6|use crate::model::{Key, NodeId};
+7|use crate::selector::Selector;
+8|
+9|#[derive(Debug, Clone, Serialize)]
+10|pub struct ParentDocumentInfo {
+11|    pub key: String,
+12|    pub title: String,
+13|    pub section_path: Vec<String>,
+14|}
+15|
+16|#[derive(Debug, Clone, Serialize)]
+17|pub struct FindResult {
+18|    pub key: String,
+19|    pub title: String,
+20|    pub display_title: String,
+21|    pub is_root: bool,
+22|    pub incoming_refs: usize,
+23|    pub outgoing_refs: usize,
+24|    pub parent_documents: Vec<ParentDocumentInfo>,
+25|}
+26|
+27|#[derive(Debug, Clone, Serialize)]
+28|pub struct FindOutput {
+29|    pub query: Option<String>,
+30|    pub limit: Option<usize>,
+31|    pub total: usize,
+32|    pub results: Vec<FindResult>,
+33|}
+34|
+35|#[derive(Debug, Clone, Default)]
+36|pub struct FindOptions {
+37|    pub query: Option<String>,
+38|    pub roots: bool,
+39|    pub refs_to: Option<Key>,
+40|    pub refs_from: Option<Key>,
+41|    pub selector: Selector,
+42|    pub limit: Option<usize>,
+43|    pub metadata_filters: Vec<(String, String)>,
+44|}
+45|
+46|pub struct DocumentFinder<'a> {
+47|    graph: &'a Graph,
+48|}
+49|
+50|impl<'a> DocumentFinder<'a> {
+51|    pub fn new(graph: &'a Graph) -> Self {
+52|        Self { graph }
+53|    }
+54|
+55|    pub fn find(&self, options: &FindOptions) -> FindOutput {
+56|        let matcher = SkimMatcherV2::default();
+57|
+58|        let candidate_set = if options.selector.is_empty() {
+59|            None
+60|        } else {
+61|            Some(options.selector.resolve(self.graph))
+62|        };
+63|
+64|        let mut results: Vec<(Key, i64)> = self
+65|            .graph
+66|            .keys()
+67|            .into_iter()
+68|            .filter_map(|key| {
+69|                if let Some(set) = &candidate_set {
+70|                    if !set.contains(&key) {
+71|                        return None;
+72|                    }
+73|                }
+74|                if options.roots && !self.is_root(&key) {
+75|                    return None;
+76|                }
+77|                if let Some(ref target) = options.refs_to {
+78|                    if !self.references(&key, target) {
+79|                        return None;
+80|                    }
+81|                }
+82|                if let Some(ref source) = options.refs_from {
+83|                    if !self.references(source, &key) {
+84|                        return None;
+85|                    }
+86|                }
+87|
+88|                if !options.metadata_filters.is_empty()
+89|                    && !self.metadata_matches(&key, &options.metadata_filters)
+90|                {
+91|                    return None;
+92|                }
+93|
+94|                let title = self.graph.get_key_title(&key).unwrap_or_default();
+95|                let search_text = format!("{} {}", key, title);
+96|
+97|                let score = options
+98|                    .query
+99|                    .as_ref()
+100|                    .map(|q| matcher.fuzzy_match(&search_text, q).unwrap_or(0))
+101|                    .unwrap_or(self.node_rank(&key) as i64);
+102|
+103|                if options.query.is_some() && score == 0 {
+104|                    return None;
+105|                }
+106|
+107|                Some((key, score))
+108|            })
+109|            .collect();
+110|
+111|        results.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+112|
+113|        let total = results.len();
+114|        let results: Vec<FindResult> = if let Some(limit) = options.limit {
+115|            results
+116|                .into_iter()
+117|                .take(limit)
+118|                .map(|(key, _)| self.build_result(&key))
+119|                .collect()
+120|        } else {
+121|            results
+122|                .into_iter()
+123|                .map(|(key, _)| self.build_result(&key))
+124|                .collect()
+125|        };
+126|
+127|        let limit = options.limit.filter(|&l| l < total);
+128|
+129|        FindOutput {
+130|            query: options.query.clone(),
+131|            limit,
+132|            total,
+133|            results,
+134|        }
+135|    }
+136|
+137|    fn build_result(&self, key: &Key) -> FindResult {
+138|        let title = self.graph.get_key_title(key).unwrap_or_default();
+139|        let parent_documents = self.get_parent_documents(key);
+140|        let display_title = Self::render_display_title(&title, &parent_documents);
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/iwe/tests/find_test.rs' AND line_num BETWEEN 1 AND 120 ORDER BY line_num; SELECT line_num, content FROM lines WHERE file='crates/iwe/tests/find_test.rs' AND line_num BETWEEN 216 AND 290 ORDER BY line_num; SELECT line_num, content FROM lines WHERE file='crates/iwe/tests/find_test.rs' AND line_num BETWEEN 329 AND 495 ORDER BY line_num;"
+    timeout_secs: 10
+
+1|use indoc::indoc;
+2|use liwe::model::config::{Configuration, LibraryOptions, MarkdownOptions};
+3|use std::fs::{create_dir_all, write};
+4|use std::process::Command;
+5|use tempfile::TempDir;
+6|
+7|mod common;
+8|
+9|fn setup_workspace() -> TempDir {
+10|    let temp_dir = TempDir::new().expect("Failed to create temp directory");
+11|    let temp_path = temp_dir.path();
+12|
+13|    create_dir_all(temp_path.join(".iwe")).expect("Failed to create .iwe directory");
+14|
+15|    let config = Configuration {
+16|        library: LibraryOptions {
+17|            path: "".to_string(),
+18|            ..Default::default()
+19|        },
+20|        markdown: MarkdownOptions {
+21|            refs_extension: "".to_string(),
+22|            ..Default::default()
+23|        },
+24|        ..Default::default()
+25|    };
+26|
+27|    let config_content = toml::to_string(&config).expect("Failed to serialize config to TOML");
+28|    write(temp_path.join(".iwe").join("config.toml"), config_content)
+29|        .expect("Should write config file");
+30|
+31|    temp_dir
+32|}
+33|
+34|fn run_iwe(dir: &std::path::Path, args: &[&str]) -> (String, String, bool) {
+35|    let mut command = Command::new(common::get_iwe_binary_path());
+36|    command.arg("find").current_dir(dir);
+37|
+38|    for arg in args {
+39|        command.arg(arg);
+40|    }
+41|
+42|    let output = command.output().expect("Failed to execute command");
+43|
+44|    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+45|    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+46|    let success = output.status.success();
+47|
+48|    (stdout, stderr, success)
+49|}
+50|
+51|#[test]
+52|fn test_find_lists_all_documents() {
+53|    let dir = setup_workspace();
+54|
+55|    write(
+56|        dir.path().join("doc1.md"),
+57|        indoc! {"
+58|            # Document One
+59|
+60|            Content one.
+61|        "},
+62|    )
+63|    .unwrap();
+64|
+65|    write(
+66|        dir.path().join("doc2.md"),
+67|        indoc! {"
+68|            # Document Two
+69|
+70|            Content two.
+71|        "},
+72|    )
+73|    .unwrap();
+74|
+75|    let (stdout, stderr, success) = run_iwe(dir.path(), &["-f", "json"]);
+76|
+77|    assert!(success, "stderr: {}", stderr);
+78|
+79|    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+80|    assert_eq!(parsed["total"], 2);
+81|
+82|    let results = parsed["results"].as_array().unwrap();
+83|    let keys: Vec<&str> = results.iter().map(|r| r["key"].as_str().unwrap()).collect();
+84|    assert!(keys.contains(&"doc1"));
+85|    assert!(keys.contains(&"doc2"));
+86|}
+87|
+88|#[test]
+89|fn test_find_fuzzy_search() {
+90|    let dir = setup_workspace();
+91|
+92|    write(dir.path().join("authentication.md"), "# User Authentication\n\nAuth content.").unwrap();
+93|    write(dir.path().join("database.md"), "# Database Config\n\nDB content.").unwrap();
+94|    write(dir.path().join("api.md"), "# API Endpoints\n\nAPI content.").unwrap();
+95|
+96|    let (stdout, stderr, success) = run_iwe(dir.path(), &["auth", "-f", "json"]);
+97|
+98|    assert!(success, "stderr: {}", stderr);
+99|
+100|    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+101|    let results = parsed["results"].as_array().unwrap();
+102|
+103|    assert!(!results.is_empty(), "Should find at least one result");
+104|    assert_eq!(results[0]["key"], "authentication");
+105|}
+106|
+107|#[test]
+108|fn test_find_roots_only() {
+109|    let dir = setup_workspace();
+110|
+111|    write(
+112|        dir.path().join("parent.md"),
+113|        indoc! {"
+114|            # Parent
+115|
+116|            [child](child)
+117|        "},
+118|    )
+119|    .unwrap();
+120|
+216|fn test_find_limit() {
+217|    let dir = setup_workspace();
+218|
+219|    for i in 1..=10 {
+220|        write(
+221|            dir.path().join(format!("doc{}.md", i)),
+222|            format!("# Document {}\n\nContent.", i),
+223|        )
+224|        .unwrap();
+225|    }
+226|
+227|    let (stdout, stderr, success) = run_iwe(dir.path(), &["--limit", "3", "-f", "json"]);
+228|
+229|    assert!(success, "stderr: {}", stderr);
+230|
+231|    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+232|    assert_eq!(parsed["total"], 10, "total should be 10");
+233|    assert_eq!(parsed["results"].as_array().unwrap().len(), 3, "should return only 3 results");
+234|}
+235|
+236|#[test]
+237|fn test_find_limit_shown_in_markdown() {
+238|    let dir = setup_workspace();
+239|
+240|    for i in 1..=10 {
+241|        write(
+242|            dir.path().join(format!("doc{}.md", i)),
+243|            format!("# Document {}\n\nContent.", i),
+244|        )
+245|        .unwrap();
+246|    }
+247|
+248|    let (stdout, stderr, success) = run_iwe(dir.path(), &["--limit", "3", "-f", "markdown"]);
+249|
+250|    assert!(success, "stderr: {}", stderr);
+251|
+252|    assert!(stdout.contains("Found 10 results"));
+253|    assert!(stdout.contains("(showing 3)"));
+254|}
+255|
+256|#[test]
+257|fn test_find_keys_format() {
+258|    let dir = setup_workspace();
+259|
+260|    write(dir.path().join("alpha.md"), "# Alpha\n\nContent.").unwrap();
+261|    write(dir.path().join("beta.md"), "# Beta\n\nContent.").unwrap();
+262|
+263|    let (stdout, stderr, success) = run_iwe(dir.path(), &["-f", "keys"]);
+264|
+265|    assert!(success, "stderr: {}", stderr);
+266|
+267|    let keys: Vec<&str> = stdout.lines().collect();
+268|    assert!(keys.contains(&"alpha"));
+269|    assert!(keys.contains(&"beta"));
+270|}
+271|
+272|#[test]
+273|fn test_find_markdown_format() {
+274|    let dir = setup_workspace();
+275|
+276|    write(dir.path().join("test-doc.md"), "# Test Document\n\nContent.").unwrap();
+277|
+278|    let (stdout, stderr, success) = run_iwe(dir.path(), &["-f", "markdown"]);
+279|
+280|    assert!(success, "stderr: {}", stderr);
+281|
+282|    assert_eq!(
+283|        stdout,
+284|        indoc! {"
+285|            Found 1 results:
+286|
+287|            Test Document   #test-doc
+288|        "}
+289|    );
+290|}
+329|fn test_find_is_root_flag() {
+330|    let dir = setup_workspace();
+331|
+332|    write(
+333|        dir.path().join("parent.md"),
+334|        indoc! {"
+335|            # Parent
+336|
+337|            [child](child)
+338|        "},
+339|    )
+340|    .unwrap();
+341|
+342|    write(dir.path().join("child.md"), "# Child\n\nChild content.").unwrap();
+343|
+344|    let (stdout, stderr, success) = run_iwe(dir.path(), &["-f", "json"]);
+345|
+346|    assert!(success, "stderr: {}", stderr);
+347|
+348|    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+349|    let results = parsed["results"].as_array().unwrap();
+350|
+351|    let parent = results.iter().find(|r| r["key"] == "parent").unwrap();
+352|    let child = results.iter().find(|r| r["key"] == "child").unwrap();
+353|
+354|    assert_eq!(parent["is_root"], true, "parent should be root");
+355|    assert_eq!(child["is_root"], false, "child should not be root");
+356|}
+357|
+358|#[test]
+359|fn test_find_incoming_outgoing_refs() {
+360|    let dir = setup_workspace();
+361|
+362|    write(
+363|        dir.path().join("hub.md"),
+364|        indoc! {"
+365|            # Hub
+366|
+367|            [child1](child1)
+368|
+369|            [child2](child2)
+370|        "},
+371|    )
+372|    .unwrap();
+373|
+374|    write(
+375|        dir.path().join("referrer.md"),
+376|        indoc! {"
+377|            # Referrer
+378|
+379|            Check out [hub](hub) for more.
+380|        "},
+381|    )
+382|    .unwrap();
+383|
+384|    write(dir.path().join("child1.md"), "# Child One\n\nContent.").unwrap();
+385|    write(dir.path().join("child2.md"), "# Child Two\n\nContent.").unwrap();
+386|
+387|    let (stdout, stderr, success) = run_iwe(dir.path(), &["-f", "json"]);
+388|
+389|    assert!(success, "stderr: {}", stderr);
+390|
+391|    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+392|    let results = parsed["results"].as_array().unwrap();
+393|
+394|    let hub = results.iter().find(|r| r["key"] == "hub").unwrap();
+395|
+396|    assert_eq!(hub["outgoing_refs"], 2);
+397|    assert_eq!(hub["incoming_refs"], 1);
+398|}
+399|
+400|#[test]
+401|fn test_find_empty_workspace() {
+402|    let dir = setup_workspace();
+403|
+404|    let (stdout, stderr, success) = run_iwe(dir.path(), &["-f", "json"]);
+405|
+406|    assert!(success, "stderr: {}", stderr);
+407|
+408|    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+409|    assert_eq!(parsed["total"], 0);
+410|    assert_eq!(parsed["results"].as_array().unwrap().len(), 0);
+411|}
+412|
+413|#[test]
+414|fn test_find_query_with_no_match() {
+415|    let dir = setup_workspace();
+416|
+417|    write(dir.path().join("document.md"), "# My Document\n\nContent.").unwrap();
+418|
+419|    let (stdout, stderr, success) = run_iwe(dir.path(), &["zzzznonexistent", "-f", "json"]);
+420|
+421|    assert!(success, "stderr: {}", stderr);
+422|
+423|    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+424|    assert_eq!(parsed["total"], 0);
+425|    assert_eq!(parsed["results"].as_array().unwrap().len(), 0);
+426|}
+427|
+428|#[test]
+429|fn test_find_search_query_in_output() {
+430|    let dir = setup_workspace();
+431|
+432|    write(dir.path().join("test.md"), "# Test\n\nContent.").unwrap();
+433|
+434|    let (stdout, stderr, success) = run_iwe(dir.path(), &["myquery", "-f", "json"]);
+435|
+436|    assert!(success, "stderr: {}", stderr);
+437|
+438|    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+439|    assert_eq!(parsed["query"], "myquery");
+440|}
+441|
+442|#[test]
+443|fn test_find_no_query_null_in_output() {
+444|    let dir = setup_workspace();
+445|
+446|    write(dir.path().join("test.md"), "# Test\n\nContent.").unwrap();
+447|
+448|    let (stdout, stderr, success) = run_iwe(dir.path(), &["-f", "json"]);
+449|
+450|    assert!(success, "stderr: {}", stderr);
+451|
+452|    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+453|    assert!(parsed["query"].is_null());
+454|}
+455|
+456|#[test]
+457|fn test_find_markdown_with_query() {
+458|    let dir = setup_workspace();
+459|
+460|    write(dir.path().join("test.md"), "# Test Document\n\nContent.").unwrap();
+461|
+462|    let (stdout, stderr, success) = run_iwe(dir.path(), &["test", "-f", "markdown"]);
+463|
+464|    assert!(success, "stderr: {}", stderr);
+465|
+466|    assert!(stdout.contains("for \"test\""));
+467|}
+468|
+469|#[test]
+470|fn test_find_refs_to_inline_link() {
+471|    let dir = setup_workspace();
+472|
+473|    write(
+474|        dir.path().join("doc1.md"),
+475|        indoc! {"
+476|            # Doc One
+477|
+478|            See [target](target) for details.
+479|        "},
+480|    )
+481|    .unwrap();
+482|
+483|    write(dir.path().join("target.md"), "# Target\n\nTarget content.").unwrap();
+484|
+485|    let (stdout, stderr, success) = run_iwe(dir.path(), &["--refs-to", "target", "-f", "json"]);
+486|
+487|    assert!(success, "stderr: {}", stderr);
+488|
+489|    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+490|    let results = parsed["results"].as_array().unwrap();
+491|
+492|    let keys: Vec<&str> = results.iter().map(|r| r["key"].as_str().unwrap()).collect();
+493|
+494|    assert!(keys.contains(&"doc1"), "doc1 references target via inline link");
+495|}
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/iwe/tests/find_test.rs' AND line_num BETWEEN 108 AND 215 ORDER BY line_num; SELECT line_num, content FROM lines WHERE file='crates/liwe/tests/find_metadata_test.rs' AND line_num BETWEEN 1 AND 180 ORDER BY line_num;"
+    timeout_secs: 10
+
+108|fn test_find_roots_only() {
+109|    let dir = setup_workspace();
+110|
+111|    write(
+112|        dir.path().join("parent.md"),
+113|        indoc! {"
+114|            # Parent
+115|
+116|            [child](child)
+117|        "},
+118|    )
+119|    .unwrap();
+120|
+121|    write(dir.path().join("child.md"), "# Child\n\nChild content.").unwrap();
+122|    write(dir.path().join("orphan.md"), "# Orphan\n\nNo references.").unwrap();
+123|
+124|    let (stdout, stderr, success) = run_iwe(dir.path(), &["--roots", "-f", "json"]);
+125|
+126|    assert!(success, "stderr: {}", stderr);
+127|
+128|    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+129|    let results = parsed["results"].as_array().unwrap();
+130|
+131|    let keys: Vec<&str> = results.iter().map(|r| r["key"].as_str().unwrap()).collect();
+132|
+133|    assert!(keys.contains(&"parent"), "parent should be a root");
+134|    assert!(keys.contains(&"orphan"), "orphan should be a root");
+135|    assert!(!keys.contains(&"child"), "child should NOT be a root");
+136|}
+137|
+138|#[test]
+139|fn test_find_refs_to() {
+140|    let dir = setup_workspace();
+141|
+142|    write(
+143|        dir.path().join("doc1.md"),
+144|        indoc! {"
+145|            # Doc One
+146|
+147|            [target](target)
+148|        "},
+149|    )
+150|    .unwrap();
+151|
+152|    write(
+153|        dir.path().join("doc2.md"),
+154|        indoc! {"
+155|            # Doc Two
+156|
+157|            [target](target)
+158|        "},
+159|    )
+160|    .unwrap();
+161|
+162|    write(dir.path().join("doc3.md"), "# Doc Three\n\nNo refs.").unwrap();
+163|    write(dir.path().join("target.md"), "# Target\n\nTarget content.").unwrap();
+164|
+165|    let (stdout, stderr, success) = run_iwe(dir.path(), &["--refs-to", "target", "-f", "json"]);
+166|
+167|    assert!(success, "stderr: {}", stderr);
+168|
+169|    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+170|    let results = parsed["results"].as_array().unwrap();
+171|
+172|    let keys: Vec<&str> = results.iter().map(|r| r["key"].as_str().unwrap()).collect();
+173|
+174|    assert!(keys.contains(&"doc1"), "doc1 references target");
+175|    assert!(keys.contains(&"doc2"), "doc2 references target");
+176|    assert!(!keys.contains(&"doc3"), "doc3 does not reference target");
+177|    assert!(!keys.contains(&"target"), "target does not reference itself");
+178|}
+179|
+180|#[test]
+181|fn test_find_refs_from() {
+182|    let dir = setup_workspace();
+183|
+184|    write(
+185|        dir.path().join("source.md"),
+186|        indoc! {"
+187|            # Source
+188|
+189|            [child1](child1)
+190|
+191|            [child2](child2)
+192|        "},
+193|    )
+194|    .unwrap();
+195|
+196|    write(dir.path().join("child1.md"), "# Child One\n\nContent.").unwrap();
+197|    write(dir.path().join("child2.md"), "# Child Two\n\nContent.").unwrap();
+198|    write(dir.path().join("other.md"), "# Other\n\nNot referenced by source.").unwrap();
+199|
+200|    let (stdout, stderr, success) = run_iwe(dir.path(), &["--refs-from", "source", "-f", "json"]);
+201|
+202|    assert!(success, "stderr: {}", stderr);
+203|
+204|    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+205|    let results = parsed["results"].as_array().unwrap();
+206|
+207|    let keys: Vec<&str> = results.iter().map(|r| r["key"].as_str().unwrap()).collect();
+208|
+209|    assert!(keys.contains(&"child1"), "child1 is referenced by source");
+210|    assert!(keys.contains(&"child2"), "child2 is referenced by source");
+211|    assert!(!keys.contains(&"other"), "other is not referenced by source");
+212|    assert!(!keys.contains(&"source"), "source does not reference itself");
+213|}
+214|
+215|#[test]
+1|use indoc::indoc;
+2|
+3|use liwe::find::{DocumentFinder, FindOptions};
+4|use liwe::graph::Graph;
+5|use liwe::model::config::MarkdownOptions;
+6|use liwe::state::from_indoc;
+7|
+8|fn setup_graph(input: &str) -> Graph {
+9|    Graph::import(&from_indoc(input), MarkdownOptions::default(), None)
+10|}
+11|
+12|#[test]
+13|fn filters_by_single_string_value() {
+14|    let graph = setup_graph(indoc! {"
+15|        ---
+16|        title: Task A
+17|        status: ready
+18|        ---
+19|
+20|        # Task A
+21|        _
+22|        ---
+23|        title: Task B
+24|        status: done
+25|        ---
+26|
+27|        # Task B
+28|    "});
+29|
+30|    let finder = DocumentFinder::new(&graph);
+31|    let options = FindOptions {
+32|        metadata_filters: vec![("status".to_string(), "ready".to_string())],
+33|        ..Default::default()
+34|    };
+35|    let output = finder.find(&options);
+36|    assert_eq!(output.results.len(), 1);
+37|    assert_eq!(output.results[0].title, "Task A");
+38|}
+39|
+40|#[test]
+41|fn combines_filters_with_and() {
+42|    let graph = setup_graph(indoc! {"
+43|        ---
+44|        title: Note 1
+45|        status: ready
+46|        category: work
+47|        ---
+48|
+49|        # Note 1
+50|        _
+51|        ---
+52|        title: Note 2
+53|        status: ready
+54|        category: personal
+55|        ---
+56|
+57|        # Note 2
+58|    "});
+59|
+60|    let finder = DocumentFinder::new(&graph);
+61|    let options = FindOptions {
+62|        metadata_filters: vec![
+63|            ("status".to_string(), "ready".to_string()),
+64|            ("category".to_string(), "work".to_string()),
+65|        ],
+66|        ..Default::default()
+67|    };
+68|    let output = finder.find(&options);
+69|    assert_eq!(output.results.len(), 1);
+70|    assert_eq!(output.results[0].title, "Note 1");
+71|}
+72|
+73|#[test]
+74|fn non_matching_value_excluded() {
+75|    let graph = setup_graph(indoc! {"
+76|        ---
+77|        title: Task A
+78|        status: done
+79|        ---
+80|
+81|        # Task A
+82|    "});
+83|
+84|    let finder = DocumentFinder::new(&graph);
+85|    let options = FindOptions {
+86|        metadata_filters: vec![("status".to_string(), "ready".to_string())],
+87|        ..Default::default()
+88|    };
+89|    let output = finder.find(&options);
+90|    assert_eq!(output.results.len(), 0);
+91|}
+92|
+93|#[test]
+94|fn note_without_metadata_excluded() {
+95|    let graph = setup_graph(indoc! {"
+96|        # No Metadata
+97|    "});
+98|
+99|    let finder = DocumentFinder::new(&graph);
+100|    let options = FindOptions {
+101|        metadata_filters: vec![("status".to_string(), "ready".to_string())],
+102|        ..Default::default()
+103|    };
+104|    let output = finder.find(&options);
+105|    assert_eq!(output.results.len(), 0);
+106|}
+107|
+108|#[test]
+109|fn value_in_yaml_sequence_matches() {
+110|    let graph = setup_graph(indoc! {"
+111|        ---
+112|        title: Task A
+113|        tags:
+114|          - rust
+115|          - iwe
+116|        ---
+117|
+118|        # Task A
+119|    "});
+120|
+121|    let finder = DocumentFinder::new(&graph);
+122|    let options = FindOptions {
+123|        metadata_filters: vec![("tags".to_string(), "rust".to_string())],
+124|        ..Default::default()
+125|    };
+126|    let output = finder.find(&options);
+127|    assert_eq!(output.results.len(), 1);
+128|    assert_eq!(output.results[0].title, "Task A");
+129|}
+130|
+131|#[test]
+132|fn combines_with_roots_flag() {
+133|    let graph = setup_graph(indoc! {"
+134|        ---
+135|        title: Root
+136|        status: ready
+137|        ---
+138|
+139|        # Root
+140|
+141|        [child](2)
+142|        _
+143|        ---
+144|        title: Child
+145|        status: ready
+146|        ---
+147|
+148|        # Child
+149|    "});
+150|
+151|    let finder = DocumentFinder::new(&graph);
+152|    let options = FindOptions {
+153|        roots: true,
+154|        metadata_filters: vec![("status".to_string(), "ready".to_string())],
+155|        ..Default::default()
+156|    };
+157|    let output = finder.find(&options);
+158|    assert_eq!(output.results.len(), 1);
+159|    assert_eq!(output.results[0].title, "Root");
+160|}
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/iwe/src/help.rs' AND line_num BETWEEN 1 AND 89 ORDER BY line_num;"
+    timeout_secs: 10
+
+1|pub mod init {
+2|    pub const ABOUT: &str = include_str!("../help/init/about.txt");
+3|    pub const LONG_ABOUT: &str = include_str!("../help/init/long_about.txt");
+4|    pub const AFTER_HELP: &str = include_str!("../help/init/after_help.txt");
+5|}
+6|
+7|pub mod new {
+8|    pub const ABOUT: &str = include_str!("../help/new/about.txt");
+9|    pub const LONG_ABOUT: &str = include_str!("../help/new/long_about.txt");
+10|    pub const AFTER_HELP: &str = include_str!("../help/new/after_help.txt");
+11|}
+12|
+13|pub mod retrieve {
+14|    pub const ABOUT: &str = include_str!("../help/retrieve/about.txt");
+15|    pub const LONG_ABOUT: &str = include_str!("../help/retrieve/long_about.txt");
+16|    pub const AFTER_HELP: &str = include_str!("../help/retrieve/after_help.txt");
+17|}
+18|
+19|pub mod find {
+20|    pub const ABOUT: &str = include_str!("../help/find/about.txt");
+21|    pub const LONG_ABOUT: &str = include_str!("../help/find/long_about.txt");
+22|    pub const AFTER_HELP: &str = include_str!("../help/find/after_help.txt");
+23|}
+24|
+25|pub mod normalize {
+26|    pub const ABOUT: &str = include_str!("../help/normalize/about.txt");
+27|    pub const LONG_ABOUT: &str = include_str!("../help/normalize/long_about.txt");
+28|    pub const AFTER_HELP: &str = include_str!("../help/normalize/after_help.txt");
+29|}
+30|
+31|pub mod tree {
+32|    pub const ABOUT: &str = include_str!("../help/tree/about.txt");
+33|    pub const LONG_ABOUT: &str = include_str!("../help/tree/long_about.txt");
+34|    pub const AFTER_HELP: &str = include_str!("../help/tree/after_help.txt");
+35|}
+36|
+37|pub mod squash {
+38|    pub const ABOUT: &str = include_str!("../help/squash/about.txt");
+39|    pub const LONG_ABOUT: &str = include_str!("../help/squash/long_about.txt");
+40|    pub const AFTER_HELP: &str = include_str!("../help/squash/after_help.txt");
+41|}
+42|
+43|pub mod export {
+44|    pub const ABOUT: &str = include_str!("../help/export/about.txt");
+45|    pub const LONG_ABOUT: &str = include_str!("../help/export/long_about.txt");
+46|    pub const AFTER_HELP: &str = include_str!("../help/export/after_help.txt");
+47|}
+48|
+49|pub mod stats {
+50|    pub const ABOUT: &str = include_str!("../help/stats/about.txt");
+51|    pub const LONG_ABOUT: &str = include_str!("../help/stats/long_about.txt");
+52|    pub const AFTER_HELP: &str = include_str!("../help/stats/after_help.txt");
+53|}
+54|
+55|pub mod rename {
+56|    pub const ABOUT: &str = include_str!("../help/rename/about.txt");
+57|    pub const LONG_ABOUT: &str = include_str!("../help/rename/long_about.txt");
+58|    pub const AFTER_HELP: &str = include_str!("../help/rename/after_help.txt");
+59|}
+60|
+61|pub mod delete {
+62|    pub const ABOUT: &str = include_str!("../help/delete/about.txt");
+63|    pub const LONG_ABOUT: &str = include_str!("../help/delete/long_about.txt");
+64|    pub const AFTER_HELP: &str = include_str!("../help/delete/after_help.txt");
+65|}
+66|
+67|pub mod extract {
+68|    pub const ABOUT: &str = include_str!("../help/extract/about.txt");
+69|    pub const LONG_ABOUT: &str = include_str!("../help/extract/long_about.txt");
+70|    pub const AFTER_HELP: &str = include_str!("../help/extract/after_help.txt");
+71|}
+72|
+73|pub mod inline {
+74|    pub const ABOUT: &str = include_str!("../help/inline/about.txt");
+75|    pub const LONG_ABOUT: &str = include_str!("../help/inline/long_about.txt");
+76|    pub const AFTER_HELP: &str = include_str!("../help/inline/after_help.txt");
+77|}
+78|
+79|pub mod update {
+80|    pub const ABOUT: &str = include_str!("../help/update/about.txt");
+81|    pub const LONG_ABOUT: &str = include_str!("../help/update/long_about.txt");
+82|    pub const AFTER_HELP: &str = include_str!("../help/update/after_help.txt");
+83|}
+84|
+85|pub mod attach {
+86|    pub const ABOUT: &str = include_str!("../help/attach/about.txt");
+87|    pub const LONG_ABOUT: &str = include_str!("../help/attach/long_about.txt");
+88|    pub const AFTER_HELP: &str = include_str!("../help/attach/after_help.txt");
+89|}
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines_fts WHERE content MATCH 'find NEAR count' OR content MATCH '--count' ORDER BY file,line_num;"
+    timeout_secs: 10
+
+Error in 2nd command line argument: fts5: syntax error near "-"
+
+Command exited with code 1
+  ────────────────────────────────────────
+  ▸ shell
+    command: sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines_fts WHERE content MATCH 'meta' ORDER BY file,line_num LIMIT 80;"
+    timeout_secs: 10
+
+crates/iwe/src/main.rs|153|    #[clap(long = "meta", value_parser = parse_meta_filter,
+crates/iwe/src/main.rs|155|    meta: Vec<(String, String)>,
+crates/iwe/src/main.rs|654|fn parse_meta_filter(s: &str) -> Result<(String, String), String> {
+crates/iwe/src/main.rs|673|        metadata_filters: args.meta,
+crates/iwec/src/lib.rs|116|    pub meta: Option<Vec<(String, String)>>,
+crates/iwec/src/lib.rs|130|            metadata_filters: p.meta.unwrap_or_default(),
+crates/iwec/src/lib.rs|1241|            meta: None,
+crates/iwec/src/lib.rs|1335|            meta: None,
+crates/liwe/src/graph.rs|283|        if let Some(meta) = document.metadata {
+crates/liwe/src/graph.rs|284|            self.metadata.insert(key.clone(), meta);
+crates/liwe/src/graph.rs|379|            if let Some(meta) = document.metadata.clone() {
+crates/liwe/src/graph.rs|380|                graph.metadata.insert(key.clone(), meta);
+crates/liwe/tests/normalization_metadata.rs|10|fn normalization_meta_block() {
+  ────────────────────────────────────────
+  ▸ shell
+    command: ed -s crates/iwe/src/main.rs <<'EOF'
+146a
+
+    #[clap(long, help = "Print only the number of matching documents")]
+    count: bool,
+.
+672c
+        limit: if args.count { Some(0) } else { args.limit },
+.
+677a
+    if args.count {
+        println!("{}", output.total);
+        return;
+    }
+.
+w
+EOF
+
+sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/iwe/src/main.rs' AND line_num BETWEEN 134 AND 158 ORDER BY line_num; SELECT line_num, content FROM lines WHERE file='crates/iwe/src/main.rs' AND line_num BETWEEN 661 AND 688 ORDER BY line_num;"
+    timeout_secs: 10
+
+134|struct Find {
+135|    #[clap(help = "Search query (fuzzy match on title and key)")]
+136|    query: Option<String>,
+137|
+138|    #[clap(long, help = "Only root documents (no incoming block refs)")]
+139|    roots: bool,
+140|
+141|    #[clap(long, help = "Documents that reference this key")]
+142|    refs_to: Option<String>,
+143|
+144|    #[clap(long, help = "Documents referenced by this key")]
+145|    refs_from: Option<String>,
+146|
+147|    #[clap(long, short = 'l', help = "Maximum results")]
+148|    limit: Option<usize>,
+149|
+150|    #[clap(long, short = 'f', value_enum, default_value = "markdown")]
+151|    format: FindFormat,
+152|
+153|    #[clap(long = "meta", value_parser = parse_meta_filter,
+154|           help = "Filter by front matter field (key=value); repeatable")]
+155|    meta: Vec<(String, String)>,
+156|
+157|    #[clap(flatten)]
+158|    selector: SelectorArgs,
+661|fn find_command(args: Find) {
+662|    let config = get_configuration();
+663|    let graph = load_graph(&config);
+664|
+665|    let finder = DocumentFinder::new(&graph);
+666|    let options = FindOptions {
+667|        query: args.query,
+668|        roots: args.roots,
+669|        refs_to: args.refs_to.map(|s| Key::name(&s)),
+670|        refs_from: args.refs_from.map(|s| Key::name(&s)),
+671|        selector: args.selector.into(),
+672|        limit: args.limit,
+673|        metadata_filters: args.meta,
+674|    };
+675|
+676|    let output = finder.find(&options);
+677|
+678|    match args.format {
+679|        FindFormat::Json => {
+680|            let json = serde_json::to_string_pretty(&output).expect("Failed to serialize to JSON");
+681|            println!("{}", json);
+682|        }
+683|        FindFormat::Keys => {
+684|            for result in &output.results {
+685|                println!("{}", result.key);
+686|            }
+687|        }
+688|        FindFormat::Markdown => {
+  ────────────────────────────────────────
+  ▸ shell
+    command: python3 - <<'PY'
+from pathlib import Path
+p=Path('crates/iwe/src/main.rs')
+for i,line in enumerate(p.read_text().splitlines(),1):
+    if 134<=i<=162 or 665<=i<=690:
+        print(f'{i}|{line}')
+PY
+    timeout_secs: 10
+
+134|struct Find {
+135|    #[clap(help = "Search query (fuzzy match on title and key)")]
+136|    query: Option<String>,
+137|
+138|    #[clap(long, help = "Only root documents (no incoming block refs)")]
+139|    roots: bool,
+140|
+141|    #[clap(long, help = "Documents that reference this key")]
+142|    refs_to: Option<String>,
+143|
+144|    #[clap(long, help = "Documents referenced by this key")]
+145|    refs_from: Option<String>,
+146|
+147|
+148|    #[clap(long, help = "Print only the number of matching documents")]
+149|    count: bool,
+150|    #[clap(long, short = 'l', help = "Maximum results")]
+151|    limit: Option<usize>,
+152|
+153|    #[clap(long, short = 'f', value_enum, default_value = "markdown")]
+154|    format: FindFormat,
+155|
+156|    #[clap(long = "meta", value_parser = parse_meta_filter,
+157|           help = "Filter by front matter field (key=value); repeatable")]
+158|    meta: Vec<(String, String)>,
+159|
+160|    #[clap(flatten)]
+161|    selector: SelectorArgs,
+162|}
+665|    let config = get_configuration();
+666|    let graph = load_graph(&config);
+667|
+668|    let finder = DocumentFinder::new(&graph);
+669|    let options = FindOptions {
+670|        query: args.query,
+671|        roots: args.roots,
+672|        limit: if args.count { Some(0) } else { args.limit },
+673|        refs_from: args.refs_from.map(|s| Key::name(&s)),
+674|        selector: args.selector.into(),
+675|        limit: args.limit,
+676|        metadata_filters: args.meta,
+677|    };
+678|    if args.count {
+679|        println!("{}", output.total);
+680|        return;
+681|    }
+682|
+683|    let output = finder.find(&options);
+684|
+685|    match args.format {
+686|        FindFormat::Json => {
+687|            let json = serde_json::to_string_pretty(&output).expect("Failed to serialize to JSON");
+688|            println!("{}", json);
+689|        }
+690|        FindFormat::Keys => {
+  ────────────────────────────────────────
+  ▸ shell
+    command: ed -s crates/iwe/src/main.rs <<'EOF'
+147,150c
+
+    #[clap(long, help = "Print only the number of matching documents")]
+    count: bool,
+
+    #[clap(long, short = 'l', help = "Maximum results")]
+.
+669,683c
+    let options = FindOptions {
+        query: args.query,
+        roots: args.roots,
+        refs_to: args.refs_to.map(|s| Key::name(&s)),
+        refs_from: args.refs_from.map(|s| Key::name(&s)),
+        selector: args.selector.into(),
+        limit: if args.count { Some(0) } else { args.limit },
+        metadata_filters: args.meta,
+    };
+
+    let output = finder.find(&options);
+    if args.count {
+        println!("{}", output.total);
+        return;
+    }
+.
+w
+EOF
+cargo fmt
+    timeout_secs: 30
+
+(no output)
+  ────────────────────────────────────────
+  ▸ shell
+    command: python3 - <<'PY'
+from pathlib import Path
+p=Path('crates/iwe/tests/find_test.rs')
+text=p.read_text()
+insert='''\n#[test]\nfn test_find_count_lists_only_matching_document_count() {\n    let dir = setup_workspace();\n\n    write(dir.path().join("alpha.md"), "# Alpha\\n\\nContent.").unwrap();\n    write(dir.path().join("beta.md"), "# Beta\\n\\nContent.").unwrap();\n\n    let (stdout, stderr, success) = run_iwe(dir.path(), &["--count"]);\n\n    assert!(success, "stderr: {}", stderr);\n    assert_eq!(stdout, "2\\n");\n}\n\n#[test]\nfn test_find_count_combines_with_filters() {\n    let dir = setup_workspace();\n\n    write(\n        dir.path().join("parent-ready.md"),\n        indoc! {"\n            ---\n            status: ready\n            ---\n\n            # Parent Ready\n\n            [child](child)\n        "},\n    )\n    .unwrap();\n    write(\n        dir.path().join("orphan-ready.md"),\n        indoc! {"\n            ---\n            status: ready\n            ---\n\n            # Orphan Ready\n        "},\n    )\n    .unwrap();\n    write(\n        dir.path().join("orphan-done.md"),\n        indoc! {"\n            ---\n            status: done\n            ---\n\n            # Orphan Done\n        "},\n    )\n    .unwrap();\n    write(\n        dir.path().join("child.md"),\n        indoc! {"\n            ---\n            status: ready\n            ---\n\n            # Child\n        "},\n    )\n    .unwrap();\n\n    let (stdout, stderr, success) = run_iwe(\n        dir.path(),\n        &["--count", "--roots", "--meta", "status=ready"],\n    );\n\n    assert!(success, "stderr: {}", stderr);\n    assert_eq!(stdout, "2\\n");\n}\n\n#[test]\nfn test_find_count_ignores_limit() {\n    let dir = setup_workspace();\n\n    for i in 1..=3 {\n        write(\n            dir.path().join(format!("doc{}.md", i)),\n            format!("# Document {}\\n\\nContent.", i),\n        )\n        .unwrap();\n    }\n\n    let (stdout, stderr, success) = run_iwe(dir.path(), &["--count", "--limit", "1"]);\n\n    assert!(success, "stderr: {}", stderr);\n    assert_eq!(stdout, "3\\n");\n}\n'''
+marker='#[test]\nfn test_find_keys_format()'
+text=text.replace(marker, insert+'\n'+marker)
+p.write_text(text)
+PY
+cargo fmt
+    timeout_secs: 30
+
+(no output)
+  ────────────────────────────────────────
+  ▸ shell
+    command: python3 - <<'PY'
+from pathlib import Path
+for path, ranges in [('crates/iwe/src/main.rs', [(134,165),(661,690)]), ('crates/iwe/tests/find_test.rs', [(250,340)])]:
+    print(path)
+    lines=Path(path).read_text().splitlines()
+    for a,b in ranges:
+        for i in range(a,b+1):
+            if i<=len(lines): print(f'{i}|{lines[i-1]}')
+PY
+    timeout_secs: 10
+
+crates/iwe/src/main.rs
+134|struct Search {
+135|    #[clap(long, short = 'p')]
+136|    prompt: String,
+137|}
+138|
+139|#[derive(Debug, Args)]
+140|#[clap(
+141|    about = help::find::ABOUT,
+142|    long_about = help::find::LONG_ABOUT,
+143|    after_help = help::find::AFTER_HELP
+144|)]
+145|struct Find {
+146|    #[clap(help = "Search query (fuzzy match on title and key)")]
+147|    query: Option<String>,
+148|
+149|    #[clap(long, help = "Only root documents (no incoming block refs)")]
+150|    roots: bool,
+151|
+152|    #[clap(long, help = "Documents that reference this key")]
+153|    refs_to: Option<String>,
+154|
+155|    #[clap(long, help = "Documents referenced by this key")]
+156|    refs_from: Option<String>,
+157|
+158|    #[clap(long, help = "Print only the number of matching documents")]
+159|    count: bool,
+160|
+161|    #[clap(long, short = 'l', help = "Maximum results")]
+162|    limit: Option<usize>,
+163|
+164|    #[clap(long, short = 'f', value_enum, default_value = "markdown")]
+165|    format: FindFormat,
+661|    }
+662|}
+663|
+664|fn parse_meta_filter(s: &str) -> Result<(String, String), String> {
+665|    s.split_once('=')
+666|        .map(|(k, v)| (k.trim().to_string(), v.trim().to_string()))
+667|        .ok_or_else(|| format!("expected key=value, got `{}`", s))
+668|}
+669|
+670|#[tracing::instrument(level = "debug")]
+671|fn find_command(args: Find) {
+672|    let config = get_configuration();
+673|    let graph = load_graph(&config);
+674|
+675|    let options = FindOptions {
+676|        query: args.query,
+677|        roots: args.roots,
+678|        refs_to: args.refs_to.map(|s| Key::name(&s)),
+679|        refs_from: args.refs_from.map(|s| Key::name(&s)),
+680|        selector: args.selector.into(),
+681|        limit: if args.count { Some(0) } else { args.limit },
+682|        metadata_filters: args.meta,
+683|    };
+684|
+685|    let output = finder.find(&options);
+686|    if args.count {
+687|        println!("{}", output.total);
+688|        return;
+689|    }
+690|    let output = finder.find(&options);
+crates/iwe/tests/find_test.rs
+250|    assert!(success, "stderr: {}", stderr);
+251|
+252|    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+253|    assert_eq!(parsed["total"], 10, "total should be 10");
+254|    assert_eq!(
+255|        parsed["results"].as_array().unwrap().len(),
+256|        3,
+257|        "should return only 3 results"
+258|    );
+259|}
+260|
+261|#[test]
+262|fn test_find_limit_shown_in_markdown() {
+263|    let dir = setup_workspace();
+264|
+265|    for i in 1..=10 {
+266|        write(
+267|            dir.path().join(format!("doc{}.md", i)),
+268|            format!("# Document {}\n\nContent.", i),
+269|        )
+270|        .unwrap();
+271|    }
+272|
+273|    let (stdout, stderr, success) = run_iwe(dir.path(), &["--limit", "3", "-f", "markdown"]);
+274|
+275|    assert!(success, "stderr: {}", stderr);
+276|
+277|    assert!(stdout.contains("Found 10 results"));
+278|    assert!(stdout.contains("(showing 3)"));
+279|}
+280|
+281|#[test]
+282|fn test_find_count_lists_only_matching_document_count() {
+283|    let dir = setup_workspace();
+284|
+285|    write(dir.path().join("alpha.md"), "# Alpha\n\nContent.").unwrap();
+286|    write(dir.path().join("beta.md"), "# Beta\n\nContent.").unwrap();
+287|
+288|    let (stdout, stderr, success) = run_iwe(dir.path(), &["--count"]);
+289|
+290|    assert!(success, "stderr: {}", stderr);
+291|    assert_eq!(stdout, "2\n");
+292|}
+293|
+294|#[test]
+295|fn test_find_count_combines_with_filters() {
+296|    let dir = setup_workspace();
+297|
+298|    write(
+299|        dir.path().join("parent-ready.md"),
+300|        indoc! {"
+301|            ---
+302|            status: ready
+303|            ---
+304|
+305|            # Parent Ready
+306|
+307|            [child](child)
+308|        "},
+309|    )
+310|    .unwrap();
+311|    write(
+312|        dir.path().join("orphan-ready.md"),
+313|        indoc! {"
+314|            ---
+315|            status: ready
+316|            ---
+317|
+318|            # Orphan Ready
+319|        "},
+320|    )
+321|    .unwrap();
+322|    write(
+323|        dir.path().join("orphan-done.md"),
+324|        indoc! {"
+325|            ---
+326|            status: done
+327|            ---
+328|
+329|            # Orphan Done
+330|        "},
+331|    )
+332|    .unwrap();
+333|    write(
+334|        dir.path().join("child.md"),
+335|        indoc! {"
+336|            ---
+337|            status: ready
+338|            ---
+339|
+340|            # Child
+  ────────────────────────────────────────
+  ▸ shell
+    command: ed -s crates/iwe/src/main.rs <<'EOF'
+670,700p
+EOF
+    timeout_secs: 10
+
+#[tracing::instrument(level = "debug")]
+fn find_command(args: Find) {
+    let config = get_configuration();
+    let graph = load_graph(&config);
+
+    let options = FindOptions {
+        query: args.query,
+        roots: args.roots,
+        refs_to: args.refs_to.map(|s| Key::name(&s)),
+        refs_from: args.refs_from.map(|s| Key::name(&s)),
+        selector: args.selector.into(),
+        limit: if args.count { Some(0) } else { args.limit },
+        metadata_filters: args.meta,
+    };
+
+    let output = finder.find(&options);
+    if args.count {
+        println!("{}", output.total);
+        return;
+    }
+    let output = finder.find(&options);
+
+    match args.format {
+        FindFormat::Json => {
+            let json = serde_json::to_string_pretty(&output).expect("Failed to serialize to JSON");
+            println!("{}", json);
+        }
+        FindFormat::Keys => {
+            for result in &output.results {
+                println!("{}", result.key);
+            }
+  ────────────────────────────────────────
+  ▸ shell
+    command: ed -s crates/iwe/src/main.rs <<'EOF'
+674a
+    let finder = DocumentFinder::new(&graph);
+
+.
+686,690c
+    if args.count {
+        println!("{}", output.total);
+        return;
+    }
+
+.
+w
+EOF
+cargo fmt
+    timeout_secs: 30
+
+error: unexpected closing delimiter: `}`
+   --> /tmp/bench-iwe-implement-1-9ewY23/crates/iwe/src/main.rs:709:1
+    |
+671 | fn find_command(args: Find) {
+    |                             - this delimiter might not be properly closed...
+...
+691 |     }
+    |     - ...as it matches this but it has different indentation
+...
+709 | }
+    | ^ unexpected closing delimiter
+
+
+Command exited with code 1
+  ────────────────────────────────────────
+  ▸ shell
+    command: ed -s crates/iwe/src/main.rs <<'EOF'
+670,715p
+EOF
+    timeout_secs: 10
+
+#[tracing::instrument(level = "debug")]
+fn find_command(args: Find) {
+    let config = get_configuration();
+    let graph = load_graph(&config);
+
+    let finder = DocumentFinder::new(&graph);
+
+    let options = FindOptions {
+        query: args.query,
+        roots: args.roots,
+        refs_to: args.refs_to.map(|s| Key::name(&s)),
+        refs_from: args.refs_from.map(|s| Key::name(&s)),
+        selector: args.selector.into(),
+        limit: if args.count { Some(0) } else { args.limit },
+        metadata_filters: args.meta,
+    };
+    if args.count {
+        println!("{}", output.total);
+        return;
+    }
+
+    }
+    let output = finder.find(&options);
+
+    match args.format {
+        FindFormat::Json => {
+            let json = serde_json::to_string_pretty(&output).expect("Failed to serialize to JSON");
+            println!("{}", json);
+        }
+        FindFormat::Keys => {
+            for result in &output.results {
+                println!("{}", result.key);
+            }
+        }
+        FindFormat::Markdown => {
+            let rendered = render_find_output(&output);
+            print!("{}", rendered);
+        }
+    }
+}
+
+fn render_find_output(output: &iwe::find::FindOutput) -> String {
+    let mut result = String::new();
+
+    result.push_str(&format!("Found {} results", output.total));
+    if let Some(ref query) = output.query {
+  ────────────────────────────────────────
+  ▸ shell
+    command: ed -s crates/iwe/src/main.rs <<'EOF'
+684,690c
+
+    let output = finder.find(&options);
+    if args.count {
+        println!("{}", output.total);
+        return;
+    }
+.
+w
+EOF
+cargo fmt
+    timeout_secs: 30
+
+error: expected identifier, found keyword `let`
+   --> /tmp/bench-iwe-implement-1-9ewY23/crates/iwe/src/main.rs:685:5
+    |
+677 |     let options = FindOptions {
+    |                   ----------- while parsing this struct
+...
+685 |     let output = finder.find(&options);
+    |     ^^^ expected identifier, found keyword
+
+error: expected `;`, found keyword `let`
+   --> /tmp/bench-iwe-implement-1-9ewY23/crates/iwe/src/main.rs:690:6
+    |
+690 |     }
+    |      ^ help: add `;` here
+691 |     let output = finder.find(&options);
+    |     --- unexpected token
+
+
+Command exited with code 1
+  ────────────────────────────────────────
+  ▸ shell
+    command: ed -s crates/iwe/src/main.rs <<'EOF'
+670,710p
+EOF
+    timeout_secs: 10
+
+#[tracing::instrument(level = "debug")]
+fn find_command(args: Find) {
+    let config = get_configuration();
+    let graph = load_graph(&config);
+
+    let finder = DocumentFinder::new(&graph);
+
+    let options = FindOptions {
+        query: args.query,
+        roots: args.roots,
+        refs_to: args.refs_to.map(|s| Key::name(&s)),
+        refs_from: args.refs_from.map(|s| Key::name(&s)),
+        selector: args.selector.into(),
+        limit: if args.count { Some(0) } else { args.limit },
+
+    let output = finder.find(&options);
+    if args.count {
+        println!("{}", output.total);
+        return;
+    }
+    }
+    let output = finder.find(&options);
+
+    match args.format {
+        FindFormat::Json => {
+            let json = serde_json::to_string_pretty(&output).expect("Failed to serialize to JSON");
+            println!("{}", json);
+        }
+        FindFormat::Keys => {
+            for result in &output.results {
+                println!("{}", result.key);
+            }
+        }
+        FindFormat::Markdown => {
+            let rendered = render_find_output(&output);
+            print!("{}", rendered);
+        }
+    }
+}
+
+fn render_find_output(output: &iwe::find::FindOutput) -> String {
+  ────────────────────────────────────────
+  ▸ shell
+    command: ed -s crates/iwe/src/main.rs <<'EOF'
+670,707c
+#[tracing::instrument(level = "debug")]
+fn find_command(args: Find) {
+    let config = get_configuration();
+    let graph = load_graph(&config);
+
+    let finder = DocumentFinder::new(&graph);
+    let options = FindOptions {
+        query: args.query,
+        roots: args.roots,
+        refs_to: args.refs_to.map(|s| Key::name(&s)),
+        refs_from: args.refs_from.map(|s| Key::name(&s)),
+        selector: args.selector.into(),
+        limit: if args.count { Some(0) } else { args.limit },
+        metadata_filters: args.meta,
+    };
+
+    let output = finder.find(&options);
+    if args.count {
+        println!("{}", output.total);
+        return;
+    }
+
+    match args.format {
+        FindFormat::Json => {
+            let json = serde_json::to_string_pretty(&output).expect("Failed to serialize to JSON");
+            println!("{}", json);
+        }
+        FindFormat::Keys => {
+            for result in &output.results {
+                println!("{}", result.key);
+            }
+        }
+        FindFormat::Markdown => {
+            let rendered = render_find_output(&output);
+            print!("{}", rendered);
+        }
+    }
+}
+.
+w
+EOF
+cargo fmt
+    timeout_secs: 30
+
+error: unexpected closing delimiter: `}`
+   --> /tmp/bench-iwe-implement-1-9ewY23/crates/iwe/src/main.rs:708:1
+    |
+671 | fn find_command(args: Find) {
+    |                             - this opening brace...
+...
+707 | }
+    | - ...matches this closing brace
+708 | }
+    | ^ unexpected closing delimiter
+
+
+Command exited with code 1
+  ────────────────────────────────────────
+  ▸ shell
+    command: ed -s crates/iwe/src/main.rs <<'EOF'
+700,715p
+EOF
+    timeout_secs: 10
+
+            }
+        }
+        FindFormat::Markdown => {
+            let rendered = render_find_output(&output);
+            print!("{}", rendered);
+        }
+    }
+}
+}
+
+fn render_find_output(output: &iwe::find::FindOutput) -> String {
+    let mut result = String::new();
+
+    result.push_str(&format!("Found {} results", output.total));
+    if let Some(ref query) = output.query {
+        result.push_str(&format!(" for \"{}\"", query));
+  ────────────────────────────────────────
+  ▸ shell
+    command: ed -s crates/iwe/src/main.rs <<'EOF'
+708d
+w
+EOF
+cargo fmt
+    timeout_secs: 30
+
+(no output)
+  ────────────────────────────────────────
+  ▸ shell
+    command: python3 - <<'PY'
+from pathlib import Path
+for path, ranges in [('crates/iwe/src/main.rs', [(145,168),(670,708)]), ('crates/iwe/tests/find_test.rs', [(281,370)])]:
+    print('\n'+path)
+    lines=Path(path).read_text().splitlines()
+    for a,b in ranges:
+        for i in range(a,b+1):
+            if i<=len(lines): print(f'{i}|{lines[i-1]}')
+PY
+    timeout_secs: 10
+
+
+crates/iwe/src/main.rs
+145|struct Find {
+146|    #[clap(help = "Search query (fuzzy match on title and key)")]
+147|    query: Option<String>,
+148|
+149|    #[clap(long, help = "Only root documents (no incoming block refs)")]
+150|    roots: bool,
+151|
+152|    #[clap(long, help = "Documents that reference this key")]
+153|    refs_to: Option<String>,
+154|
+155|    #[clap(long, help = "Documents referenced by this key")]
+156|    refs_from: Option<String>,
+157|
+158|    #[clap(long, help = "Print only the number of matching documents")]
+159|    count: bool,
+160|
+161|    #[clap(long, short = 'l', help = "Maximum results")]
+162|    limit: Option<usize>,
+163|
+164|    #[clap(long, short = 'f', value_enum, default_value = "markdown")]
+165|    format: FindFormat,
+166|
+167|    #[clap(long = "meta", value_parser = parse_meta_filter,
+168|           help = "Filter by front matter field (key=value); repeatable")]
+670|#[tracing::instrument(level = "debug")]
+671|fn find_command(args: Find) {
+672|    let config = get_configuration();
+673|    let graph = load_graph(&config);
+674|
+675|    let finder = DocumentFinder::new(&graph);
+676|    let options = FindOptions {
+677|        query: args.query,
+678|        roots: args.roots,
+679|        refs_to: args.refs_to.map(|s| Key::name(&s)),
+680|        refs_from: args.refs_from.map(|s| Key::name(&s)),
+681|        selector: args.selector.into(),
+682|        limit: if args.count { Some(0) } else { args.limit },
+683|        metadata_filters: args.meta,
+684|    };
+685|
+686|    let output = finder.find(&options);
+687|    if args.count {
+688|        println!("{}", output.total);
+689|        return;
+690|    }
+691|
+692|    match args.format {
+693|        FindFormat::Json => {
+694|            let json = serde_json::to_string_pretty(&output).expect("Failed to serialize to JSON");
+695|            println!("{}", json);
+696|        }
+697|        FindFormat::Keys => {
+698|            for result in &output.results {
+699|                println!("{}", result.key);
+700|            }
+701|        }
+702|        FindFormat::Markdown => {
+703|            let rendered = render_find_output(&output);
+704|            print!("{}", rendered);
+705|        }
+706|    }
+707|}
+708|
+
+crates/iwe/tests/find_test.rs
+281|#[test]
+282|fn test_find_count_lists_only_matching_document_count() {
+283|    let dir = setup_workspace();
+284|
+285|    write(dir.path().join("alpha.md"), "# Alpha\n\nContent.").unwrap();
+286|    write(dir.path().join("beta.md"), "# Beta\n\nContent.").unwrap();
+287|
+288|    let (stdout, stderr, success) = run_iwe(dir.path(), &["--count"]);
+289|
+290|    assert!(success, "stderr: {}", stderr);
+291|    assert_eq!(stdout, "2\n");
+292|}
+293|
+294|#[test]
+295|fn test_find_count_combines_with_filters() {
+296|    let dir = setup_workspace();
+297|
+298|    write(
+299|        dir.path().join("parent-ready.md"),
+300|        indoc! {"
+301|            ---
+302|            status: ready
+303|            ---
+304|
+305|            # Parent Ready
+306|
+307|            [child](child)
+308|        "},
+309|    )
+310|    .unwrap();
+311|    write(
+312|        dir.path().join("orphan-ready.md"),
+313|        indoc! {"
+314|            ---
+315|            status: ready
+316|            ---
+317|
+318|            # Orphan Ready
+319|        "},
+320|    )
+321|    .unwrap();
+322|    write(
+323|        dir.path().join("orphan-done.md"),
+324|        indoc! {"
+325|            ---
+326|            status: done
+327|            ---
+328|
+329|            # Orphan Done
+330|        "},
+331|    )
+332|    .unwrap();
+333|    write(
+334|        dir.path().join("child.md"),
+335|        indoc! {"
+336|            ---
+337|            status: ready
+338|            ---
+339|
+340|            # Child
+341|        "},
+342|    )
+343|    .unwrap();
+344|
+345|    let (stdout, stderr, success) = run_iwe(
+346|        dir.path(),
+347|        &["--count", "--roots", "--meta", "status=ready"],
+348|    );
+349|
+350|    assert!(success, "stderr: {}", stderr);
+351|    assert_eq!(stdout, "2\n");
+352|}
+353|
+354|#[test]
+355|fn test_find_count_ignores_limit() {
+356|    let dir = setup_workspace();
+357|
+358|    for i in 1..=3 {
+359|        write(
+360|            dir.path().join(format!("doc{}.md", i)),
+361|            format!("# Document {}\n\nContent.", i),
+362|        )
+363|        .unwrap();
+364|    }
+365|
+366|    let (stdout, stderr, success) = run_iwe(dir.path(), &["--count", "--limit", "1"]);
+367|
+368|    assert!(success, "stderr: {}", stderr);
+369|    assert_eq!(stdout, "3\n");
+370|}
+  ────────────────────────────────────────
+  ▸ todo_write todo
+    content: - [x] Add `--count` flag to `iwe find`
+  - [x] Locate `iwe find` CLI and filter implementation using `.indexnudge-rust.db`
+  - [x] Implement flag so it prints only number of matching documents
+  - [x] Ensure it composes with all existing filters (`--meta`, `--roots`, `--refs-to`, etc.)
+  - [x] Add or update tests for count behavior
+  - [ ] Run `cargo build`
+  - [ ] Run `cargo test`
+- [x] Leave changes uncommitted for review
+
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: cargo build
+    timeout_secs: 120
+
+   Compiling proc-macro2 v1.0.106
+   Compiling quote v1.0.45
+   Compiling unicode-ident v1.0.24
+   Compiling memchr v2.8.0
+   Compiling libc v0.2.184
+   Compiling serde_core v1.0.228
+   Compiling cfg-if v1.0.4
+   Compiling itoa v1.0.18
+   Compiling log v0.4.29
+   Compiling regex-syntax v0.8.10
+   Compiling crossbeam-utils v0.8.21
+   Compiling serde v1.0.228
+   Compiling pin-project-lite v0.2.17
+   Compiling bitflags v2.11.0
+   Compiling stable_deref_trait v1.2.1
+   Compiling zmij v1.0.21
+   Compiling once_cell v1.21.4
+   Compiling typenum v1.19.0
+   Compiling version_check v0.9.5
+   Compiling futures-core v0.3.32
+   Compiling getrandom v0.3.4
+   Compiling strsim v0.11.1
+   Compiling autocfg v1.5.0
+   Compiling futures-sink v0.3.32
+   Compiling zerocopy v0.8.48
+   Compiling serde_json v1.0.149
+   Compiling tracing-core v0.1.36
+   Compiling futures-channel v0.3.32
+   Compiling futures-task v0.3.32
+   Compiling generic-array v0.14.7
+   Compiling futures-io v0.3.32
+   Compiling slab v0.4.12
+   Compiling thread_local v1.1.9
+   Compiling rayon-core v1.13.0
+   Compiling hashbrown v0.16.1
+   Compiling aho-corasick v1.1.4
+   Compiling num-traits v0.2.19
+   Compiling pulldown-cmark v0.13.3
+   Compiling crossbeam-epoch v0.9.18
+   Compiling equivalent v1.0.2
+   Compiling iana-time-zone v0.1.65
+   Compiling winnow v1.0.1
+   Compiling powerfmt v0.2.0
+   Compiling pure-rust-locales v0.8.2
+   Compiling crossbeam-deque v0.8.6
+   Compiling same-file v1.0.6
+   Compiling syn v2.0.117
+   Compiling unicode-width v0.2.2
+   Compiling deranged v0.5.8
+   Compiling walkdir v2.5.0
+   Compiling bstr v1.12.1
+   Compiling pulldown-cmark-escape v0.11.0
+   Compiling indexmap v2.13.1
+   Compiling lazy_static v1.5.0
+   Compiling getopts v0.2.24
+   Compiling writeable v0.6.3
+   Compiling time-core v0.1.8
+   Compiling litemap v0.8.2
+   Compiling crypto-common v0.1.7
+   Compiling rand_core v0.9.5
+   Compiling block-buffer v0.10.4
+   Compiling toml_writer v1.1.1+spec-1.1.0
+   Compiling num_threads v0.1.7
+   Compiling utf8parse v0.2.2
+   Compiling unicase v2.9.0
+   Compiling either v1.15.0
+   Compiling ryu v1.0.23
+   Compiling getrandom v0.4.2
+   Compiling regex-automata v0.4.14
+   Compiling num-conv v0.2.1
+   Compiling anstyle-parse v1.0.0
+   Compiling digest v0.10.7
+   Compiling errno v0.3.14
+   Compiling sharded-slab v0.1.7
+   Compiling tracing-log v0.2.0
+   Compiling csv-core v0.1.13
+   Compiling toml_parser v1.1.2+spec-1.1.0
+   Compiling cpufeatures v0.2.17
+   Compiling unsafe-libyaml v0.2.11
+   Compiling time v0.3.47
+   Compiling anstyle v1.0.14
+   Compiling icu_properties_data v2.2.0
+   Compiling memo-map v0.3.3
+   Compiling is_terminal_polyfill v1.70.2
+   Compiling colorchoice v1.0.5
+   Compiling anstyle-query v1.1.5
+   Compiling relative-path v2.0.1
+   Compiling yansi v1.0.1
+   Compiling utf8_iter v1.0.4
+   Compiling diff v0.1.13
+   Compiling icu_normalizer_data v2.2.0
+   Compiling relative-path-utils v0.3.1
+   Compiling rayon v1.12.0
+   Compiling pretty_assertions v1.4.1
+   Compiling anstream v1.0.0
+   Compiling sha2 v0.10.9
+   Compiling toml_datetime v1.1.1+spec-1.1.0
+   Compiling serde_spanned v1.1.1
+   Compiling pulldown-cmark-to-cmark v22.0.0
+   Compiling csv v1.4.0
+   Compiling itertools v0.14.0
+   Compiling fuzzy-matcher v0.3.7
+   Compiling toml_edit v0.25.10+spec-1.1.0
+   Compiling toml v1.1.2+spec-1.1.0
+   Compiling ident_case v1.0.1
+   Compiling ucd-trie v0.1.7
+   Compiling sys-locale v0.3.2
+   Compiling indoc v2.0.7
+   Compiling pest v2.8.6
+   Compiling heck v0.5.0
+   Compiling dot-structures v0.1.2
+   Compiling syn v1.0.109
+   Compiling smallvec v1.15.1
+   Compiling ref-cast v1.0.25
+   Compiling rustix v1.1.4
+   Compiling anyhow v1.0.102
+   Compiling clap_lex v1.1.0
+   Compiling linux-raw-sys v0.12.1
+   Compiling nu-ansi-term v0.50.3
+   Compiling clap_builder v4.6.0
+   Compiling bytes v1.11.1
+   Compiling jiff v0.2.23
+   Compiling thiserror v2.0.18
+   Compiling dot-generator v0.2.0
+   Compiling into-attr v0.1.1
+   Compiling inotify-sys v0.1.5
+   Compiling percent-encoding v2.3.2
+   Compiling pest_meta v2.8.6
+   Compiling ppv-lite86 v0.2.21
+   Compiling bitflags v1.3.2
+   Compiling rmcp v1.3.0
+   Compiling fastrand v2.4.0
+   Compiling dyn-clone v1.0.20
+   Compiling fluent-uri v0.1.4
+   Compiling form_urlencoded v1.2.2
+   Compiling inotify v0.11.1
+   Compiling regex v1.12.3
+   Compiling synstructure v0.13.2
+   Compiling rand_chacha v0.9.0
+   Compiling globset v0.4.18
+   Compiling matchers v0.2.0
+   Compiling rand v0.9.4
+   Compiling darling_core v0.23.0
+   Compiling sanitize-filename v0.6.0
+   Compiling env_filter v1.0.1
+   Compiling ignore v0.4.25
+   Compiling serde_derive_internals v0.29.1
+   Compiling mio v1.2.0
+   Compiling pest_generator v2.8.6
+   Compiling tempfile v3.27.0
+   Compiling crossbeam-channel v0.5.15
+   Compiling notify-types v2.1.0
+   Compiling base64 v0.22.1
+   Compiling pastey v0.2.1
+   Compiling notify v8.2.0
+   Compiling uuid v1.23.0
+   Compiling zerofrom-derive v0.1.7
+   Compiling serde_derive v1.0.228
+   Compiling yoke-derive v0.8.2
+   Compiling zerovec-derive v0.11.3
+   Compiling displaydoc v0.2.5
+   Compiling futures-macro v0.3.32
+   Compiling tracing-attributes v0.1.31
+   Compiling clap_derive v4.6.0
+   Compiling tokio-macros v2.7.0
+   Compiling ref-cast-impl v1.0.25
+   Compiling schemars_derive v1.2.1
+   Compiling tokio v1.51.0
+   Compiling futures-util v0.3.32
+   Compiling env_logger v0.11.10
+   Compiling thiserror-impl v2.0.18
+   Compiling into-attr-derive v0.2.1
+   Compiling serde_repr v0.1.20
+   Compiling async-trait v0.1.89
+   Compiling pest_derive v2.8.6
+   Compiling zerofrom v0.1.7
+   Compiling tracing v0.1.44
+   Compiling extend v1.2.0
+   Compiling yoke v0.8.2
+   Compiling graphviz-rust v0.9.7
+   Compiling tracing-subscriber v0.3.23
+   Compiling darling_macro v0.23.0
+   Compiling zerovec v0.11.6
+   Compiling zerotrie v0.2.4
+   Compiling clap v4.6.0
+   Compiling darling v0.23.0
+   Compiling rmcp-macros v1.3.0
+   Compiling tinystr v0.8.3
+   Compiling potential_utf v0.1.5
+   Compiling icu_collections v2.2.0
+   Compiling icu_locale_core v2.2.0
+   Compiling tracing-tree v0.4.1
+   Compiling chrono v0.4.44
+   Compiling minijinja v2.19.0
+   Compiling serde_yaml v0.9.34+deprecated
+   Compiling lsp-server v0.7.9
+   Compiling lsp-types v0.97.0
+   Compiling icu_provider v2.2.0
+   Compiling icu_properties v2.2.0
+   Compiling icu_normalizer v2.2.0
+   Compiling futures-executor v0.3.32
+   Compiling futures v0.3.32
+   Compiling schemars v1.2.1
+   Compiling tokio-util v0.7.18
+   Compiling idna_adapter v1.2.1
+   Compiling idna v1.1.0
+   Compiling url v2.5.8
+   Compiling liwe v0.0.70 (/tmp/bench-iwe-implement-1-9ewY23/crates/liwe)
+   Compiling iwe v0.0.70 (/tmp/bench-iwe-implement-1-9ewY23/crates/iwe)
+   Compiling iwes v0.0.70 (/tmp/bench-iwe-implement-1-9ewY23/crates/iwes)
+   Compiling iwec v0.0.70 (/tmp/bench-iwe-implement-1-9ewY23/crates/iwec)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 33.03s
+  ────────────────────────────────────────
+  ▸ shell
+    command: cargo test
+    timeout_secs: 180
+
+     Running tests/toc_test.rs (target/debug/deps/toc_test-05e67351921a2ac7)
+
+running 5 tests
+test toc_level_two ... ok
+test toc_multiple_items_on_level_two ... ok
+test toc_one_level_two_items ... ok
+test toc_one_recusive ... ok
+test toc_one_level ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/virtual_directories_test.rs (target/debug/deps/virtual_directories_test-968856b20a3ec651)
+
+running 9 tests
+test underscore_stripped_from_key ... ok
+test directory_with_notes_generates_index ... ok
+test children_alphabetical_order ... ok
+test disabled_by_default ... ok
+test generated_index_deleted_when_user_creates_own ... ok
+test user_index_takes_precedence ... ok
+test nested_directories_each_get_index ... ok
+test user_index_suppresses_generated ... ok
+test parent_dir_with_only_subdirs_gets_index ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests iwe
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests iwec
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests iwes
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests liwe
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+[Output exceeded 50000 byte limit (53096 bytes total). Full output saved to /tmp/.tmpAjmqSD/output-7. Read it with shell commands like `head`, `tail`, or `sed -n '100,200p'` up to 2000 lines at a time.]
+  ────────────────────────────────────────
+  ▸ todo_write todo
+    content: - [x] Add `--count` flag to `iwe find`
+  - [x] Locate `iwe find` CLI and filter implementation using `.indexnudge-rust.db`
+  - [x] Implement flag so it prints only number of matching documents
+  - [x] Ensure it composes with all existing filters (`--meta`, `--roots`, `--refs-to`, etc.)
+  - [x] Add or update tests for count behavior
+  - [x] Run `cargo build`
+  - [x] Run `cargo test`
+- [x] Leave changes uncommitted for review
+
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: git diff --stat && git status --short
+    timeout_secs: 10
+
+ .goosehints                                        |  32 +--
+ crates/iwe/src/export.rs                           |   4 +-
+ crates/iwe/src/export/graph_data.rs                |   5 +-
+ crates/iwe/src/main.rs                             | 106 +++++----
+ crates/iwe/src/new.rs                              |   8 +-
+ crates/iwe/tests/delete_test.rs                    |  75 +++---
+ crates/iwe/tests/extract_test.rs                   | 137 ++++++-----
+ crates/iwe/tests/find_test.rs                      | 141 ++++++++++-
+ crates/iwe/tests/inline_test.rs                    | 161 +++++++++----
+ crates/iwe/tests/new_test.rs                       |  10 +-
+ crates/iwe/tests/rename_test.rs                    | 100 +++++---
+ crates/iwe/tests/retrieve_test.rs                  | 259 +++++++++++++++++----
+ crates/iwe/tests/stats_test.rs                     |   7 +-
+ crates/iwe/tests/tree_test.rs                      |  10 +-
+ crates/iwec/src/lib.rs                             | 166 ++++++++-----
+ crates/iwec/src/watcher.rs                         |  11 +-
+ crates/iwec/tests/attach_test.rs                   |  23 +-
+ crates/iwec/tests/extract_test.rs                  |  11 +-
+ crates/iwec/tests/find_test.rs                     |  23 +-
+ crates/iwec/tests/fixture.rs                       |  20 +-
+ crates/iwec/tests/inline_test.rs                   |  20 +-
+ crates/iwec/tests/prompt_test.rs                   |   7 +-
+ crates/iwec/tests/resource_test.rs                 |  13 +-
+ crates/iwec/tests/stats_test.rs                    |  11 +-
+ crates/iwec/tests/tree_test.rs                     |  15 +-
+ crates/iwec/tests/watcher_test.rs                  |   8 +-
+ crates/iwec/tests/write_test.rs                    |  18 +-
+ crates/iwes/src/lib.rs                             |   5 +-
+ crates/iwes/src/router.rs                          |  50 ++--
+ crates/iwes/src/router/server.rs                   |  42 ++--
+ crates/iwes/src/router/server/actions.rs           | 185 +++++++--------
+ crates/iwes/src/router/server/actions/attach.rs    |  30 +--
+ crates/iwes/src/router/server/actions/link.rs      |   4 +-
+ crates/iwes/src/router/server/actions/sort.rs      |   4 +-
+ crates/iwes/src/router/server/actions/transform.rs |   7 +-
+ crates/iwes/src/router/server/base_path.rs         |  10 +-
+ crates/iwes/tests/completion_test.rs               |  74 +++---
+ crates/iwes/tests/delete_test.rs                   |  14 +-
+ crates/iwes/tests/extract_test.rs                  |  47 ++--
+ crates/iwes/tests/fixture.rs                       |   7 +-
+ crates/iwes/tests/folding_range_test.rs            |   1 -
+ crates/iwes/tests/go_to_definition_test.rs         |   5 +-
+ crates/iwes/tests/link_test.rs                     |  21 +-
+ crates/liwe/src/find.rs                            |  13 +-
+ crates/liwe/src/fs.rs                              |  18 +-
+ crates/liwe/src/graph.rs                           |   8 +-
+ crates/liwe/src/graph/path.rs                      |   6 +-
+ crates/liwe/src/model/graph.rs                     |  20 +-
+ crates/liwe/src/model/projector.rs                 |   4 +-
+ crates/liwe/src/model/reference.rs                 |   2 +-
+ crates/liwe/src/operations/changes.rs              |   4 +-
+ crates/liwe/src/operations/extract.rs              |  41 +++-
+ crates/liwe/src/operations/inline.rs               |  10 +-
+ crates/liwe/src/parser.rs                          |   4 +-
+ crates/liwe/src/retrieve.rs                        |   4 +-
+ crates/liwe/src/selector.rs                        |  24 +-
+ crates/liwe/tests/bare_frontmatter_test.rs         |   6 +-
+ crates/liwe/tests/config_migration_test.rs         |   3 +-
+ crates/liwe/tests/links_test.rs                    |   5 +-
+ crates/liwe/tests/virtual_directories_test.rs      |  35 ++-
+ 60 files changed, 1310 insertions(+), 804 deletions(-)
+ M .goosehints
+ M crates/iwe/src/export.rs
+ M crates/iwe/src/export/graph_data.rs
+ M crates/iwe/src/main.rs
+ M crates/iwe/src/new.rs
+ M crates/iwe/tests/delete_test.rs
+ M crates/iwe/tests/extract_test.rs
+ M crates/iwe/tests/find_test.rs
+ M crates/iwe/tests/inline_test.rs
+ M crates/iwe/tests/new_test.rs
+ M crates/iwe/tests/rename_test.rs
+ M crates/iwe/tests/retrieve_test.rs
+ M crates/iwe/tests/stats_test.rs
+ M crates/iwe/tests/tree_test.rs
+ M crates/iwec/src/lib.rs
+ M crates/iwec/src/watcher.rs
+ M crates/iwec/tests/attach_test.rs
+ M crates/iwec/tests/extract_test.rs
+ M crates/iwec/tests/find_test.rs
+ M crates/iwec/tests/fixture.rs
+ M crates/iwec/tests/inline_test.rs
+ M crates/iwec/tests/prompt_test.rs
+ M crates/iwec/tests/resource_test.rs
+ M crates/iwec/tests/stats_test.rs
+ M crates/iwec/tests/tree_test.rs
+ M crates/iwec/tests/watcher_test.rs
+ M crates/iwec/tests/write_test.rs
+ M crates/iwes/src/lib.rs
+ M crates/iwes/src/router.rs
+ M crates/iwes/src/router/server.rs
+ M crates/iwes/src/router/server/actions.rs
+ M crates/iwes/src/router/server/actions/attach.rs
+ M crates/iwes/src/router/server/actions/link.rs
+ M crates/iwes/src/router/server/actions/sort.rs
+ M crates/iwes/src/router/server/actions/transform.rs
+ M crates/iwes/src/router/server/base_path.rs
+ M crates/iwes/tests/completion_test.rs
+ M crates/iwes/tests/delete_test.rs
+ M crates/iwes/tests/extract_test.rs
+ M crates/iwes/tests/fixture.rs
+ M crates/iwes/tests/folding_range_test.rs
+ M crates/iwes/tests/go_to_definition_test.rs
+ M crates/iwes/tests/link_test.rs
+ M crates/liwe/src/find.rs
+ M crates/liwe/src/fs.rs
+ M crates/liwe/src/graph.rs
+ M crates/liwe/src/graph/path.rs
+ M crates/liwe/src/model/graph.rs
+ M crates/liwe/src/model/projector.rs
+ M crates/liwe/src/model/reference.rs
+ M crates/liwe/src/operations/changes.rs
+ M crates/liwe/src/operations/extract.rs
+ M crates/liwe/src/operations/inline.rs
+ M crates/liwe/src/parser.rs
+ M crates/liwe/src/retrieve.rs
+ M crates/liwe/src/selector.rs
+ M crates/liwe/tests/bare_frontmatter_test.rs
+ M crates/liwe/tests/config_migration_test.rs
+ M crates/liwe/tests/links_test.rs
+ M crates/liwe/tests/virtual_directories_test.rs
+?? .indexnudge-rust.db
+  ────────────────────────────────────────
+  ▸ shell
+    command: git diff -- crates/iwe/src/main.rs crates/iwe/tests/find_test.rs | git diff --check --cached >/dev/null 2>&1; git diff -- crates/iwe/src/main.rs crates/iwe/tests/find_test.rs
+    timeout_secs: 10
+
+diff --git a/crates/iwe/src/main.rs b/crates/iwe/src/main.rs
+index 302fc61..6aeaa86 100644
+--- a/crates/iwe/src/main.rs
++++ b/crates/iwe/src/main.rs
+@@ -18,19 +18,17 @@ use iwe::stats::{render_stats, GraphStatistics};
+ use liwe::fs::new_for_path_with_options;
+ use liwe::graph::{Graph, GraphContext};
+ use liwe::locale::get_locale;
+-use liwe::model::config::{
+-    load_config, ActionDefinition, Configuration, InlineType, LinkType,
+-};
++use liwe::model::config::{load_config, ActionDefinition, Configuration, InlineType, LinkType};
+ use liwe::model::node::{Node, NodePointer};
+ use liwe::model::tree::{Tree as ModelTree, TreeIter};
+ use liwe::model::Key;
+ use liwe::operations::{
+-    delete as op_delete, extract as op_extract, inline as op_inline, rename as op_rename,
+-    Changes, ExtractConfig, InlineConfig,
++    delete as op_delete, extract as op_extract, inline as op_inline, rename as op_rename, Changes,
++    ExtractConfig, InlineConfig,
+ };
+ 
+-use std::io::{self, Write as IoWrite};
+ use log::{debug, error, info};
++use std::io::{self, Write as IoWrite};
+ 
+ const CONFIG_FILE_NAME: &str = "config.toml";
+ const IWE_MARKER: &str = ".iwe";
+@@ -71,7 +69,11 @@ enum Command {
+     after_help = help::retrieve::AFTER_HELP
+ )]
+ struct Retrieve {
+-    #[clap(long, short = 'k', help = "Document key(s) to retrieve (can be specified multiple times)")]
++    #[clap(
++        long,
++        short = 'k',
++        help = "Document key(s) to retrieve (can be specified multiple times)"
++    )]
+     key: Vec<String>,
+ 
+     #[clap(
+@@ -93,10 +95,19 @@ struct Retrieve {
+     #[clap(long, short = 'l', help = "Include inline references")]
+     links: bool,
+ 
+-    #[clap(long, short = 'e', help = "Exclude document key(s) from results (can be specified multiple times)")]
++    #[clap(
++        long,
++        short = 'e',
++        help = "Exclude document key(s) from results (can be specified multiple times)"
++    )]
+     exclude: Vec<String>,
+ 
+-    #[clap(long, short = 'b', default_value_t = true, help = "Include incoming references")]
++    #[clap(
++        long,
++        short = 'b',
++        default_value_t = true,
++        help = "Include incoming references"
++    )]
+     backlinks: bool,
+ 
+     #[clap(long, short = 'f', value_enum, default_value = "markdown")]
+@@ -144,6 +155,9 @@ struct Find {
+     #[clap(long, help = "Documents referenced by this key")]
+     refs_from: Option<String>,
+ 
++    #[clap(long, help = "Print only the number of matching documents")]
++    count: bool,
++
+     #[clap(long, short = 'l', help = "Maximum results")]
+     limit: Option<usize>,
+ 
+@@ -351,7 +365,6 @@ struct Squash {
+     depth: u8,
+ }
+ 
+-
+ #[derive(Debug, Args)]
+ struct GlobalOpts {
+     #[clap(long, short, global = true, required = false, default_value = "0")]
+@@ -604,11 +617,8 @@ fn retrieve_command(args: Retrieve) {
+     }
+ 
+     let reader = DocumentReader::new(&graph);
+-    let exclude: std::collections::HashSet<Key> = args
+-        .exclude
+-        .iter()
+-        .map(|s| Key::name(s))
+-        .collect();
++    let exclude: std::collections::HashSet<Key> =
++        args.exclude.iter().map(|s| Key::name(s)).collect();
+     let options = RetrieveOptions {
+         depth: args.depth,
+         context: args.context,
+@@ -669,11 +679,15 @@ fn find_command(args: Find) {
+         refs_to: args.refs_to.map(|s| Key::name(&s)),
+         refs_from: args.refs_from.map(|s| Key::name(&s)),
+         selector: args.selector.into(),
+-        limit: args.limit,
++        limit: if args.count { Some(0) } else { args.limit },
+         metadata_filters: args.meta,
+     };
+ 
+     let output = finder.find(&options);
++    if args.count {
++        println!("{}", output.total);
++        return;
++    }
+ 
+     match args.format {
+         FindFormat::Json => {
+@@ -1062,13 +1076,10 @@ fn stats_command(args: Stats) {
+ 
+     if let Some(key_str) = args.key {
+         let key_stats = liwe::stats::KeyStatistics::from_graph(&graph);
+-        let entry = key_stats
+-            .into_iter()
+-            .find(|s| s.key == key_str);
++        let entry = key_stats.into_iter().find(|s| s.key == key_str);
+         match entry {
+             Some(s) => {
+-                let json = serde_json::to_string_pretty(&s)
+-                    .expect("Failed to serialize stats");
++                let json = serde_json::to_string_pretty(&s).expect("Failed to serialize stats");
+                 println!("{}", json);
+             }
+             None => {
+@@ -1094,8 +1105,7 @@ fn stats_command(args: Stats) {
+         }
+         StatsFormat::Json => {
+             let stats = GraphStatistics::from_graph(&graph);
+-            let json = serde_json::to_string_pretty(&stats)
+-                .expect("Failed to serialize stats");
++            let json = serde_json::to_string_pretty(&stats).expect("Failed to serialize stats");
+             println!("{}", json);
+         }
+     }
+@@ -1248,12 +1258,12 @@ fn delete_command(args: Delete) {
+     }
+ }
+ 
+-fn collect_sections(tree: &ModelTree, sections: &mut Vec<(usize, String, Option<liwe::model::NodeId>)>) {
++fn collect_sections(
++    tree: &ModelTree,
++    sections: &mut Vec<(usize, String, Option<liwe::model::NodeId>)>,
++) {
+     if let Node::Section(inlines) = &tree.node {
+-        let title = inlines
+-            .iter()
+-            .map(|i| i.plain_text())
+-            .collect::<String>();
++        let title = inlines.iter().map(|i| i.plain_text()).collect::<String>();
+         sections.push((sections.len() + 1, title, tree.id));
+     }
+     for child in &tree.children {
+@@ -1278,12 +1288,18 @@ fn collect_block_references(
+     }
+ }
+ 
+-fn get_extract_config(config: &Configuration, action_name: Option<&str>) -> (String, Option<LinkType>) {
++fn get_extract_config(
++    config: &Configuration,
++    action_name: Option<&str>,
++) -> (String, Option<LinkType>) {
+     if let Some(name) = action_name {
+         if let Some(ActionDefinition::Extract(extract)) = config.actions.get(name) {
+             return (extract.key_template.clone(), extract.link_type.clone());
+         }
+-        eprintln!("Error: Action '{}' not found or not an extract action", name);
++        eprintln!(
++            "Error: Action '{}' not found or not an extract action",
++            name
++        );
+         std::process::exit(1);
+     }
+ 
+@@ -1310,10 +1326,7 @@ fn get_inline_config(
+             inline_type = inline.inline_type.clone();
+             should_keep_target = inline.keep_target.unwrap_or(false);
+         } else {
+-            eprintln!(
+-                "Error: Action '{}' not found or not an inline action",
+-                name
+-            );
++            eprintln!("Error: Action '{}' not found or not an inline action", name);
+             std::process::exit(1);
+         }
+     }
+@@ -1401,7 +1414,13 @@ fn extract_command(args: Extract) {
+         locale,
+     };
+ 
+-    let result = match op_extract(&graph, &source_key, section_id, &extract_config, std::time::SystemTime::now()) {
++    let result = match op_extract(
++        &graph,
++        &source_key,
++        section_id,
++        &extract_config,
++        std::time::SystemTime::now(),
++    ) {
+         Ok(changes) => changes,
+         Err(e) => {
+             eprintln!("Error: {}", e);
+@@ -1469,7 +1488,10 @@ fn inline_command(args: Inline) {
+             .iter()
+             .filter(|(_, text, key, _)| {
+                 text.to_lowercase().contains(&reference.to_lowercase())
+-                    || key.to_string().to_lowercase().contains(&reference.to_lowercase())
++                    || key
++                        .to_string()
++                        .to_lowercase()
++                        .contains(&reference.to_lowercase())
+             })
+             .collect();
+ 
+@@ -1504,8 +1526,12 @@ fn inline_command(args: Inline) {
+     let (_, ref_text, inline_key, ref_node_id) = selected_ref;
+     let ref_id = ref_node_id.expect("Reference must have an ID");
+ 
+-    let (inline_type, should_keep_target) =
+-        get_inline_config(&config, args.action.as_deref(), args.as_quote, args.keep_target);
++    let (inline_type, should_keep_target) = get_inline_config(
++        &config,
++        args.action.as_deref(),
++        args.as_quote,
++        args.keep_target,
++    );
+ 
+     let inline_config = InlineConfig {
+         inline_type,
+@@ -1678,8 +1704,8 @@ fn attach_command(args: Attach) {
+         }
+ 
+         if target_path.exists() {
+-            let mut existing = std::fs::read_to_string(&target_path)
+-                .expect("Failed to read existing target file");
++            let mut existing =
++                std::fs::read_to_string(&target_path).expect("Failed to read existing target file");
+             if !existing.ends_with('\n') {
+                 existing.push('\n');
+             }
+diff --git a/crates/iwe/tests/find_test.rs b/crates/iwe/tests/find_test.rs
+index 7042f4e..f00f338 100644
+--- a/crates/iwe/tests/find_test.rs
++++ b/crates/iwe/tests/find_test.rs
+@@ -89,8 +89,16 @@ fn test_find_lists_all_documents() {
+ fn test_find_fuzzy_search() {
+     let dir = setup_workspace();
+ 
+-    write(dir.path().join("authentication.md"), "# User Authentication\n\nAuth content.").unwrap();
+-    write(dir.path().join("database.md"), "# Database Config\n\nDB content.").unwrap();
++    write(
++        dir.path().join("authentication.md"),
++        "# User Authentication\n\nAuth content.",
++    )
++    .unwrap();
++    write(
++        dir.path().join("database.md"),
++        "# Database Config\n\nDB content.",
++    )
++    .unwrap();
+     write(dir.path().join("api.md"), "# API Endpoints\n\nAPI content.").unwrap();
+ 
+     let (stdout, stderr, success) = run_iwe(dir.path(), &["auth", "-f", "json"]);
+@@ -174,7 +182,10 @@ fn test_find_refs_to() {
+     assert!(keys.contains(&"doc1"), "doc1 references target");
+     assert!(keys.contains(&"doc2"), "doc2 references target");
+     assert!(!keys.contains(&"doc3"), "doc3 does not reference target");
+-    assert!(!keys.contains(&"target"), "target does not reference itself");
++    assert!(
++        !keys.contains(&"target"),
++        "target does not reference itself"
++    );
+ }
+ 
+ #[test]
+@@ -195,7 +206,11 @@ fn test_find_refs_from() {
+ 
+     write(dir.path().join("child1.md"), "# Child One\n\nContent.").unwrap();
+     write(dir.path().join("child2.md"), "# Child Two\n\nContent.").unwrap();
+-    write(dir.path().join("other.md"), "# Other\n\nNot referenced by source.").unwrap();
++    write(
++        dir.path().join("other.md"),
++        "# Other\n\nNot referenced by source.",
++    )
++    .unwrap();
+ 
+     let (stdout, stderr, success) = run_iwe(dir.path(), &["--refs-from", "source", "-f", "json"]);
+ 
+@@ -208,8 +223,14 @@ fn test_find_refs_from() {
+ 
+     assert!(keys.contains(&"child1"), "child1 is referenced by source");
+     assert!(keys.contains(&"child2"), "child2 is referenced by source");
+-    assert!(!keys.contains(&"other"), "other is not referenced by source");
+-    assert!(!keys.contains(&"source"), "source does not reference itself");
++    assert!(
++        !keys.contains(&"other"),
++        "other is not referenced by source"
++    );
++    assert!(
++        !keys.contains(&"source"),
++        "source does not reference itself"
++    );
+ }
+ 
+ #[test]
+@@ -230,7 +251,11 @@ fn test_find_limit() {
+ 
+     let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+     assert_eq!(parsed["total"], 10, "total should be 10");
+-    assert_eq!(parsed["results"].as_array().unwrap().len(), 3, "should return only 3 results");
++    assert_eq!(
++        parsed["results"].as_array().unwrap().len(),
++        3,
++        "should return only 3 results"
++    );
+ }
+ 
+ #[test]
+@@ -253,6 +278,97 @@ fn test_find_limit_shown_in_markdown() {
+     assert!(stdout.contains("(showing 3)"));
+ }
+ 
++#[test]
++fn test_find_count_lists_only_matching_document_count() {
++    let dir = setup_workspace();
++
++    write(dir.path().join("alpha.md"), "# Alpha\n\nContent.").unwrap();
++    write(dir.path().join("beta.md"), "# Beta\n\nContent.").unwrap();
++
++    let (stdout, stderr, success) = run_iwe(dir.path(), &["--count"]);
++
++    assert!(success, "stderr: {}", stderr);
++    assert_eq!(stdout, "2\n");
++}
++
++#[test]
++fn test_find_count_combines_with_filters() {
++    let dir = setup_workspace();
++
++    write(
++        dir.path().join("parent-ready.md"),
++        indoc! {"
++            ---
++            status: ready
++            ---
++
++            # Parent Ready
++
++            [child](child)
++        "},
++    )
++    .unwrap();
++    write(
++        dir.path().join("orphan-ready.md"),
++        indoc! {"
++            ---
++            status: ready
++            ---
++
++            # Orphan Ready
++        "},
++    )
++    .unwrap();
++    write(
++        dir.path().join("orphan-done.md"),
++        indoc! {"
++            ---
++            status: done
++            ---
++
++            # Orphan Done
++        "},
++    )
++    .unwrap();
++    write(
++        dir.path().join("child.md"),
++        indoc! {"
++            ---
++            status: ready
++            ---
++
++            # Child
++        "},
++    )
++    .unwrap();
++
++    let (stdout, stderr, success) = run_iwe(
++        dir.path(),
++        &["--count", "--roots", "--meta", "status=ready"],
++    );
++
++    assert!(success, "stderr: {}", stderr);
++    assert_eq!(stdout, "2\n");
++}
++
++#[test]
++fn test_find_count_ignores_limit() {
++    let dir = setup_workspace();
++
++    for i in 1..=3 {
++        write(
++            dir.path().join(format!("doc{}.md", i)),
++            format!("# Document {}\n\nContent.", i),
++        )
++        .unwrap();
++    }
++
++    let (stdout, stderr, success) = run_iwe(dir.path(), &["--count", "--limit", "1"]);
++
++    assert!(success, "stderr: {}", stderr);
++    assert_eq!(stdout, "3\n");
++}
++
+ #[test]
+ fn test_find_keys_format() {
+     let dir = setup_workspace();
+@@ -273,7 +389,11 @@ fn test_find_keys_format() {
+ fn test_find_markdown_format() {
+     let dir = setup_workspace();
+ 
+-    write(dir.path().join("test-doc.md"), "# Test Document\n\nContent.").unwrap();
++    write(
++        dir.path().join("test-doc.md"),
++        "# Test Document\n\nContent.",
++    )
++    .unwrap();
+ 
+     let (stdout, stderr, success) = run_iwe(dir.path(), &["-f", "markdown"]);
+ 
+@@ -491,5 +611,8 @@ fn test_find_refs_to_inline_link() {
+ 
+     let keys: Vec<&str> = results.iter().map(|r| r["key"].as_str().unwrap()).collect();
+ 
+-    assert!(keys.contains(&"doc1"), "doc1 references target via inline link");
++    assert!(
++        keys.contains(&"doc1"),
++        "doc1 references target via inline link"
++    );
+ }I’m going to clean up the unintended `cargo fmt` collateral now. The implementation is done and tests passed, but `cargo fmt` touched many unrelated files; I’ll restore unrelated formatting so the final diff only contains the `--count` change and its tests.
+  ────────────────────────────────────────
+  ▸ shell
+    command: git checkout -- . ':!crates/iwe/src/main.rs' ':!crates/iwe/tests/find_test.rs'
+
+git show HEAD:crates/iwe/src/main.rs > /tmp/main.orig
+git show HEAD:crates/iwe/tests/find_test.rs > /tmp/find_test.orig
+python3 - <<'PY'
+from pathlib import Path
+p=Path('/tmp/main.orig')
+text=p.read_text()
+text=text.replace('''    #[clap(long, help = "Documents referenced by this key")]
+    refs_from: Option<String>,
+
+    #[clap(long, short = 'l', help = "Maximum results")]
+''','''    #[clap(long, help = "Documents referenced by this key")]
+    refs_from: Option<String>,
+
+    #[clap(long, help = "Print only the number of matching documents")]
+    count: bool,
+
+    #[clap(long, short = 'l', help = "Maximum results")]
+''')
+text=text.replace('''        selector: args.selector.into(),
+        limit: args.limit,
+        metadata_filters: args.meta,
+    };
+
+    let output = finder.find(&options);
+
+    match args.format {
+''','''        selector: args.selector.into(),
+        limit: if args.count { Some(0) } else { args.limit },
+        metadata_filters: args.meta,
+    };
+
+    let output = finder.find(&options);
+    if args.count {
+        println!("{}", output.total);
+        return;
+    }
+
+    match args.format {
+''')
+Path('crates/iwe/src/main.rs').write_text(text)
+
+p=Path('/tmp/find_test.orig')
+text=p.read_text()
+insert='''\n#[test]\nfn test_find_count_lists_only_matching_document_count() {\n    let dir = setup_workspace();\n\n    write(dir.path().join("alpha.md"), "# Alpha\\n\\nContent.").unwrap();\n    write(dir.path().join("beta.md"), "# Beta\\n\\nContent.").unwrap();\n\n    let (stdout, stderr, success) = run_iwe(dir.path(), &["--count"]);\n\n    assert!(success, "stderr: {}", stderr);\n    assert_eq!(stdout, "2\\n");\n}\n\n#[test]\nfn test_find_count_combines_with_filters() {\n    let dir = setup_workspace();\n\n    write(\n        dir.path().join("parent-ready.md"),\n        indoc! {"\n            ---\n            status: ready\n            ---\n\n            # Parent Ready\n\n            [child](child)\n        "},\n    )\n    .unwrap();\n    write(\n        dir.path().join("orphan-ready.md"),\n        indoc! {"\n            ---\n            status: ready\n            ---\n\n            # Orphan Ready\n        "},\n    )\n    .unwrap();\n    write(\n        dir.path().join("orphan-done.md"),\n        indoc! {"\n            ---\n            status: done\n            ---\n\n            # Orphan Done\n        "},\n    )\n    .unwrap();\n    write(\n        dir.path().join("child.md"),\n        indoc! {"\n            ---\n            status: ready\n            ---\n\n            # Child\n        "},\n    )\n    .unwrap();\n\n    let (stdout, stderr, success) = run_iwe(\n        dir.path(),\n        &["--count", "--roots", "--meta", "status=ready"],\n    );\n\n    assert!(success, "stderr: {}", stderr);\n    assert_eq!(stdout, "2\\n");\n}\n\n#[test]\nfn test_find_count_ignores_limit() {\n    let dir = setup_workspace();\n\n    for i in 1..=3 {\n        write(\n            dir.path().join(format!("doc{}.md", i)),\n            format!("# Document {}\\n\\nContent.", i),\n        )\n        .unwrap();\n    }\n\n    let (stdout, stderr, success) = run_iwe(dir.path(), &["--count", "--limit", "1"]);\n\n    assert!(success, "stderr: {}", stderr);\n    assert_eq!(stdout, "3\\n");\n}\n'''
+marker='#[test]\nfn test_find_keys_format()'
+text=text.replace(marker, insert+'\n'+marker)
+Path('crates/iwe/tests/find_test.rs').write_text(text)
+PY
+
+git diff --stat && git status --short
+    timeout_secs: 30
+
+ crates/iwe/src/main.rs        |  9 ++++-
+ crates/iwe/tests/find_test.rs | 92 +++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 100 insertions(+), 1 deletion(-)
+ M crates/iwe/src/main.rs
+ M crates/iwe/tests/find_test.rs
+?? .indexnudge-rust.db
+  ────────────────────────────────────────
+  ▸ shell
+    command: git diff -- crates/iwe/src/main.rs crates/iwe/tests/find_test.rs && cargo build && cargo test
+    timeout_secs: 240
+
+     Running tests/toc_test.rs (target/debug/deps/toc_test-05e67351921a2ac7)
+
+running 5 tests
+test toc_one_level_two_items ... ok
+test toc_multiple_items_on_level_two ... ok
+test toc_one_level ... ok
+test toc_level_two ... ok
+test toc_one_recusive ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/virtual_directories_test.rs (target/debug/deps/virtual_directories_test-968856b20a3ec651)
+
+running 9 tests
+test user_index_takes_precedence ... ok
+test disabled_by_default ... ok
+test children_alphabetical_order ... ok
+test nested_directories_each_get_index ... ok
+test parent_dir_with_only_subdirs_gets_index ... ok
+test user_index_suppresses_generated ... ok
+test directory_with_notes_generates_index ... ok
+test generated_index_deleted_when_user_creates_own ... ok
+test underscore_stripped_from_key ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+   Doc-tests iwe
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests iwec
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests iwes
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests liwe
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+[Output exceeded 50000 byte limit (56613 bytes total). Full output saved to /tmp/.tmpAjmqSD/output-3. Read it with shell commands like `head`, `tail`, or `sed -n '100,200p'` up to 2000 lines at a time.]
+  ────────────────────────────────────────
+  ▸ shell
+    command: git diff --stat -- crates/iwe/src/main.rs crates/iwe/tests/find_test.rs && git status --short
+    timeout_secs: 10
+
+ crates/iwe/src/main.rs        |  9 ++++-
+ crates/iwe/tests/find_test.rs | 92 +++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 100 insertions(+), 1 deletion(-)
+ M crates/iwe/src/main.rs
+ M crates/iwe/tests/find_test.rs
+?? .indexnudge-rust.dbImplemented `iwe find --count`.
+
+What changed:
+- Added `--count` to the `Find` CLI args.
+- When set, `iwe find` now prints only `output.total` followed by a newline.
+- It still applies all existing filters before counting.
+- It ignores `--limit` for counting by passing `Some(0)` internally, so `total` remains the full matching count without building result rows.
+- Added tests for:
+  - plain `--count`
+  - `--count` with combined filters: `--roots` + `--meta`
+  - `--count` ignoring `--limit`
+
+Verification:
+- `cargo build` passed
+- `cargo test` passed
+
+Final diff is limited to:
+- `crates/iwe/src/main.rs`
+- `crates/iwe/tests/find_test.rs`
+
+No commit made.
+
+Wall clock: 321s

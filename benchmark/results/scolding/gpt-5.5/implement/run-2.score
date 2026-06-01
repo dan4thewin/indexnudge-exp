@@ -1,0 +1,69 @@
+=== Score ===
+Wall clock: 257s
+Tokens: 34418 (in=34204, out=214)
+Tool calls: 22 | Navigation: 9
+  DB structural: 2
+  DB lines:      7
+  DB other:      0
+  Shim hit:      0
+  Shim fallthru: 0
+  Shim evasion:  0
+Scores:
+  db_ratio:         1.0
+  structural_ratio: 0.222
+  evasion_ratio:    0.0
+  line_ratio:       0.778
+  nav_ratio:        0.409
+
+Categories: {'non_shell_tool': 3, 'direct_db_structural': 2, 'direct_db_lines': 7, 'other': 1, 'build_test': 6, 'git': 2, 'mutation': 1}
+
+Commands:
+  [direct_db_structural  ] pwd && sqlite3 .indexnudge-rust.db ".schema" && sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files ORDER BY file
+  [direct_db_structural  ] sqlite3 .indexnudge-rust.db "SELECT name, kind, file, start_line, end_line, signature FROM symbols WHERE file IN ('crate
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT file,line_num,content FROM lines_fts WHERE content MATCH 'find' AND file IN ('crates
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/iwe/src/main.rs' AND line_num BETWEE
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/iwe/tests/find_test.rs' AND line_num
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/iwe/src/help.rs' AND line_num BETWEE
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/iwe/tests/find_test.rs' AND line_num
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT file,line_num,content FROM lines_fts WHERE content MATCH '\"--meta\"' ORDER BY file,
+  [direct_db_lines       ] ed -s crates/iwe/src/main.rs <<'EOF'
+149a
+
+    #[clap(long, help = "Print only the number of matching documents")]
+    c
+  [other                 ] python3 - <<'PY'
+from pathlib import Path
+p=Path('crates/iwe/src/main.rs')
+for start,end in [(145,165),(668,685)]:
+    p
+  [build_test            ] ed -s crates/iwe/src/main.rs <<'EOF'
+669,688c
+    let options = FindOptions {
+        query: args.query,
+        roots: 
+  [build_test            ] ed -s crates/iwe/tests/find_test.rs <<'EOF'
+$a
+
+#[test]
+fn test_find_count_prints_only_total_matches() {
+    let dir = s
+  [build_test            ] cargo test
+  [git                   ] git status --short && git diff -- crates/iwe/src/main.rs crates/iwe/tests/find_test.rs
+  [build_test            ] git checkout -- crates/iwe/src/main.rs
+ed -s crates/iwe/src/main.rs <<'EOF'
+149a
+
+    #[clap(long, help = "Print only th
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+665,690n
+EOF
+  [build_test            ] ed -s crates/iwe/src/main.rs <<'EOF'
+665,686c
+    let config = get_configuration();
+    let graph = load_graph(&config);
+  [git                   ] git status --short && git diff -- crates/iwe/src/main.rs crates/iwe/tests/find_test.rs
+  [build_test            ] ed -s crates/iwe/src/main.rs <<'EOF'
+149d
+w
+EOF
+cargo build && cargo test

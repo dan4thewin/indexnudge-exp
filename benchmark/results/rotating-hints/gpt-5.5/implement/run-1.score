@@ -1,0 +1,122 @@
+=== Score ===
+Wall clock: 404s
+Tokens: 59495 (in=59207, out=288)
+Tool calls: 47 | Navigation: 22
+  DB structural: 1
+  DB lines:      1
+  DB other:      1
+  Shim hit:      7
+  Shim fallthru: 8
+  Shim evasion:  4
+Scores:
+  db_ratio:         0.455
+  structural_ratio: 0.5
+  evasion_ratio:    0.182
+  line_ratio:       0.045
+  nav_ratio:        0.468
+
+Categories: {'non_shell_tool': 6, 'shim_hit': 7, 'direct_db_other': 1, 'direct_db_structural': 1, 'direct_db_lines': 1, 'shim_fallthrough': 8, 'mutation': 12, 'shim_evasion': 4, 'build_test': 4, 'git': 3}
+
+Commands:
+  [shim_hit              ] pwd; ls -la; find . -maxdepth 2 -type f | sed 's#^./##' | sort | head -200
+  [direct_db_other       ] if [ -f .indexnudge.db ]; then sqlite3 .indexnudge.db '.schema' | head -80; elif [ -f .codeindex.db ]; then sqlite3 .cod
+  [direct_db_structural  ] sqlite3 .indexnudge.db "select file, lines from files where file like '%find%' or file like '%cli%' order by file;"
+  [direct_db_lines       ] sqlite3 .indexnudge.db "select file,line_num,content from lines where content like '%Find%' or content like '%find%' ord
+  [shim_hit              ] sed -n '120,190p' crates/iwe/src/main.rs; sed -n '650,705p' crates/iwe/src/main.rs; sed -n '1,160p' crates/liwe/src/find
+  [shim_hit              ] sed -n '120,520p' crates/iwe/tests/find_test.rs; printf '\n--- help ---\n'; find crates/iwe/src/help -type f -path '*fin
+  [shim_fallthrough      ] find crates/iwe -maxdepth 4 -type f | sort | sed -n '1,120p'; printf '\nhelp find files\n'; find crates/iwe -type f -pat
+  [shim_hit              ] sed -n '1,190p' crates/liwe/tests/find_metadata_test.rs; grep -R "--meta" -n crates/iwe/tests docs crates/iwe/help crate
+  [shim_fallthrough      ] grep -R -- "--meta" crates/iwe/tests docs crates/iwe/help crates/iwe/src | head -50
+  [shim_fallthrough      ] nl -ba crates/iwe/src/main.rs | sed -n '134,160p;661,692p'
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+149a
+
+    #[clap(long, help = "Print only the number of matching documents")]
+    c
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+678,682d
+684a
+
+    if args.count {
+        println!("{}", output.total);
+        re
+  [shim_fallthrough      ] nl -ba crates/iwe/src/main.rs | sed -n '146,158p;678,702p'
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+152,154c
+    #[clap(long, short = 'f', value_enum, default_value = "markdown")]
+   
+  [shim_fallthrough      ] nl -ba crates/iwe/src/main.rs | sed -n '661,705p'
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+680,700c
+    if args.count {
+        println!("{}", output.total);
+        return;
+
+  [mutation              ] ed -s crates/iwe/tests/find_test.rs <<'EOF'
+$a
+
+#[test]
+fn test_find_count_lists_only_match_count() {
+    let dir = setu
+  [shim_evasion          ] /usr/bin/tail -120 crates/iwe/tests/find_test.rs
+  [mutation              ] ed -s docs/cli-find.md <<'EOF'
+18a
+| `--count`            | Print only the number of matching documents                 
+  [shim_hit              ] sed -n '80,190p' crates/iwec/tests/find_test.rs; sed -n '1,140p' crates/iwe/src/selector.rs; grep -R "\--in" -n crates/i
+  [shim_hit              ] sed -n '1,140p' crates/iwec/tests/find_test.rs; sed -n '190,220p' crates/iwec/tests/find_test.rs
+  [shim_evasion          ] ed -s crates/iwe/tests/find_test.rs <<'EOF'
+$a
+
+#[test]
+fn test_find_count_combines_with_selector_filters() {
+    let di
+  [mutation              ] ed -s docs/cli-find.md <<'EOF'
+/ iwe find --count/s/^ //
+/ iwe find --roots/s/^ //
+/`--count` applies/a
+
+.
+w
+EOF
+sed -n 
+  [mutation              ] ed -s crates/iwe/help/find/long_about.txt <<'EOF'
+,s/Supports filtering by root/Supports count-only output and filtering
+  [build_test            ] cargo fmt --all && cargo build
+  [shim_hit              ] sed -n '145,158p' crates/iwe/src/main.rs; sed -n '676,700p' crates/iwe/src/main.rs; sed -n '78,100p' docs/cli-find.md
+  [shim_evasion          ] /usr/bin/grep -n "count\|Print only" crates/iwe/src/main.rs crates/iwe/tests/find_test.rs docs/cli-find.md crates/iwe/he
+  [shim_fallthrough      ] nl -ba crates/iwe/src/main.rs | sed -n '145,168p;680,696p'
+  [build_test            ] cargo test
+  [git                   ] git diff -- crates/iwe/src/main.rs crates/iwe/tests/find_test.rs docs/cli-find.md crates/iwe/help/find/long_about.txt cr
+  [git                   ] git checkout -- .
+git status --short | head -80
+  [shim_fallthrough      ] nl -ba crates/iwe/src/main.rs | sed -n '134,160p;661,695p'
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+149a
+
+    #[clap(long, help = "Print only the number of matching documents")]
+    c
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+150d
+677,681d
+685i
+    if args.count {
+        println!("{}", output.total);
+      
+  [shim_fallthrough      ] nl -ba crates/iwe/src/main.rs | sed -n '661,704p'
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+663,700c
+fn find_command(args: Find) {
+    let config = get_configuration();
+    le
+  [shim_evasion          ] ed -s crates/iwe/tests/find_test.rs <<'EOF'
+$a
+
+#[test]
+fn test_find_count_lists_only_match_count() {
+    let dir = setu
+  [mutation              ] ed -s docs/cli-find.md <<'EOF'
+18a
+| `--count`            | Print only the number of matching documents                 
+  [build_test            ] cargo build
+  [build_test            ] cargo test
+  [git                   ] git diff --stat; git diff -- crates/iwe/src/main.rs crates/iwe/tests/find_test.rs docs/cli-find.md crates/iwe/help/find/

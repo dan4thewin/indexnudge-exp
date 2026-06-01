@@ -1,0 +1,34 @@
+Tokens: 102275 (in=90447, out=2141)
+Tool calls: 14 | Navigation: 10
+  DB structural: 0
+  DB lines:      0
+  DB other:      0
+  Shim hit:      0
+  Shim fallthru: 8
+  Shim evasion:  0
+  File read:     2
+Scores:
+  db_ratio:         0.0
+  structural_ratio: 0.0
+  evasion_ratio:    0.0
+  file_read_ratio:  0.2
+  line_ratio:       0.0
+  nav_ratio:        0.714
+
+Categories: {'shim_fallthrough': 8, 'file_read': 2, 'mutation': 1, 'build_test': 3}
+
+Commands:
+  [shim_fallthrough      ] ls && find . -type f -name "*.rs" | xargs grep -l "find" | head -20
+  [shim_fallthrough      ] grep -n -i "find\|count\|meta\|roots\|refs-to" crates/iwe/src/main.rs | head -50
+  [file_read             ] read crates/iwe/src/main.rs
+  [file_read             ] read crates/iwe/src/main.rs
+  [mutation              ] edit crates/iwe/src/main.rs
+  [shim_fallthrough      ] grep -n "total\|FindOutput\|pub struct" crates/iwe/src/find.rs | head -30
+  [shim_fallthrough      ] grep -rn "pub struct FindOutput\|pub total" crates/iwe/src/
+  [shim_fallthrough      ] grep -rn "FindOutput\|total" crates/iwe/src/lib.rs crates/iwe/src/find/ 2>/dev/null | head -20
+  [shim_fallthrough      ] grep -rn "FindOutput" crates/ | head
+  [shim_fallthrough      ] find . -path ./target -prune -o -name "*.rs" -print | xargs grep -l "struct FindOutput\|pub struct DocumentFinder" 2>/de
+  [shim_fallthrough      ] grep -n "FindOutput\|total\|results" crates/liwe/src/find.rs | head -30
+  [build_test            ] cd /tmp/pi-bench-iwe-implement-2-TREjdO && cargo build 2>&1 | tail -20
+  [build_test            ] cd /tmp/pi-bench-iwe-implement-2-TREjdO && cargo test 2>&1 | tail -30
+  [build_test            ] cd /tmp/pi-bench-iwe-implement-2-TREjdO && cargo test 2>&1 | grep -E "^test result|FAILED" | head

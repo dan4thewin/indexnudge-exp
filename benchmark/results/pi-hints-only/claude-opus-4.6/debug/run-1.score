@@ -1,0 +1,47 @@
+Tokens: 425056 (in=392429, out=6280)
+Tool calls: 27 | Navigation: 18
+  DB structural: 0
+  DB lines:      0
+  DB other:      0
+  Shim hit:      1
+  Shim fallthru: 10
+  Shim evasion:  0
+  File read:     7
+Scores:
+  db_ratio:         0.056
+  structural_ratio: 0.0
+  evasion_ratio:    0.0
+  file_read_ratio:  0.389
+  line_ratio:       0.0
+  nav_ratio:        0.667
+
+Categories: {'shim_fallthrough': 10, 'file_read': 7, 'git': 1, 'mutation': 2, 'build_test': 6, 'shim_hit': 1}
+
+Commands:
+  [shim_fallthrough      ] ls && find . -type f -name "*.md" | head -5
+  [shim_fallthrough      ] ls crates && grep -r "bare" --include="*.rs" -l | head
+  [shim_fallthrough      ] grep -rn "frontmatter\|front_matter\|front matter" crates/liwe/src --include="*.rs" -l | head -20
+  [shim_fallthrough      ] grep -rn "bare\|Bare" crates/liwe/src --include="*.rs" | head -40
+  [file_read             ] read crates/liwe/src/markdown.rs
+  [shim_fallthrough      ] grep -n "starts_with(' ')\|filter" crates/liwe/src/markdown.rs; head -80 BARE_FRONTMATTER_SPEC.md
+  [git                   ] cd $(pwd) && git log --oneline -5 -- crates/liwe/src/markdown.rs
+  [shim_fallthrough      ] grep -rn "bare_frontmatter\|wrap_bare" crates --include="*.rs" | grep -i test | head -30
+  [file_read             ] read crates/liwe/tests/bare_frontmatter_test.rs
+  [file_read             ] read crates/iwe/tests/retrieve_test.rs
+  [file_read             ] read crates/iwe/tests/retrieve_test.rs
+  [mutation              ] edit crates/liwe/src/markdown.rs
+  [shim_fallthrough      ] grep -n "find\|--meta\|meta_filter" crates/iwe/tests/*.rs crates/iwe/src/*.rs 2>/dev/null | grep -i "meta" | head -30
+  [shim_fallthrough      ] grep -rn "meta\|find_command\|FindArgs" crates/iwe/tests --include="*.rs" | grep -iE "depend|meta=|--meta" | head -20
+  [shim_fallthrough      ] ls crates/iwe/tests/ && grep -rn "\"--meta\"\|\"find\"" crates/iwe/tests --include="*.rs" | head
+  [file_read             ] read crates/iwe/tests/find_test.rs
+  [shim_fallthrough      ] grep -n "meta" crates/iwe/tests/find_test.rs | head -20; grep -rn "meta_filter\|depends" crates/iwe/src/main.rs | head -
+  [file_read             ] read crates/iwe/src/main.rs
+  [mutation              ] edit crates/iwe/tests/find_test.rs
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-1-H5GtA0 && cargo test --quiet 2>&1 | tail -60
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-1-H5GtA0 && git stash && cargo test --quiet -p iwes --test transform_test transform_action_wi
+  [shim_hit              ] cd /tmp/pi-bench-iwe-debug-1-H5GtA0 && grep -n "transform_action_with_static_output" crates/iwes/tests/transform_test.rs
+  [file_read             ] read crates/iwes/tests/transform_test.rs
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-1-H5GtA0 && cargo test --quiet -p iwes --test transform_test transform_action_with_static_out
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-1-H5GtA0 && cargo test --quiet -p iwes --test transform_test 2>&1 | tail -15
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-1-H5GtA0 && cargo test --quiet 2>&1 | tail -15
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-1-H5GtA0 && cargo test --quiet 2>&1 | grep -E "^test result|FAILED" | tail -40

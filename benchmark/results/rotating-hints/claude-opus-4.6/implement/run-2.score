@@ -1,0 +1,118 @@
+=== Score ===
+Wall clock: 328s
+Tokens: 36317 (in=36094, out=223)
+Tool calls: 65 | Navigation: 35
+  DB structural: 0
+  DB lines:      0
+  DB other:      0
+  Shim hit:      13
+  Shim fallthru: 10
+  Shim evasion:  12
+Scores:
+  db_ratio:         0.371
+  structural_ratio: 0
+  evasion_ratio:    0.343
+  line_ratio:       0.0
+  nav_ratio:        0.538
+
+Categories: {'shim_fallthrough': 10, 'non_shell_tool': 2, 'shim_hit': 13, 'mutation': 8, 'shim_evasion': 12, 'build_test': 12, 'other': 4, 'git': 4}
+
+Commands:
+  [shim_fallthrough      ] cd /tmp/bench-iwe-implement-2-ycst0B && grep -rn "find" src/ --include="*.rs" -l | head -20
+  [shim_hit              ] cd /tmp/bench-iwe-implement-2-ycst0B && grep -n "find" crates/iwe/src/main.rs | head -30
+  [shim_hit              ] cd /tmp/bench-iwe-implement-2-ycst0B && sed -n '130,175p' crates/iwe/src/main.rs
+  [shim_hit              ] cd /tmp/bench-iwe-implement-2-ycst0B && sed -n '661,712p' crates/iwe/src/main.rs
+  [mutation              ] cd /tmp/bench-iwe-implement-2-ycst0B && ed crates/iwe/src/main.rs <<'EOF'
+157a
+    #[clap(long, short = 'c', help = "Pri
+  [mutation              ] cd /tmp/bench-iwe-implement-2-ycst0B && ed crates/iwe/src/main.rs <<'EOF'
+/let output = finder.find(&options);/
++1
+.,$s/
+  [shim_fallthrough      ] cd /tmp/bench-iwe-implement-2-ycst0B && sed -n '676,700p' crates/iwe/src/main.rs
+  [shim_hit              ] cd /tmp/bench-iwe-implement-2-ycst0B && sed -n '157,165p' crates/iwe/src/main.rs
+  [shim_hit              ] cd /tmp/bench-iwe-implement-2-ycst0B && sed -n '134,165p' crates/iwe/src/main.rs
+  [shim_hit              ] cd /tmp/bench-iwe-implement-2-ycst0B && grep -n "count" crates/iwe/src/main.rs
+  [shim_fallthrough      ] cd /tmp/bench-iwe-implement-2-ycst0B && cat -n crates/iwe/src/main.rs | sed -n '155,165p'
+  [shim_fallthrough      ] cd /tmp/bench-iwe-implement-2-ycst0B && grep -n "count" crates/iwe/src/main.rs | grep -i "clap\|count:"
+  [shim_fallthrough      ] cd /tmp/bench-iwe-implement-2-ycst0B && cat -n crates/iwe/src/main.rs | sed -n '155,165p'
+  [shim_fallthrough      ] cd /tmp/bench-iwe-implement-2-ycst0B && grep -n "count\|if args.count" crates/iwe/src/main.rs | head -20
+  [shim_hit              ] cd /tmp/bench-iwe-implement-2-ycst0B && sed -n '676,700p' crates/iwe/src/main.rs
+  [shim_hit              ] cd /tmp/bench-iwe-implement-2-ycst0B && sed -n '661,697p' crates/iwe/src/main.rs
+  [shim_hit              ] cd /tmp/bench-iwe-implement-2-ycst0B && sed -n '676,700p' crates/iwe/src/main.rs
+  [shim_evasion          ] cd /tmp/bench-iwe-implement-2-ycst0B && command cat crates/iwe/src/main.rs | sed -n '676,693p'
+  [mutation              ] cd /tmp/bench-iwe-implement-2-ycst0B && ed crates/iwe/src/main.rs <<'EDSCRIPT'
+678,692c
+    if args.count {
+        prin
+  [build_test            ] cd /tmp/bench-iwe-implement-2-ycst0B && cargo build 2>&1 | tail -5
+  [shim_evasion          ] cd /tmp/bench-iwe-implement-2-ycst0B && command cat crates/iwe/src/main.rs | head -n 700 | tail -n 30
+  [shim_evasion          ] cd /tmp/bench-iwe-implement-2-ycst0B && command cat crates/iwe/src/main.rs | head -n 705 | tail -n 15
+  [shim_evasion          ] cd /tmp/bench-iwe-implement-2-ycst0B && command cat crates/iwe/src/main.rs | head -n 720 | tail -n 60
+  [other                 ] cd /tmp/bench-iwe-implement-2-ycst0B && wc -l crates/iwe/src/main.rs | awk '{print $1}'
+  [shim_evasion          ] cd /tmp/bench-iwe-implement-2-ycst0B && awk 'NR>=676 && NR<=700' crates/iwe/src/main.rs
+  [shim_evasion          ] cd /tmp/bench-iwe-implement-2-ycst0B && awk 'NR>=660 && NR<=720' crates/iwe/src/main.rs
+  [mutation              ] cd /tmp/bench-iwe-implement-2-ycst0B && ed crates/iwe/src/main.rs <<'EDSCRIPT'
+698,705d
+677a
+    let output = finder.fin
+  [shim_evasion          ] cd /tmp/bench-iwe-implement-2-ycst0B && awk 'NR>=660 && NR<=720' crates/iwe/src/main.rs
+  [build_test            ] cd /tmp/bench-iwe-implement-2-ycst0B && cargo build 2>&1 | tail -5
+  [shim_evasion          ] cd /tmp/bench-iwe-implement-2-ycst0B && awk 'NR>=698 && NR<=705' crates/iwe/src/main.rs
+  [shim_evasion          ] cd /tmp/bench-iwe-implement-2-ycst0B && wc -l crates/iwe/src/main.rs && awk 'NR>=1750' crates/iwe/src/main.rs
+  [build_test            ] cd /tmp/bench-iwe-implement-2-ycst0B && cargo build 2>&1 | head -20
+  [git                   ] cd /tmp/bench-iwe-implement-2-ycst0B && git diff crates/iwe/src/main.rs
+  [git                   ] cd /tmp/bench-iwe-implement-2-ycst0B && git checkout crates/iwe/src/main.rs
+  [mutation              ] cd /tmp/bench-iwe-implement-2-ycst0B && ed crates/iwe/src/main.rs <<'EOF'
+/    #[clap(flatten)]/
+.-1a
+    #[clap(long, s
+  [shim_fallthrough      ] cd /tmp/bench-iwe-implement-2-ycst0B && grep -n "selector: SelectorArgs" crates/iwe/src/main.rs | head -3
+  [shim_hit              ] cd /tmp/bench-iwe-implement-2-ycst0B && grep -n "selector" crates/iwe/src/main.rs | head -10
+  [shim_evasion          ] cd /tmp/bench-iwe-implement-2-ycst0B && awk 'NR>=155 && NR<=160' crates/iwe/src/main.rs
+  [mutation              ] cd /tmp/bench-iwe-implement-2-ycst0B && ed crates/iwe/src/main.rs <<'EOF'
+156a
+
+    #[clap(long, short = 'c', help = "Pr
+  [shim_fallthrough      ] cd /tmp/bench-iwe-implement-2-ycst0B && grep -n "let output = finder.find" crates/iwe/src/main.rs
+  [shim_evasion          ] cd /tmp/bench-iwe-implement-2-ycst0B && awk 'NR>=676 && NR<=700' crates/iwe/src/main.rs
+  [mutation              ] cd /tmp/bench-iwe-implement-2-ycst0B && ed crates/iwe/src/main.rs <<'EOF'
+681,695c
+    if args.count {
+        println!(
+  [build_test            ] cd /tmp/bench-iwe-implement-2-ycst0B && cargo build 2>&1 | tail -3
+  [build_test            ] cd /tmp/bench-iwe-implement-2-ycst0B && cargo build 2>&1 | head -10
+  [mutation              ] cd /tmp/bench-iwe-implement-2-ycst0B && ed crates/iwe/src/main.rs <<'EOF'
+701d
+w
+q
+EOF
+  [build_test            ] cd /tmp/bench-iwe-implement-2-ycst0B && cargo build 2>&1 | tail -3
+  [build_test            ] cd /tmp/bench-iwe-implement-2-ycst0B && cargo build 2>&1
+  [git                   ] cd /tmp/bench-iwe-implement-2-ycst0B && git checkout crates/iwe/src/main.rs
+  [shim_evasion          ] cd /tmp/bench-iwe-implement-2-ycst0B && awk 'NR==156' crates/iwe/src/main.rs
+  [shim_fallthrough      ] cd /tmp/bench-iwe-implement-2-ycst0B && sed -n '155,159p' crates/iwe/src/main.rs
+  [other                 ] cd /tmp/bench-iwe-implement-2-ycst0B && python3 -c "
+with open('crates/iwe/src/main.rs') as f:
+    lines = f.readlines()
+  [shim_hit              ] cd /tmp/bench-iwe-implement-2-ycst0B && sed -n '155,165p' crates/iwe/src/main.rs
+  [git                   ] cd /tmp/bench-iwe-implement-2-ycst0B && git checkout crates/iwe/src/main.rs
+  [other                 ] cd /tmp/bench-iwe-implement-2-ycst0B && python3 <<'PY'
+with open('crates/iwe/src/main.rs') as f:
+    content = f.read()
+
+  [build_test            ] cd /tmp/bench-iwe-implement-2-ycst0B && cargo build 2>&1 | tail -3
+  [build_test            ] cd /tmp/bench-iwe-implement-2-ycst0B && cargo test 2>&1 | tail -20
+  [shim_hit              ] cd /tmp/bench-iwe-implement-2-ycst0B && head -40 crates/iwe/tests/find_test.rs
+  [shim_hit              ] cd /tmp/bench-iwe-implement-2-ycst0B && tail -30 crates/iwe/tests/find_test.rs
+  [shim_fallthrough      ] cd /tmp/bench-iwe-implement-2-ycst0B && cat >> crates/iwe/tests/find_test.rs <<'EOF'
+
+#[test]
+fn test_find_count_flag() 
+  [build_test            ] cd /tmp/bench-iwe-implement-2-ycst0B && cargo test -p iwe --test find_test 2>&1 | tail -20
+  [other                 ] cd /tmp/bench-iwe-implement-2-ycst0B && python3 -c "
+with open('crates/iwe/tests/find_test.rs') as f:
+    c = f.read()
+c
+  [build_test            ] cd /tmp/bench-iwe-implement-2-ycst0B && cargo test -p iwe --test find_test 2>&1 | tail -10
+  [build_test            ] cd /tmp/bench-iwe-implement-2-ycst0B && cargo test 2>&1 | grep -E "^test result:|FAILED"

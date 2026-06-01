@@ -1,0 +1,94 @@
+Tokens: 1382009 (in=1316427, out=18078)
+Tool calls: 51 | Navigation: 32
+  DB structural: 7
+  DB lines:      7
+  DB other:      0
+  Shim hit:      0
+  Shim fallthru: 5
+  Shim evasion:  0
+  File read:     13
+Scores:
+  db_ratio:         0.438
+  structural_ratio: 0.259
+  evasion_ratio:    0.0
+  file_read_ratio:  0.406
+  line_ratio:       0.219
+  nav_ratio:        0.627
+
+Categories: {'direct_db_structural': 7, 'file_read': 13, 'direct_db_lines': 7, 'git': 4, 'mutation': 4, 'build_test': 10, 'shim_fallthrough': 5, 'other': 1}
+
+Commands:
+  [direct_db_structural  ] cd /tmp/pi-bench-iwe-debug-3-Whdnqg && sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files ORDER BY file;" | head
+  [direct_db_structural  ] cd /tmp/pi-bench-iwe-debug-3-Whdnqg && sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files WHERE file LIKE '%liwe
+  [direct_db_structural  ] cd /tmp/pi-bench-iwe-debug-3-Whdnqg && sqlite3 .indexnudge-rust.db "SELECT name, kind, start_line, end_line FROM symbols
+  [file_read             ] read crates/liwe/src/find.rs
+  [direct_db_structural  ] cd /tmp/pi-bench-iwe-debug-3-Whdnqg && sqlite3 .indexnudge-rust.db "SELECT name, kind, start_line, end_line FROM symbols
+  [direct_db_structural  ] cd /tmp/pi-bench-iwe-debug-3-Whdnqg && sqlite3 .indexnudge-rust.db "SELECT file FROM symbols WHERE name='get_metadata';"
+  [file_read             ] read crates/liwe/src/graph.rs
+  [direct_db_lines       ] cd /tmp/pi-bench-iwe-debug-3-Whdnqg && sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines_fts WHERE 
+  [file_read             ] read crates/liwe/tests/bare_frontmatter_test.rs
+  [direct_db_lines       ] cd /tmp/pi-bench-iwe-debug-3-Whdnqg && sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines_fts WHERE 
+  [file_read             ] read crates/liwe/src/markdown.rs
+  [file_read             ] read crates/liwe/tests/find_metadata_test.rs
+  [direct_db_structural  ] cd /tmp/pi-bench-iwe-debug-3-Whdnqg && sqlite3 .indexnudge-rust.db "SELECT name, kind, start_line, end_line FROM symbols
+  [file_read             ] read crates/liwe/src/state.rs
+  [git                   ] cd /tmp/pi-bench-iwe-debug-3-Whdnqg && git log --oneline -- crates/liwe/src/markdown.rs | head -20
+  [mutation              ] cd /tmp/pi-bench-iwe-debug-3-Whdnqg && ed -s crates/liwe/src/markdown.rs <<'EOF'
+49,53c
+        let cleaned_header: Stri
+  [git                   ] cd /tmp/pi-bench-iwe-debug-3-Whdnqg && git checkout crates/liwe/src/markdown.rs && cat -n crates/liwe/src/markdown.rs
+  [mutation              ] cd /tmp/pi-bench-iwe-debug-3-Whdnqg && ed -s crates/liwe/src/markdown.rs <<'EOF'
+50,54c
+    if rest.is_empty() {
+       
+  [git                   ] cd /tmp/pi-bench-iwe-debug-3-Whdnqg && git diff crates/liwe/src/markdown.rs && echo "---" && git status
+  [git                   ] cd /tmp/pi-bench-iwe-debug-3-Whdnqg && git checkout crates/liwe/src/markdown.rs
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-3-Whdnqg && cat > /tmp/repro.rs <<'EOF'
+use indoc::indoc;
+use liwe::find::{DocumentFinder, Fi
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-3-Whdnqg && sed -i 's|let raw = graph.get_metadata(&"1".to_string());|//|' crates/liwe/tests/
+  [direct_db_lines       ] cd /tmp/pi-bench-iwe-debug-3-Whdnqg && rm crates/liwe/tests/repro_bare_meta.rs
+sqlite3 .indexnudge-rust.db "SELECT file,
+  [file_read             ] read crates/iwe/src/main.rs
+  [direct_db_lines       ] cd /tmp/pi-bench-iwe-debug-3-Whdnqg && sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines_fts WHERE 
+  [file_read             ] read crates/iwe/src/main.rs
+  [direct_db_structural  ] cd /tmp/pi-bench-iwe-debug-3-Whdnqg && sqlite3 .indexnudge-rust.db "SELECT name, kind, start_line, end_line FROM symbols
+  [file_read             ] read crates/liwe/src/fs.rs
+  [direct_db_lines       ] cd /tmp/pi-bench-iwe-debug-3-Whdnqg && sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines_fts WHERE 
+  [file_read             ] read crates/liwe/src/graph.rs
+  [file_read             ] read crates/liwe/src/markdown/reader.rs
+  [direct_db_lines       ] cd /tmp/pi-bench-iwe-debug-3-Whdnqg && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crat
+  [direct_db_lines       ] cd /tmp/pi-bench-iwe-debug-3-Whdnqg && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines_fts WHERE conten
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-3-Whdnqg && cargo build --bin iwe 2>&1 | tail -5
+  [shim_fallthrough      ] cd /tmp/pi-bench-iwe-debug-3-Whdnqg && D=$(mktemp -d) && mkdir -p $D/.iwe && cat > $D/.iwe/config.toml <<EOF
+[library]
+p
+  [shim_fallthrough      ] cd /tmp/pi-bench-iwe-debug-3-Whdnqg && D=$(mktemp -d) && mkdir -p $D/.iwe && cat > $D/.iwe/config.toml <<EOF
+[library]
+p
+  [shim_fallthrough      ] cd /tmp/pi-bench-iwe-debug-3-Whdnqg && D=$(mktemp -d) && mkdir -p $D/.iwe && cat > $D/.iwe/config.toml <<EOF
+[library]
+p
+  [shim_fallthrough      ] cd /tmp/pi-bench-iwe-debug-3-Whdnqg && grep -rn "reader_skips_when_no_title_first_line\|wrap_bare_frontmatter\|bare_fron
+  [file_read             ] read crates/iwe/tests/retrieve_test.rs
+  [file_read             ] read crates/iwe/tests/retrieve_test.rs
+  [other                 ] cd /tmp/pi-bench-iwe-debug-3-Whdnqg && wc -l crates/liwe/src/markdown.rs
+  [mutation              ] write crates/liwe/src/markdown.rs
+  [mutation              ] cd /tmp/pi-bench-iwe-debug-3-Whdnqg && ed -s crates/liwe/tests/bare_frontmatter_test.rs <<'EOF'
+71,89c
+#[test]
+fn reader
+  [shim_fallthrough      ] cd /tmp/pi-bench-iwe-debug-3-Whdnqg && tail -10 crates/liwe/tests/bare_frontmatter_test.rs
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-3-Whdnqg && cargo build 2>&1 | tail -5
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-3-Whdnqg && cargo test 2>&1 | tail -30
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-3-Whdnqg && ed -s crates/liwe/tests/bare_frontmatter_test.rs <<'EOF'
+94d
+w
+q
+EOF
+cargo test 2
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-3-Whdnqg && cargo test 2>&1 | grep -E "^test result|FAIL|^failures" | head -40
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-3-Whdnqg && cargo test 2>&1 | grep -E "FAIL|failures:" | head -20
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-3-Whdnqg && cargo test 2>&1 | grep -E "^test result" | awk '{f+=$6} END {print "total failed:
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-3-Whdnqg && cargo build --bin iwe 2>&1 | tail -3
+D=$(mktemp -d) && mkdir -p $D/.iwe && cat > 

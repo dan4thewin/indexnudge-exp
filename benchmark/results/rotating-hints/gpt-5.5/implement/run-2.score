@@ -1,0 +1,92 @@
+=== Score ===
+Wall clock: 353s
+Tokens: 53246 (in=53017, out=229)
+Tool calls: 38 | Navigation: 19
+  DB structural: 0
+  DB lines:      0
+  DB other:      4
+  Shim hit:      6
+  Shim fallthru: 8
+  Shim evasion:  1
+Scores:
+  db_ratio:         0.526
+  structural_ratio: 0
+  evasion_ratio:    0.053
+  line_ratio:       0.0
+  nav_ratio:        0.5
+
+Categories: {'non_shell_tool': 6, 'direct_db_other': 4, 'shim_hit': 6, 'shim_fallthrough': 8, 'mutation': 8, 'other': 1, 'shim_evasion': 1, 'build_test': 4}
+
+Commands:
+  [direct_db_other       ] pwd; ls; sqlite3 .indexnudge.db ".tables" 2>/dev/null || true; sqlite3 .codeindex.db ".tables" 2>/dev/null || true
+  [direct_db_other       ] sqlite3 .indexnudge.db <<'SQL'
+.mode column
+.headers on
+select path from files where path like '%find%' or path like '%c
+  [direct_db_other       ] sqlite3 .indexnudge.db ".schema files"; sqlite3 .indexnudge.db ".schema symbols"
+  [direct_db_other       ] sqlite3 .indexnudge.db <<'SQL'
+.mode column
+.headers on
+select file, lines from files where file like '%find%' or file l
+  [shim_hit              ] sed -n '1,260p' crates/iwe/src/main.rs; printf '\n--- liwe find ---\n'; sed -n '1,340p' crates/liwe/src/find.rs; printf 
+  [shim_hit              ] grep -n "Find" crates/iwe/src/main.rs | head -40; grep -n "render_find\|run_find\|DocumentFinder\|FindOptions" crates/iw
+  [shim_hit              ] sed -n '640,730p' crates/iwe/src/main.rs; sed -n '1,220p' crates/liwe/tests/find_metadata_test.rs; sed -n '1,240p' crate
+  [shim_fallthrough      ] grep -R "--roots\|find .*format\|iwe find\|refs-to" -n README.md docs crates/iwe/src/help crates/iwe/src/main.rs | head 
+  [shim_fallthrough      ] grep -R -n -- "--roots\|find .*format\|iwe find\|refs-to" README.md docs crates/iwe/src/help crates/iwe/src/main.rs | he
+  [shim_fallthrough      ] ls crates/iwe/src; find crates/iwe/src -maxdepth 2 -type f -print | sort | sed -n '1,80p'; sed -n '1,260p' docs/cli-find
+  [shim_hit              ] grep -R -n -- "--meta\|meta" crates/iwe/tests crates/liwe/tests docs/cli-find.md | head -80; sed -n '1,220p' crates/iwe/
+  [shim_fallthrough      ] find crates/iwe/help -maxdepth 3 -type f -print | sort | sed -n '1,80p'; for f in crates/iwe/help/find/*.txt; do echo --
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+150a
+
+    #[clap(long, help = "Print only the number of matching documents")]
+    c
+  [other                 ] python3 - <<'PY'
+from pathlib import Path
+p=Path('crates/iwe/src/main.rs')
+for i,line in enumerate(p.read_text().splitli
+  [shim_fallthrough      ] nl -ba crates/iwe/src/main.rs | sed -n '128,166p;660,690p'
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+150,154c
+    #[clap(long, short = 'f', value_enum, default_value = "markdown")]
+   
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+681,686c
+    if args.count {
+        println!("{}", output.total);
+        return;
+
+  [shim_hit              ] grep -R -n -- "--in\|in-any\|not-in\|max-depth\|--meta" crates/iwe/tests crates/liwe/tests | sed -n '1,160p'; tail -40 c
+  [mutation              ] ed -s crates/iwe/tests/find_test.rs <<'EOF'
+$a
+
+#[test]
+fn test_find_count_lists_only_total() {
+    let dir = setup_work
+  [shim_hit              ] tail -90 crates/iwe/tests/find_test.rs; nl -ba crates/iwe/src/main.rs | sed -n '146,158p;676,688p'
+  [shim_evasion          ] wc -l crates/iwe/tests/find_test.rs; grep -n "test_find_count" crates/iwe/tests/find_test.rs || true; /usr/bin/tail -80 
+  [shim_fallthrough      ] nl -ba crates/iwe/src/main.rs | sed -n '154,172p;684,700p'
+  [mutation              ] ed -s docs/cli-find.md <<'EOF'
+19a
+| `--count`            | Print only the number of matching documents                 
+  [shim_fallthrough      ] nl -ba docs/cli-find.md | sed -n '10,28p;188,206p'
+  [mutation              ] ed -s docs/cli-find.md <<'EOF'
+19,23c
+| `--in <KEY[:DEPTH]>` | **Experimental.** Sub-documents of EVERY listed key (AND)
+  [mutation              ] ed -s crates/iwe/help/find/after_help.txt <<'EOF'
+22a
+
+COUNT (--count):
+  Print only the number of matching documents, a
+  [shim_fallthrough      ] nl -ba crates/iwe/help/find/after_help.txt | sed -n '1,42p'
+  [mutation              ] ed -s crates/iwe/help/find/after_help.txt <<'EOF'
+26i
+
+.
+w
+EOF
+nl -ba crates/iwe/help/find/after_help.txt | sed -n '20,3
+  [build_test            ] cargo build
+  [build_test            ] cargo test
+  [build_test            ] cargo test -p iwes --test transform_test transform_action_with_env_vars -- --nocapture
+  [build_test            ] cargo test

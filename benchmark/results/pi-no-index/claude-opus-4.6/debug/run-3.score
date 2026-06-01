@@ -1,0 +1,40 @@
+Tokens: 240564 (in=215771, out=5140)
+Tool calls: 20 | Navigation: 11
+  DB structural: 0
+  DB lines:      0
+  DB other:      0
+  Shim hit:      0
+  Shim fallthru: 7
+  Shim evasion:  0
+  File read:     4
+Scores:
+  db_ratio:         0.0
+  structural_ratio: 0.0
+  evasion_ratio:    0.0
+  file_read_ratio:  0.364
+  line_ratio:       0.0
+  nav_ratio:        0.55
+
+Categories: {'shim_fallthrough': 7, 'file_read': 4, 'other_read': 1, 'git': 1, 'mutation': 3, 'build_test': 4}
+
+Commands:
+  [shim_fallthrough      ] ls && find . -type f -name "*.md" | head -5
+  [shim_fallthrough      ] ls crates && grep -r "bare" --include="*.rs" -l | head -20
+  [shim_fallthrough      ] grep -rn "depends\|meta" crates/iwe/src/selector.rs crates/liwe/src/selector.rs | head -40
+  [shim_fallthrough      ] grep -rn "meta\b\|--meta\|frontmatter\|front_matter\|FrontMatter" crates/iwe/src crates/liwe/src | head -50
+  [shim_fallthrough      ] grep -rn "metadata_filter\|metadata_filters\|metadata\b" crates/iwe/src crates/liwe/src | head -40
+  [file_read             ] read crates/liwe/src/find.rs
+  [file_read             ] read crates/liwe/src/markdown.rs
+  [file_read             ] read crates/liwe/tests/bare_frontmatter_test.rs
+  [shim_fallthrough      ] grep -n "starts_with\|space\|indent\|depends\|list" BARE_FRONTMATTER_SPEC.md AUDIT_FINDINGS.md 2>/dev/null | head -30
+  [other_read            ] read BARE_FRONTMATTER_SPEC.md
+  [git                   ] cd /tmp/pi-bench-iwe-debug-3-Zb3hng && git log --oneline -- crates/liwe/src/markdown.rs | head -20
+  [mutation              ] edit crates/liwe/src/markdown.rs
+  [mutation              ] edit crates/liwe/tests/bare_frontmatter_test.rs
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-3-Zb3hng && cargo test -p liwe --test bare_frontmatter_test 2>&1 | tail -40
+  [shim_fallthrough      ] cd /tmp/pi-bench-iwe-debug-3-Zb3hng && grep -n "^pub\|^impl\|pub fn\|pub struct" crates/liwe/src/find.rs | head -30
+  [mutation              ] edit crates/liwe/tests/bare_frontmatter_test.rs
+  [file_read             ] read crates/liwe/src/find.rs
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-3-Zb3hng && cargo test -p liwe --test bare_frontmatter_test 2>&1 | tail -25
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-3-Zb3hng && cargo test 2>&1 | tail -40
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-3-Zb3hng && cargo test 2>&1 | grep -E "^test result|FAILED" | head -30

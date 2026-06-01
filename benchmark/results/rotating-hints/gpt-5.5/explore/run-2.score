@@ -1,0 +1,28 @@
+=== Score ===
+Wall clock: 94s
+Tokens: 42586 (in=37315, out=5271)
+Tool calls: 10 | Navigation: 8
+  DB structural: 0
+  DB lines:      2
+  DB other:      1
+  Shim hit:      4
+  Shim fallthru: 1
+  Shim evasion:  0
+Scores:
+  db_ratio:         0.875
+  structural_ratio: 0.0
+  evasion_ratio:    0.0
+  line_ratio:       0.25
+  nav_ratio:        0.8
+
+Categories: {'non_shell_tool': 2, 'direct_db_other': 1, 'shim_fallthrough': 1, 'direct_db_lines': 2, 'shim_hit': 4}
+
+Commands:
+  [direct_db_other       ] pwd; ls -la; sqlite3 .indexnudge.db '.schema' | sed -n '1,160p'
+  [shim_fallthrough      ] rg -n "meta|Find|find" -S crates src . | head -200
+  [direct_db_lines       ] sqlite3 .indexnudge.db "select file, line_num, content from lines where content regexp 'meta|metadata_filters|DocumentFi
+  [shim_hit              ] sed -n '1,230p' crates/iwe/src/main.rs && printf '\n--- find.rs ---\n' && sed -n '1,340p' crates/liwe/src/find.rs && pri
+  [shim_hit              ] sed -n '520,710p' crates/iwe/src/main.rs && printf '\n--- selector args maybe involved ---\n' && sed -n '1,220p' crates/
+  [direct_db_lines       ] sqlite3 .indexnudge.db "select file,line_num,content from lines where content regexp 'fn get_configuration|fn load_graph
+  [shim_hit              ] sed -n '1010,1065p' crates/iwe/src/main.rs && sed -n '1,75p' crates/liwe/src/fs.rs && sed -n '535,570p' crates/liwe/src/
+  [shim_hit              ] sed -n '1,190p' crates/liwe/tests/find_metadata_test.rs

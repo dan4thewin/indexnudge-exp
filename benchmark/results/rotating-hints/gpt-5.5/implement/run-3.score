@@ -1,0 +1,92 @@
+=== Score ===
+Wall clock: 372s
+Tokens: 55309 (in=55114, out=195)
+Tool calls: 42 | Navigation: 19
+  DB structural: 2
+  DB lines:      2
+  DB other:      3
+  Shim hit:      6
+  Shim fallthru: 6
+  Shim evasion:  0
+Scores:
+  db_ratio:         0.684
+  structural_ratio: 0.5
+  evasion_ratio:    0.0
+  line_ratio:       0.105
+  nav_ratio:        0.452
+
+Categories: {'non_shell_tool': 5, 'direct_db_other': 3, 'direct_db_structural': 2, 'direct_db_lines': 2, 'shim_hit': 6, 'shim_fallthrough': 6, 'mutation': 3, 'other': 1, 'git': 8, 'build_test': 6}
+
+Commands:
+  [direct_db_other       ] ls && sqlite3 .indexnudge.db '.tables' 2>/dev/null || sqlite3 .codeindex.db '.tables' 2>/dev/null || true
+  [direct_db_structural  ] sqlite3 .indexnudge.db "select path from files where path like '%find%' or path like '%cli%' order by path limit 100;"
+  [direct_db_other       ] sqlite3 .indexnudge.db '.schema files'; sqlite3 .indexnudge.db '.schema lines'; sqlite3 .indexnudge.db '.schema symbols'
+  [direct_db_structural  ] sqlite3 .indexnudge.db "select file from files where file like '%find%' or file like '%cli%' order by file limit 200;"
+  [direct_db_lines       ] sqlite3 .indexnudge.db "select file,line_num,content from lines_fts join lines on lines_fts.rowid = lines.rowid where li
+  [direct_db_other       ] sqlite3 .indexnudge.db '.schema lines_fts'
+  [direct_db_lines       ] sqlite3 .indexnudge.db "select l.file,l.line_num,l.content from lines_fts f join lines l on f.file=l.file and f.line_num
+  [shim_hit              ] sed -n '1,260p' crates/iwe/src/main.rs 2>/dev/null; find crates -maxdepth 3 -type f | sort | grep -E 'src/.+\.rs$|tests/
+  [shim_fallthrough      ] grep -R "fn .*find\|Command::Find\|FindOptions\|print.*find\|format.*Find" -n crates/iwe/src crates/liwe/src crates/iwe/
+  [shim_hit              ] sed -n '540,730p' crates/iwe/src/main.rs; sed -n '1,180p' crates/liwe/src/find.rs; sed -n '1,340p' crates/iwe/tests/find
+  [shim_hit              ] sed -n '340,560p' crates/iwe/tests/find_test.rs; sed -n '180,260p' crates/liwe/src/find.rs; grep -R "meta" -n crates/iwe
+  [shim_hit              ] sed -n '1,220p' crates/iwe/src/selector.rs; sed -n '1,220p' crates/liwe/tests/find_metadata_test.rs
+  [shim_fallthrough      ] grep -R "--meta\|meta" -n crates/iwe/tests README.md docs crates/iwe/src/help.rs | head -120
+  [shim_fallthrough      ] grep -R -- "--meta\|meta" -n crates/iwe/tests README.md docs crates/iwe/src/help.rs | head -120
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+148a
+
+    #[clap(long, help = "Print only the number of matching documents")]
+    c
+  [other                 ] python3 - <<'PY'
+from pathlib import Path
+for i,l in enumerate(Path('crates/iwe/src/main.rs').read_text().splitlines(),1
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+679,684c
+    let output = finder.find(&options);
+
+    if args.count {
+        print
+  [shim_fallthrough      ] grep -R --line-number -- "--in\|in-any\|not-in\|--meta" crates/iwe/tests crates/iwec/tests/find_test.rs | head -120
+  [shim_hit              ] sed -n '84,220p' crates/iwec/tests/find_test.rs
+  [shim_fallthrough      ] grep -R --line-number "bare_frontmatter\|frontmatter\|metadata" crates/liwe/src/model.rs crates/liwe/src/parser.rs crate
+  [shim_hit              ] sed -n '1,110p' crates/liwe/src/markdown.rs; sed -n '1,80p' crates/liwe/src/model/config.rs
+  [mutation              ] ed -s crates/iwe/tests/find_test.rs <<'EOF'
+496a
+
+#[test]
+fn test_find_count_lists_only_matching_document_count() {
+    
+  [git                   ] git diff -- crates/iwe/src/main.rs crates/iwe/tests/find_test.rs | sed -n '1,220p'
+  [git                   ] ed -s crates/iwe/tests/find_test.rs <<'EOF'
+487,492c
+    assert!(success, "stderr: {}", stderr);
+
+    let parsed: serde_
+  [build_test            ] cargo fmt && cargo build
+  [build_test            ] cargo test
+  [git                   ] tail -n 60 /tmp/.tmpvHBBTI/output-1 && git diff --stat && git diff -- crates/iwe/src/main.rs crates/iwe/tests/find_test.
+  [git                   ] git status --short | sed -n '1,120p'
+  [git                   ] git status --short | awk '$2 != "crates/iwe/src/main.rs" && $2 != "crates/iwe/tests/find_test.rs" && $1 != "??" {print $
+  [build_test            ] git diff -- crates/iwe/src/main.rs crates/iwe/tests/find_test.rs | sed -n '1,220p'
+cargo build && cargo test
+  [git                   ] git diff --stat && git diff -- crates/iwe/src/main.rs crates/iwe/tests/find_test.rs | sed -n '1,220p' && tail -n 40 /tmp
+  [git                   ] git checkout -- crates/iwe/src/main.rs crates/iwe/tests/find_test.rs
+ed -s crates/iwe/src/main.rs <<'EOF'
+148a
+
+    #[cl
+  [build_test            ] ed -s crates/iwe/src/main.rs <<'EOF'
+676,680d
+682a
+
+    if args.count {
+        println!("{}", output.total);
+        re
+  [shim_fallthrough      ] nl -ba crates/iwe/src/main.rs | sed -n '660,700p'
+  [build_test            ] ed -s crates/iwe/src/main.rs <<'EOF'
+669,688c
+    let options = FindOptions {
+        query: args.query,
+        roots: 
+  [build_test            ] cargo test
+  [git                   ] git status --short && git diff --stat && git diff -- crates/iwe/src/main.rs crates/iwe/tests/find_test.rs | sed -n '1,18

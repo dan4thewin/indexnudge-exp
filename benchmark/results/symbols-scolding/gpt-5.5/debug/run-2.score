@@ -1,0 +1,65 @@
+=== Score ===
+Wall clock: 170s
+Tokens: 41446 (in=41082, out=364)
+Tool calls: 20 | Navigation: 8
+  DB structural: 2
+  DB lines:      6
+  DB other:      0
+  Shim hit:      0
+  Shim fallthru: 0
+  Shim evasion:  0
+Scores:
+  db_ratio:         1.0
+  structural_ratio: 0.25
+  evasion_ratio:    0.0
+  line_ratio:       0.75
+  nav_ratio:        0.4
+
+Categories: {'non_shell_tool': 3, 'direct_db_structural': 2, 'direct_db_lines': 6, 'build_test': 5, 'mutation': 4}
+
+Commands:
+  [direct_db_structural  ] sqlite3 .indexnudge-rust.db ".schema" && sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files ORDER BY file;"
+  [direct_db_structural  ] sqlite3 .indexnudge-rust.db "SELECT name, kind, file, start_line, end_line, signature FROM symbols WHERE file IN ('crate
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT file,line_num,content FROM lines_fts WHERE content MATCH 'frontmatter OR metadata OR
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/src/markdown.rs' ORDER BY line_
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/tests/find_metadata_test.rs' OR
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/src/markdown/reader.rs' AND lin
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT file,line_num,content FROM lines_fts WHERE content MATCH 'starts_with' AND file='cra
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/src/markdown/writer.rs' ORDER B
+  [build_test            ] ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+10a
+
+fn setup_bare_graph(input: &str) -> Graph {
+    let options =
+  [mutation              ] ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+110,180p
+q
+EOF
+  [mutation              ] ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+1,190p
+q
+EOF
+  [mutation              ] ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+1,$p
+q
+EOF
+  [build_test            ] ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+109,151c
+#[test]
+fn value_in_yaml_sequence_matches() {
+    let gra
+  [mutation              ] ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+80,170p
+q
+EOF
+  [build_test            ] ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+1,$c
+use indoc::indoc;
+
+use liwe::find::{DocumentFinder, FindOptio
+  [build_test            ] ed -s crates/liwe/src/markdown.rs <<'EOF'
+50,64c
+    let cleaned_header = header.trim_end();
+    if rest.is_empty() {
+  
+  [build_test            ] cargo test -p liwe

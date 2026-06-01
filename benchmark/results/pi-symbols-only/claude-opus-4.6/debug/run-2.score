@@ -1,0 +1,39 @@
+Tokens: 231394 (in=207522, out=4317)
+Tool calls: 19 | Navigation: 10
+  DB structural: 0
+  DB lines:      0
+  DB other:      0
+  Shim hit:      0
+  Shim fallthru: 6
+  Shim evasion:  0
+  File read:     4
+Scores:
+  db_ratio:         0.0
+  structural_ratio: 0.0
+  evasion_ratio:    0.0
+  file_read_ratio:  0.4
+  line_ratio:       0.0
+  nav_ratio:        0.526
+
+Categories: {'shim_fallthrough': 6, 'file_read': 4, 'mutation': 3, 'build_test': 6}
+
+Commands:
+  [shim_fallthrough      ] ls && find . -type f -name "*.md" | head -5
+  [shim_fallthrough      ] ls crates && cat BARE_FRONTMATTER_SPEC.md | head -80
+  [shim_fallthrough      ] grep -rn "depends\|--meta\|bare_frontmatter" crates --include="*.rs" | head -40
+  [shim_fallthrough      ] grep -rn "meta\|--meta" crates/iwe/src --include="*.rs" | head -30
+  [shim_fallthrough      ] grep -rn "metadata_filter\|metadata_filters" crates/iwe/src crates/liwe/src | head -30
+  [file_read             ] read crates/liwe/src/find.rs
+  [file_read             ] read crates/liwe/src/markdown.rs
+  [file_read             ] read crates/liwe/tests/bare_frontmatter_test.rs
+  [mutation              ] edit crates/liwe/src/markdown.rs
+  [mutation              ] edit crates/liwe/tests/bare_frontmatter_test.rs
+  [build_test            ] cd crates/liwe && cargo test --test bare_frontmatter_test 2>&1 | tail -30
+  [shim_fallthrough      ] grep -rn "fn from_indoc\|fn get_metadata\b" crates/liwe/src | head
+  [file_read             ] read crates/liwe/src/state.rs
+  [mutation              ] edit crates/liwe/tests/bare_frontmatter_test.rs
+  [build_test            ] cd crates/liwe && cargo test --test bare_frontmatter_test 2>&1 | tail -15
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-2-KHBPbq && cargo test 2>&1 | tail -40
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-2-KHBPbq && git stash && cargo test --test transform_test transform_action_with_env_vars -p i
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-2-KHBPbq && cargo test --test transform_test -p iwes 2>&1 | tail -10
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-2-KHBPbq && cargo test 2>&1 | grep -E "^(test result|FAILED|failures:)" | tail -40

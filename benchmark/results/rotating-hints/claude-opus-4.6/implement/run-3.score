@@ -1,0 +1,67 @@
+Tokens: 25269 (in=25054, out=215)
+Tool calls: 38 | Navigation: 20
+  DB structural: 0
+  DB lines:      0
+  DB other:      0
+  Shim hit:      6
+  Shim fallthru: 7
+  Shim evasion:  7
+Scores:
+  db_ratio:         0.3
+  structural_ratio: 0
+  evasion_ratio:    0.35
+  line_ratio:       0.0
+  nav_ratio:        0.526
+
+Categories: {'shim_fallthrough': 7, 'non_shell_tool': 2, 'shim_hit': 6, 'mutation': 3, 'build_test': 8, 'shim_evasion': 7, 'git': 3, 'other': 2}
+
+Commands:
+  [shim_fallthrough      ] cd /tmp/bench-iwe-implement-3-gOx8a1 && grep -rn "find" src/ --include="*.rs" -l | head -20
+  [shim_hit              ] cd /tmp/bench-iwe-implement-3-gOx8a1 && grep -n "find" crates/iwe/src/main.rs | head -30
+  [shim_hit              ] cd /tmp/bench-iwe-implement-3-gOx8a1 && sed -n '130,170p' crates/iwe/src/main.rs
+  [shim_hit              ] cd /tmp/bench-iwe-implement-3-gOx8a1 && sed -n '661,712p' crates/iwe/src/main.rs
+  [mutation              ] cd /tmp/bench-iwe-implement-3-gOx8a1 && ed crates/iwe/src/main.rs <<'EOF'
+158a
+    #[clap(long, help = "Print only the c
+  [build_test            ] cd /tmp/bench-iwe-implement-3-gOx8a1 && cargo build 2>&1 | tail -5
+  [shim_fallthrough      ] cd /tmp/bench-iwe-implement-3-gOx8a1 && sed -n '678,705p' crates/iwe/src/main.rs
+  [shim_hit              ] cd /tmp/bench-iwe-implement-3-gOx8a1 && sed -n '155,165p' crates/iwe/src/main.rs
+  [shim_fallthrough      ] cd /tmp/bench-iwe-implement-3-gOx8a1 && grep -n 'count\|if args' crates/iwe/src/main.rs | head -20
+  [shim_hit              ] cd /tmp/bench-iwe-implement-3-gOx8a1 && sed -n '675,700p' crates/iwe/src/main.rs
+  [shim_fallthrough      ] cd /tmp/bench-iwe-implement-3-gOx8a1 && grep -n 'if args.count' crates/iwe/src/main.rs
+  [shim_hit              ] cd /tmp/bench-iwe-implement-3-gOx8a1 && sed -n '676,695p' crates/iwe/src/main.rs
+  [shim_fallthrough      ] cd /tmp/bench-iwe-implement-3-gOx8a1 && grep -c 'if args.count' crates/iwe/src/main.rs
+  [shim_fallthrough      ] cd /tmp/bench-iwe-implement-3-gOx8a1 && cat -n crates/iwe/src/main.rs | sed -n '676,700p'
+  [mutation              ] cd /tmp/bench-iwe-implement-3-gOx8a1 && ed crates/iwe/src/main.rs <<'EOF'
+678c
+    if args.count {
+        println!("{}"
+  [build_test            ] cd /tmp/bench-iwe-implement-3-gOx8a1 && cargo build 2>&1 | tail -5
+  [shim_fallthrough      ] cd /tmp/bench-iwe-implement-3-gOx8a1 && cat -An crates/iwe/src/main.rs | sed -n '676,700p'
+  [shim_evasion          ] cd /tmp/bench-iwe-implement-3-gOx8a1 && command cat -n crates/iwe/src/main.rs | head -700 | tail -40
+  [shim_evasion          ] cd /tmp/bench-iwe-implement-3-gOx8a1 && command cat -n crates/iwe/src/main.rs | sed -n '690,710p'
+  [shim_evasion          ] cd /tmp/bench-iwe-implement-3-gOx8a1 && command cat crates/iwe/src/main.rs | command grep -n 'if args.count\|match args.
+  [shim_evasion          ] cd /tmp/bench-iwe-implement-3-gOx8a1 && awk 'NR>=660 && NR<=710' crates/iwe/src/main.rs
+  [git                   ] cd /tmp/bench-iwe-implement-3-gOx8a1 && git diff crates/iwe/src/main.rs | head -80
+  [git                   ] cd /tmp/bench-iwe-implement-3-gOx8a1 && git checkout crates/iwe/src/main.rs
+  [mutation              ] cd /tmp/bench-iwe-implement-3-gOx8a1 && ed crates/iwe/src/main.rs <<'EDSCRIPT'
+/selector: SelectorArgs,/a
+
+    #[clap(lo
+  [shim_evasion          ] cd /tmp/bench-iwe-implement-3-gOx8a1 && awk 'NR>=134 && NR<=166' crates/iwe/src/main.rs
+  [shim_evasion          ] cd /tmp/bench-iwe-implement-3-gOx8a1 && cat -n crates/iwe/src/main.rs | awk 'NR>=661 && NR<=695'
+  [other                 ] cd /tmp/bench-iwe-implement-3-gOx8a1 && python3 -c "
+import re
+with open('crates/iwe/src/main.rs') as f:
+    content = f
+  [build_test            ] cd /tmp/bench-iwe-implement-3-gOx8a1 && cargo build 2>&1 | tail -3
+  [build_test            ] cd /tmp/bench-iwe-implement-3-gOx8a1 && cargo build 2>&1 | grep "error\[" 
+  [build_test            ] cd /tmp/bench-iwe-implement-3-gOx8a1 && cargo build 2>&1 | head -20
+  [shim_evasion          ] cd /tmp/bench-iwe-implement-3-gOx8a1 && awk 'NR>=695 && NR<=725' crates/iwe/src/main.rs
+  [git                   ] cd /tmp/bench-iwe-implement-3-gOx8a1 && git checkout crates/iwe/src/main.rs
+  [other                 ] cd /tmp/bench-iwe-implement-3-gOx8a1 && python3 -c "
+with open('crates/iwe/src/main.rs') as f:
+    lines = f.readlines()
+  [build_test            ] cd /tmp/bench-iwe-implement-3-gOx8a1 && cargo build 2>&1 | tail -3
+  [build_test            ] cd /tmp/bench-iwe-implement-3-gOx8a1 && cargo test 2>&1 | tail -20
+  [build_test            ] cd /tmp/bench-iwe-implement-3-gOx8a1 && cargo test -p iwe find 2>&1 | tail -10

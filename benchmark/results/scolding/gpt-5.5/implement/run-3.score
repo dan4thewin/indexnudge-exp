@@ -1,0 +1,56 @@
+=== Score ===
+Wall clock: 197s
+Tokens: 29622 (in=29389, out=233)
+Tool calls: 22 | Navigation: 8
+  DB structural: 2
+  DB lines:      6
+  DB other:      0
+  Shim hit:      0
+  Shim fallthru: 0
+  Shim evasion:  0
+Scores:
+  db_ratio:         1.0
+  structural_ratio: 0.25
+  evasion_ratio:    0.0
+  line_ratio:       0.75
+  nav_ratio:        0.364
+
+Categories: {'non_shell_tool': 5, 'direct_db_structural': 2, 'direct_db_lines': 6, 'build_test': 5, 'mutation': 2, 'git': 2}
+
+Commands:
+  [direct_db_structural  ] sqlite3 .indexnudge-rust.db ".schema" && sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files ORDER BY file;"
+  [direct_db_structural  ] sqlite3 .indexnudge-rust.db "SELECT name, kind, start_line, end_line, signature FROM symbols WHERE file='crates/iwe/src/
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/iwe/src/main.rs' AND line_num BETWEE
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/iwe/tests/find_test.rs' AND line_num
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/iwe/tests/find_test.rs' AND line_num
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/iwe/src/help.rs' AND line_num BETWEE
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/iwe/src/main.rs' AND line_num BETWEE
+  [build_test            ] ed -s crates/iwe/src/main.rs <<'EOF'
+147a
+    #[clap(long, help = "Print only the number of matching documents")]
+    co
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+660,690n
+EOF
+  [build_test            ] ed -s crates/iwe/src/main.rs <<'EOF'
+678,681d
+685i
+    if args.count {
+        println!("{}", output.total);
+        ret
+  [build_test            ] cargo test
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/iwe/src/main.rs' AND line_num BETWEE
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+134,164n
+664,694n
+EOF
+ed -s crates/iwe/tests/find_test.rs <<'EOF'
+216,360n
+EOF
+  [build_test            ] ed -s crates/iwe/src/main.rs <<'EOF'
+147,151c
+    #[clap(long, short = 'l', help = "Maximum results")]
+    limit: Option
+  [build_test            ] cargo test
+  [git                   ] git diff --stat && git status --short
+  [git                   ] git diff -- .goosehints && git diff -- crates/iwe/src/main.rs crates/iwe/tests/find_test.rs

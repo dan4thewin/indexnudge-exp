@@ -1,0 +1,45 @@
+Tokens: 292927 (in=266084, out=4510)
+Tool calls: 22 | Navigation: 17
+  DB structural: 0
+  DB lines:      0
+  DB other:      0
+  Shim hit:      0
+  Shim fallthru: 12
+  Shim evasion:  0
+  File read:     5
+Scores:
+  db_ratio:         0.0
+  structural_ratio: 0.0
+  evasion_ratio:    0.0
+  file_read_ratio:  0.294
+  line_ratio:       0.0
+  nav_ratio:        0.773
+
+Categories: {'shim_fallthrough': 12, 'file_read': 5, 'mutation': 2, 'build_test': 3}
+
+Commands:
+  [shim_fallthrough      ] ls && find . -type f -name "*.rs" | head -50
+  [shim_fallthrough      ] cat BARE_FRONTMATTER_SPEC.md | head -100; echo "---"; grep -rn "bare" --include="*.rs" -l | head -20
+  [shim_fallthrough      ] grep -rn "meta" crates/iwe/src/selector.rs crates/liwe/src/selector.rs 2>/dev/null | head -40
+  [shim_fallthrough      ] grep -rn "\-\-meta\|meta_filter\|MetaFilter\|\"meta\"" --include="*.rs" | head -40
+  [file_read             ] read crates/iwe/src/main.rs
+  [shim_fallthrough      ] grep -n "meta\|find_command\|Find " crates/iwe/src/main.rs | head -40
+  [file_read             ] read crates/iwe/src/main.rs
+  [shim_fallthrough      ] grep -rn "metadata_filters\|MetaFilter\|metadata\b" --include="*.rs" crates/iwe/src crates/liwe/src | head -40
+  [file_read             ] read crates/liwe/src/find.rs
+  [file_read             ] read crates/liwe/src/markdown.rs
+  [shim_fallthrough      ] cat crates/liwe/tests/bare_frontmatter_test.rs
+  [mutation              ] edit crates/liwe/src/markdown.rs
+  [shim_fallthrough      ] tail -5 crates/liwe/tests/bare_frontmatter_test.rs; wc -l crates/liwe/tests/bare_frontmatter_test.rs
+  [shim_fallthrough      ] cat >> crates/liwe/tests/bare_frontmatter_test.rs <<'EOF'
+
+#[test]
+fn bare_frontmatter_preserves_yaml_sequence_values() 
+  [shim_fallthrough      ] grep -n "pub use\|pub mod" crates/liwe/src/lib.rs | head -20; echo ---; grep -rn "Key::name\b" crates/liwe/src/graph.rs 
+  [shim_fallthrough      ] grep -rn "pub fn name\|impl Key" crates/liwe/src/model/ | head; echo ---; grep -rn "from_indoc" crates/liwe/src/state.rs
+  [shim_fallthrough      ] grep -rn "fn name\b\|pub struct Key" crates/liwe/src/ | head
+  [file_read             ] read crates/liwe/src/state.rs
+  [mutation              ] edit crates/liwe/tests/bare_frontmatter_test.rs
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-1-AjHwqZ && cargo test -p liwe --test bare_frontmatter_test 2>&1 | tail -30
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-1-AjHwqZ && cargo test 2>&1 | tail -40
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-1-AjHwqZ && cargo test 2>&1 | grep -E "^test result|FAILED" | sort -u

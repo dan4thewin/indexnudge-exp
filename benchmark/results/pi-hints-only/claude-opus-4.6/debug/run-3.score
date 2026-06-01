@@ -1,0 +1,48 @@
+Tokens: 283427 (in=258968, out=4780)
+Tool calls: 25 | Navigation: 21
+  DB structural: 0
+  DB lines:      0
+  DB other:      0
+  Shim hit:      1
+  Shim fallthru: 13
+  Shim evasion:  0
+  File read:     7
+Scores:
+  db_ratio:         0.048
+  structural_ratio: 0.0
+  evasion_ratio:    0.0
+  file_read_ratio:  0.333
+  line_ratio:       0.0
+  nav_ratio:        0.84
+
+Categories: {'shim_fallthrough': 13, 'file_read': 7, 'mutation': 1, 'shim_hit': 1, 'build_test': 3}
+
+Commands:
+  [shim_fallthrough      ] ls && find . -type f -name "*.toml" | head -5
+  [shim_fallthrough      ] grep -r "bare" --include="*.rs" -l crates/ | head -20
+  [shim_fallthrough      ] cat BARE_FRONTMATTER_SPEC.md
+  [shim_fallthrough      ] grep -rn "bare_frontmatter\|--meta\|depends" --include="*.rs" crates/ | head -40
+  [shim_fallthrough      ] grep -rn "find\|--meta\|MetaFilter\|meta_filter\|meta:" --include="*.rs" crates/iwe/src/ | head -40
+  [shim_fallthrough      ] grep -rn "meta\|find" --include="*.rs" crates/liwe/src/find* crates/liwe/src/find/ 2>/dev/null | head -40; find crates/l
+  [file_read             ] read crates/liwe/src/find.rs
+  [shim_fallthrough      ] grep -n "get_metadata\|metadata" crates/liwe/src/model/graph.rs | head -30
+  [shim_fallthrough      ] grep -rn "fn get_metadata\|metadata(" --include="*.rs" crates/liwe/src/ | head
+  [shim_fallthrough      ] grep -rn "get_metadata" --include="*.rs" crates/ | head
+  [shim_fallthrough      ] grep -rn "fn get_metadata\|pub fn metadata\|MetadataBlock\|metadata_block\|FrontMatter\|front_matter" --include="*.rs" c
+  [file_read             ] read crates/liwe/src/markdown.rs
+  [file_read             ] read crates/liwe/tests/bare_frontmatter_test.rs
+  [file_read             ] read crates/iwe/tests/retrieve_test.rs
+  [file_read             ] read crates/liwe/src/markdown/writer.rs
+  [mutation              ] edit crates/liwe/src/markdown.rs
+  [shim_fallthrough      ] grep -n "test_find_meta\|--meta" crates/iwe/tests/*.rs | head
+  [shim_fallthrough      ] grep -rn "metadata_filters\|meta=" --include="*.rs" crates/ | head
+  [file_read             ] read crates/liwe/tests/find_metadata_test.rs
+  [file_read             ] read crates/liwe/tests/find_metadata_test.rs
+  [shim_hit              ] tail -5 crates/liwe/tests/find_metadata_test.rs; wc -l crates/liwe/tests/find_metadata_test.rs
+  [shim_fallthrough      ] cat >> crates/liwe/tests/find_metadata_test.rs << 'EOF'
+
+fn setup_graph_bare(input: &str) -> Graph {
+    let opts = Mark
+  [build_test            ] cargo test -p liwe --test find_metadata_test --test bare_frontmatter_test 2>&1 | tail -30
+  [build_test            ] cargo test 2>&1 | tail -40
+  [build_test            ] cargo test 2>&1 | grep -E "^test result|FAILED|error" | head -30

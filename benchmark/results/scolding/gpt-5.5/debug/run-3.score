@@ -1,0 +1,56 @@
+=== Score ===
+Wall clock: 246s
+Tokens: 31420 (in=31111, out=309)
+Tool calls: 20 | Navigation: 9
+  DB structural: 2
+  DB lines:      7
+  DB other:      0
+  Shim hit:      0
+  Shim fallthru: 0
+  Shim evasion:  0
+Scores:
+  db_ratio:         1.0
+  structural_ratio: 0.222
+  evasion_ratio:    0.0
+  line_ratio:       0.778
+  nav_ratio:        0.45
+
+Categories: {'non_shell_tool': 3, 'direct_db_structural': 2, 'direct_db_lines': 7, 'build_test': 4, 'mutation': 3, 'git': 1}
+
+Commands:
+  [direct_db_structural  ] sqlite3 .indexnudge-rust.db ".tables" && sqlite3 .indexnudge-rust.db ".schema files" && sqlite3 .indexnudge-rust.db "SEL
+  [direct_db_structural  ] sqlite3 .indexnudge-rust.db "SELECT name, kind, file, start_line, end_line FROM symbols WHERE file IN ('crates/liwe/src/
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWE
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT rowid, file, line_num, content FROM lines_fts JOIN lines ON lines_fts.rowid=lines.ro
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT lines.rowid, file, line_num, lines.content FROM lines_fts JOIN lines ON lines_fts.ro
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT lines.rowid, lines.file, lines.line_num, lines.content FROM lines_fts JOIN lines ON 
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/src/markdown/reader.rs' AND lin
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT lines.file, lines.line_num, lines.content FROM lines_fts JOIN lines ON lines_fts.row
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/src/markdown.rs' AND line_num B
+  [build_test            ] ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+10a
+
+fn setup_bare_graph(input: &str) -> Graph {
+    Graph::import
+  [mutation              ] ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+1,190p
+EOF
+  [mutation              ] ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+190,260p
+EOF
+  [mutation              ] ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+1,$n
+EOF
+  [build_test            ] ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+1,$c
+use indoc::indoc;
+
+use liwe::find::{DocumentFinder, FindOptio
+  [build_test            ] ed -s crates/liwe/src/markdown.rs <<'EOF'
+50,64c
+    let cleaned_header = header.trim_end();
+
+    if rest.is_empty() {
+ 
+  [build_test            ] cargo test
+  [git                   ] git diff --stat && git diff -- crates/liwe/src/markdown.rs crates/liwe/tests/find_metadata_test.rs

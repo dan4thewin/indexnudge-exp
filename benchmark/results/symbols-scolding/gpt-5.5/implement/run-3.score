@@ -1,0 +1,105 @@
+=== Score ===
+Wall clock: 331s
+Tokens: 42144 (in=41927, out=217)
+Tool calls: 37 | Navigation: 11
+  DB structural: 5
+  DB lines:      6
+  DB other:      0
+  Shim hit:      0
+  Shim fallthru: 0
+  Shim evasion:  0
+Scores:
+  db_ratio:         1.0
+  structural_ratio: 0.455
+  evasion_ratio:    0.0
+  line_ratio:       0.545
+  nav_ratio:        0.297
+
+Categories: {'non_shell_tool': 7, 'direct_db_structural': 5, 'direct_db_lines': 6, 'mutation': 8, 'build_test': 7, 'git': 4}
+
+Commands:
+  [direct_db_structural  ] sqlite3 .indexnudge-rust.db ".schema" && sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files ORDER BY file;"
+  [direct_db_structural  ] sqlite3 .indexnudge-rust.db "SELECT name, kind, start_line, end_line, signature FROM symbols WHERE file='crates/iwe/src/
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/iwe/src/main.rs' AND line_num BETWEE
+  [direct_db_structural  ] sqlite3 .indexnudge-rust.db "SELECT name, kind, start_line, end_line, signature FROM symbols WHERE file='crates/liwe/src
+  [direct_db_structural  ] sqlite3 .indexnudge-rust.db "SELECT name, kind, start_line, end_line, signature FROM symbols WHERE file='crates/iwe/test
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/iwe/tests/find_test.rs' AND line_num
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/iwe/src/help.rs' AND line_num BETWEE
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines WHERE file LIKE 'crates/iwe/help/find/%' ORDER BY
+  [direct_db_structural  ] sqlite3 .indexnudge-rust.db "SELECT name, kind, file, start_line, end_line, signature FROM symbols WHERE name LIKE '%met
+  [direct_db_lines       ] find crates/iwe/help/find -maxdepth 1 -type f -print -exec printf '\n--- %s ---\n' {} \; -exec sqlite3 .indexnudge-rust.
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/tests/find_metadata_test.rs' AN
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+149a
+
+    #[clap(long, help = "Print only the number of matching documents")]
+    c
+  [build_test            ] cargo build
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+660,700p
+q
+EOF
+  [build_test            ] ed -s crates/iwe/src/main.rs <<'EOF'
+681,686d
+688a
+
+    if args.count {
+        println!("{}", output.total);
+        re
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+670,700p
+q
+EOF
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+/find_command(args: Find)/=
+/render_find_output/=
+q
+EOF
+  [build_test            ] ed -s crates/iwe/src/main.rs <<'EOF'
+670,701c
+fn find_command(args: Find) {
+    let config = get_configuration();
+    le
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+700,725p
+q
+EOF
+  [build_test            ] ed -s crates/iwe/src/main.rs <<'EOF'
+708,713d
+w
+EOF
+cargo fmt
+cargo build
+  [build_test            ] cargo test
+  [git                   ] git diff -- crates/iwe/src/main.rs crates/iwe/tests/find_test.rs && git status --short
+  [git                   ] git diff --name-only | awk '$0!="crates/iwe/src/main.rs" && $0!="crates/iwe/tests/find_test.rs" {print}' | xargs -r git 
+  [git                   ] git checkout -- crates/iwe/src/main.rs crates/iwe/tests/find_test.rs
+ed -s crates/iwe/src/main.rs <<'EOF'
+149a
+
+    #[cl
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+140,160p
+660,690p
+q
+EOF
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+/metadata_filters: args.meta,/
+.,/    };/c
+        metadata_filters: args.meta,
+   
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+120,170p
+650,700p
+q
+EOF
+  [build_test            ] ed -s crates/iwe/src/main.rs <<'EOF'
+/limit: Option<usize>,/+1d
+/count: bool,/a
+
+.
+w
+EOF
+cargo build
+  [build_test            ] cargo test
+  [git                   ] git diff -- crates/iwe/src/main.rs crates/iwe/tests/find_test.rs && git status --short

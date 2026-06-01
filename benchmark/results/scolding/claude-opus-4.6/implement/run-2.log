@@ -1,0 +1,460 @@
+
+  ────────────────────────────────────────
+  ▸ todo_write todo
+    content: - [ ] Add `--count` flag to `iwe find` command
+- [ ] Flag prints only the number of matching documents
+- [ ] Works with all existing filters
+- [ ] cargo build passes
+- [ ] cargo test passes
+
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /tmp/bench-iwe-implement-2-hNjS72 && sqlite3 .indexnudge-rust.db "SELECT * FROM lines_fts WHERE content MATCH 'find'" 2>/dev/null | grep -i 'struct\|enum\|fn\|command\|Find' | head -30
+
+crates/iwec/tests/resource_test.rs|110|    let attach_action = actions.iter().find(|a| a["name"] == "today").unwrap();|read_config_resource
+crates/iwec/tests/write_test.rs|113|    let find = f.call_tool("iwe_find", json!({})).await;|delete_document
+crates/iwec/tests/write_test.rs|114|    let find_output = Fixture::result_json(&find);|delete_document
+crates/iwec/tests/write_test.rs|115|    assert_eq!(find_output["total"], 1);|delete_document
+crates/iwec/tests/write_test.rs|128|    let find = f.call_tool("iwe_find", json!({})).await;|delete_dry_run
+crates/iwec/tests/write_test.rs|129|    let find_output = Fixture::result_json(&find);|delete_dry_run
+crates/iwec/tests/write_test.rs|130|    assert_eq!(find_output["total"], 1);|delete_dry_run
+crates/iwec/tests/write_test.rs|161|    let find = f|rename_document
+crates/iwec/tests/write_test.rs|162|        .call_tool("iwe_find", json!({"query": "child-renamed"}))|rename_document
+crates/iwec/tests/write_test.rs|164|    let find_output = Fixture::result_json(&find);|rename_document
+crates/iwec/tests/write_test.rs|165|    assert_eq!(find_output["total"], 1);|rename_document
+crates/iwec/tests/write_test.rs|168|        .call_tool("iwe_find", json!({"query": "2"}))|rename_document
+crates/iwec/tests/write_test.rs|192|    let find = f.call_tool("iwe_find", json!({})).await;|rename_dry_run
+crates/iwec/tests/write_test.rs|193|    let find_output = Fixture::result_json(&find);|rename_dry_run
+crates/iwec/tests/write_test.rs|194|    let keys: Vec<&str> = find_output["results"]|rename_dry_run
+crates/iwec/tests/write_test.rs|261|    let find = f.call_tool("iwe_find", json!({})).await;|round_trip_create_retrieve_update_delete
+crates/iwec/tests/write_test.rs|262|    assert_eq!(Fixture::result_json(&find)["total"], 0);|round_trip_create_retrieve_update_delete
+crates/iwec/tests/extract_test.rs|91|    let find = f.call_tool("iwe_find", json!({})).await;|extract_dry_run
+crates/iwec/tests/extract_test.rs|92|    assert_eq!(Fixture::result_json(&find)["total"], 1);|extract_dry_run
+crates/iwec/tests/inline_test.rs|70|    let find = f.call_tool("iwe_find", json!({})).await;|inline_keep_target
+crates/iwec/tests/inline_test.rs|71|    assert_eq!(Fixture::result_json(&find)["total"], 2);|inline_keep_target
+crates/iwec/tests/inline_test.rs|91|    let find = f.call_tool("iwe_find", json!({})).await;|inline_dry_run
+crates/iwec/tests/inline_test.rs|92|    assert_eq!(Fixture::result_json(&find)["total"], 2);|inline_dry_run
+crates/iwec/tests/inline_test.rs|109|    let find = f.call_tool("iwe_find", json!({})).await;|extract_then_inline_round_trip
+crates/iwec/tests/inline_test.rs|110|    assert_eq!(Fixture::result_json(&find)["total"], 2);|extract_then_inline_round_trip
+crates/iwec/tests/inline_test.rs|121|    let find2 = f.call_tool("iwe_find", json!({})).await;|extract_then_inline_round_trip
+crates/iwec/tests/find_test.rs|7|async fn find_all_documents() {|find_all_documents
+crates/iwec/tests/find_test.rs|14|    let result = f.call_tool("iwe_find", json!({})).await;|find_all_documents
+crates/iwec/tests/find_test.rs|22|async fn find_by_query() {|find_by_query
+crates/iwec/tests/find_test.rs|30|    let result = f.call_tool("iwe_find", json!({"query": "rust"})).await;|find_by_query
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /tmp/bench-iwe-implement-2-hNjS72 && sqlite3 .indexnudge-rust.db "SELECT file FROM files WHERE file LIKE '%find%' OR file LIKE '%cli%' ORDER BY file;"
+
+crates/iwe/tests/find_test.rs
+crates/iwec/tests/find_test.rs
+crates/liwe/src/find.rs
+crates/liwe/tests/find_metadata_test.rs
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /tmp/bench-iwe-implement-2-hNjS72 && sqlite3 .indexnudge-rust.db "SELECT name, kind, file, start_line, end_line FROM symbols WHERE file LIKE 'crates/iwe/%' AND (name LIKE '%find%' OR name LIKE '%Find%') ORDER BY file, start_line;"
+
+Find|struct|crates/iwe/src/main.rs|134|134
+FindFormat|enum|crates/iwe/src/main.rs|162|166
+find_command|function|crates/iwe/src/main.rs|661|693
+render_find_output|function|crates/iwe/src/main.rs|695|712
+find_available_key|method|crates/iwe/src/new.rs|52|63
+find_extracted_file|function|crates/iwe/tests/extract_test.rs|367|380
+test_find_lists_all_documents|function|crates/iwe/tests/find_test.rs|52|86
+test_find_fuzzy_search|function|crates/iwe/tests/find_test.rs|89|105
+test_find_roots_only|function|crates/iwe/tests/find_test.rs|108|136
+test_find_refs_to|function|crates/iwe/tests/find_test.rs|139|178
+test_find_refs_from|function|crates/iwe/tests/find_test.rs|181|213
+test_find_limit|function|crates/iwe/tests/find_test.rs|216|234
+test_find_limit_shown_in_markdown|function|crates/iwe/tests/find_test.rs|237|254
+test_find_keys_format|function|crates/iwe/tests/find_test.rs|257|270
+test_find_markdown_format|function|crates/iwe/tests/find_test.rs|273|290
+test_find_with_parent_documents|function|crates/iwe/tests/find_test.rs|293|326
+test_find_is_root_flag|function|crates/iwe/tests/find_test.rs|329|356
+test_find_incoming_outgoing_refs|function|crates/iwe/tests/find_test.rs|359|398
+test_find_empty_workspace|function|crates/iwe/tests/find_test.rs|401|411
+test_find_query_with_no_match|function|crates/iwe/tests/find_test.rs|414|426
+test_find_search_query_in_output|function|crates/iwe/tests/find_test.rs|429|440
+test_find_no_query_null_in_output|function|crates/iwe/tests/find_test.rs|443|454
+test_find_markdown_with_query|function|crates/iwe/tests/find_test.rs|457|467
+test_find_refs_to_inline_link|function|crates/iwe/tests/find_test.rs|470|495
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /tmp/bench-iwe-implement-2-hNjS72 && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/iwe/src/main.rs' AND line_num BETWEEN 130 AND 170;"
+
+130|    about = help::find::ABOUT,
+131|    long_about = help::find::LONG_ABOUT,
+132|    after_help = help::find::AFTER_HELP
+133|)]
+134|struct Find {
+135|    #[clap(help = "Search query (fuzzy match on title and key)")]
+136|    query: Option<String>,
+137|
+138|    #[clap(long, help = "Only root documents (no incoming block refs)")]
+139|    roots: bool,
+140|
+141|    #[clap(long, help = "Documents that reference this key")]
+142|    refs_to: Option<String>,
+143|
+144|    #[clap(long, help = "Documents referenced by this key")]
+145|    refs_from: Option<String>,
+146|
+147|    #[clap(long, short = 'l', help = "Maximum results")]
+148|    limit: Option<usize>,
+149|
+150|    #[clap(long, short = 'f', value_enum, default_value = "markdown")]
+151|    format: FindFormat,
+152|
+153|    #[clap(long = "meta", value_parser = parse_meta_filter,
+154|           help = "Filter by front matter field (key=value); repeatable")]
+155|    meta: Vec<(String, String)>,
+156|
+157|    #[clap(flatten)]
+158|    selector: SelectorArgs,
+159|}
+160|
+161|#[derive(Debug, Clone, clap::ValueEnum)]
+162|enum FindFormat {
+163|    Markdown,
+164|    Keys,
+165|    Json,
+166|}
+167|
+168|#[derive(Debug, Args)]
+169|#[clap(
+170|    about = help::normalize::ABOUT,
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /tmp/bench-iwe-implement-2-hNjS72 && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/iwe/src/main.rs' AND line_num BETWEEN 661 AND 715;"
+
+661|fn find_command(args: Find) {
+662|    let config = get_configuration();
+663|    let graph = load_graph(&config);
+664|
+665|    let finder = DocumentFinder::new(&graph);
+666|    let options = FindOptions {
+667|        query: args.query,
+668|        roots: args.roots,
+669|        refs_to: args.refs_to.map(|s| Key::name(&s)),
+670|        refs_from: args.refs_from.map(|s| Key::name(&s)),
+671|        selector: args.selector.into(),
+672|        limit: args.limit,
+673|        metadata_filters: args.meta,
+674|    };
+675|
+676|    let output = finder.find(&options);
+677|
+678|    match args.format {
+679|        FindFormat::Json => {
+680|            let json = serde_json::to_string_pretty(&output).expect("Failed to serialize to JSON");
+681|            println!("{}", json);
+682|        }
+683|        FindFormat::Keys => {
+684|            for result in &output.results {
+685|                println!("{}", result.key);
+686|            }
+687|        }
+688|        FindFormat::Markdown => {
+689|            let rendered = render_find_output(&output);
+690|            print!("{}", rendered);
+691|        }
+692|    }
+693|}
+694|
+695|fn render_find_output(output: &iwe::find::FindOutput) -> String {
+696|    let mut result = String::new();
+697|
+698|    result.push_str(&format!("Found {} results", output.total));
+699|    if let Some(ref query) = output.query {
+700|        result.push_str(&format!(" for \"{}\"", query));
+701|    }
+702|    if let Some(limit) = output.limit {
+703|        result.push_str(&format!(" (showing {})", limit));
+704|    }
+705|    result.push_str(":\n\n");
+706|
+707|    for r in &output.results {
+708|        result.push_str(&format!("{}   #{}\n", r.display_title, r.key));
+709|    }
+710|
+711|    result
+712|}
+713|
+714|#[tracing::instrument(level = "debug")]
+715|fn init_command(init: Init) {
+  ────────────────────────────────────────
+  ▸ edit
+    path crates/iwe/src/main.rs
+    before:     #[clap(long, short = 'f', value_enum, default_value = "markdown")]
+    format: FindFormat,
+    after:     #[clap(long, short = 'f', value_enum, default_value = "markdown")]
+    format: FindFormat,
+
+    #[clap(long, short = 'c', help = "Print only the count of matching documents")]
+    count: bool,
+
+Edited crates/iwe/src/main.rs (2 lines -> 5 lines)
+  ────────────────────────────────────────
+  ▸ edit
+    path crates/iwe/src/main.rs
+    before:     match args.format {
+    after:     if args.count {
+        println!("{}", output.total);
+        return;
+    }
+
+    match args.format {
+
+Found 4 matches. Please provide more context to identify a unique match:
+
+Match 1 (line 639):
+```
+
+    match args.format {
+        RetrieveFormat::Json => {
+```
+Match 2 (line 681):
+```
+
+    match args.format {
+        FindFormat::Json => {
+```
+
+...and 2 more
+  ────────────────────────────────────────
+  ▸ edit
+    path crates/iwe/src/main.rs
+    before:     let output = finder.find(&options);
+
+    match args.format {
+        FindFormat::Json => {
+    after:     let output = finder.find(&options);
+
+    if args.count {
+        println!("{}", output.total);
+        return;
+    }
+
+    match args.format {
+        FindFormat::Json => {
+
+Edited crates/iwe/src/main.rs (4 lines -> 9 lines)
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /tmp/bench-iwe-implement-2-hNjS72 && cargo build 2>&1 | tail -5
+
+   Compiling liwe v0.0.70 (/tmp/bench-iwe-implement-2-hNjS72/crates/liwe)
+   Compiling iwe v0.0.70 (/tmp/bench-iwe-implement-2-hNjS72/crates/iwe)
+   Compiling iwes v0.0.70 (/tmp/bench-iwe-implement-2-hNjS72/crates/iwes)
+   Compiling iwec v0.0.70 (/tmp/bench-iwe-implement-2-hNjS72/crates/iwec)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 29.37s
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /tmp/bench-iwe-implement-2-hNjS72 && cargo test 2>&1 | tail -20
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests iwec
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests iwes
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests liwe
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /tmp/bench-iwe-implement-2-hNjS72 && cargo test 2>&1 | grep -E 'test result|FAILED|running'
+
+running 1 test
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 0 tests
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 0 tests
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 9 tests
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+running 1 test
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+running 12 tests
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+running 18 tests
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+running 8 tests
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+running 14 tests
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+running 12 tests
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+running 10 tests
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+running 8 tests
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+running 46 tests
+test result: ok. 46 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+running 15 tests
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+running 6 tests
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+running 15 tests
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+running 0 tests
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 0 tests
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 9 tests
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+running 5 tests
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+running 10 tests
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+running 0 tests
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 5 tests
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+running 2 tests
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 4 tests
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+running 6 tests
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+running 8 tests
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+running 3 tests
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 4 tests
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+running 5 tests
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+running 4 tests
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.30s
+running 12 tests
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+running 6 tests
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 0 tests
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 16 tests
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+running 5 tests
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 17 tests
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+running 4 tests
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 11 tests
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+running 6 tests
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 6 tests
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 14 tests
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+running 27 tests
+test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+running 3 tests
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 13 tests
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+running 12 tests
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+running 19 tests
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+running 7 tests
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 12 tests
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+running 8 tests
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+running 17 tests
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+running 25 tests
+test result: ok. 25 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+running 13 tests
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+running 6 tests
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 10 tests
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+running 10 tests
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+running 9 tests
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+running 14 tests
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+running 14 tests
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+running 88 tests
+test result: ok. 88 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+running 8 tests
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 12 tests
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 6 tests
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 24 tests
+test result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 4 tests
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 2 tests
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 16 tests
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 23 tests
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 2 tests
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 23 tests
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 1 test
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 19 tests
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 7 tests
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 12 tests
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 5 tests
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 9 tests
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 0 tests
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 0 tests
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 0 tests
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 0 tests
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00sAll green. Here's a summary of the changes:
+
+**`crates/iwe/src/main.rs`** — two edits:
+
+1. Added a `--count` / `-c` flag to the `Find` struct:
+   ```rust
+   #[clap(long, short = 'c', help = "Print only the count of matching documents")]
+   count: bool,
+   ```
+
+2. In `find_command`, added an early return before the format match:
+   ```rust
+   if args.count {
+       println!("{}", output.total);
+       return;
+   }
+   ```
+
+The flag works with all existing filters because it runs after `finder.find(&options)` — the same query pipeline applies regardless. It simply prints the `total` field from `FindOutput` and exits before any formatting.
+
+`cargo build` ✅ — `cargo test` ✅ (all tests pass).
+
+Wall clock: 128s

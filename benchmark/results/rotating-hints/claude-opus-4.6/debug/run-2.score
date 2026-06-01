@@ -1,0 +1,40 @@
+=== Score ===
+Wall clock: 255s
+Tokens: 17889 (in=17466, out=423)
+Tool calls: 19 | Navigation: 16
+  DB structural: 0
+  DB lines:      0
+  DB other:      0
+  Shim hit:      8
+  Shim fallthru: 8
+  Shim evasion:  0
+Scores:
+  db_ratio:         0.5
+  structural_ratio: 0
+  evasion_ratio:    0.0
+  line_ratio:       0.0
+  nav_ratio:        0.842
+
+Categories: {'shim_hit': 8, 'shim_fallthrough': 8, 'mutation': 1, 'non_shell_tool': 1, 'build_test': 1}
+
+Commands:
+  [shim_hit              ] cd /tmp/bench-iwe-debug-2-rddZqF && grep -r "bare" --include="*.rs" -l | head -20
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-2-rddZqF && grep -r "frontmatter\|front_matter\|parse_meta\|extract_meta\|yaml_front" --include=
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-2-rddZqF && grep -n "meta\|find\|filter\|matches" crates/liwe/src/model/node.rs | head -40
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-2-rddZqF && grep -n "meta\|frontmatter\|front_matter" crates/liwe/src/model/graph.rs | head -40
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-2-rddZqF && grep -rn "fn find\|fn filter_meta\|meta.*match\|--meta\|meta_filter\|meta_matches\|f
+  [shim_hit              ] cd /tmp/bench-iwe-debug-2-rddZqF && sed -n '250,300p' crates/liwe/src/find.rs
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-2-rddZqF && grep -n "get_metadata" crates/liwe/src/model/graph.rs
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-2-rddZqF && grep -rn "fn get_metadata" --include="*.rs"
+  [shim_hit              ] cd /tmp/bench-iwe-debug-2-rddZqF && sed -n '220,260p' crates/liwe/src/graph.rs
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-2-rddZqF && grep -n "metadata\.insert\|metadata\.entry\|self\.metadata" crates/liwe/src/graph.rs
+  [shim_hit              ] cd /tmp/bench-iwe-debug-2-rddZqF && sed -n '270,295p' crates/liwe/src/graph.rs
+  [shim_fallthrough      ] cd /tmp/bench-iwe-debug-2-rddZqF && grep -rn "fn document\|struct Document\|metadata" crates/liwe/src/markdown.rs | head
+  [shim_hit              ] cd /tmp/bench-iwe-debug-2-rddZqF && sed -n '60,100p' crates/liwe/src/markdown.rs
+  [shim_hit              ] cd /tmp/bench-iwe-debug-2-rddZqF && sed -n '29,65p' crates/liwe/src/markdown.rs
+  [mutation              ] cd /tmp/bench-iwe-debug-2-rddZqF && ed crates/liwe/src/markdown.rs <<'EOF'
+51,55c
+        Cow::Owned(format!("---\n{}\n-
+  [shim_hit              ] cd /tmp/bench-iwe-debug-2-rddZqF && cat -n crates/liwe/src/markdown.rs | head -60
+  [shim_hit              ] cd /tmp/bench-iwe-debug-2-rddZqF && cat crates/liwe/src/markdown.rs
+  [build_test            ] cd /tmp/bench-iwe-debug-2-rddZqF && cargo test 2>&1 | tail -20

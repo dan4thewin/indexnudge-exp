@@ -1,0 +1,31 @@
+=== Score ===
+Wall clock: 51s
+Tokens: 16372 (in=15340, out=1032)
+Tool calls: 11 | Navigation: 10
+  DB structural: 0
+  DB lines:      1
+  DB other:      1
+  Shim hit:      4
+  Shim fallthru: 4
+  Shim evasion:  0
+Scores:
+  db_ratio:         0.6
+  structural_ratio: 0.0
+  evasion_ratio:    0.0
+  line_ratio:       0.1
+  nav_ratio:        0.909
+
+Categories: {'direct_db_lines': 1, 'shim_fallthrough': 4, 'other': 1, 'direct_db_other': 1, 'shim_hit': 4}
+
+Commands:
+  [direct_db_lines       ] cd /tmp/bench-iwe-explore-2-N82wO0 && sqlite3 .codeindex.db "SELECT file, line, content FROM lines WHERE content LIKE '%
+  [shim_fallthrough      ] cd /tmp/bench-iwe-explore-2-N82wO0 && sqlite3 .codeindex.db ".schema" 2>/dev/null | head -40
+  [other                 ] cd /tmp/bench-iwe-explore-2-N82wO0 && ls .codeindex.db .indexnudge.db 2>/dev/null; ls *.db 2>/dev/null
+  [direct_db_other       ] cd /tmp/bench-iwe-explore-2-N82wO0 && sqlite3 .indexnudge.db ".tables"
+  [shim_fallthrough      ] cd /tmp/bench-iwe-explore-2-N82wO0 && grep -rn 'meta' --include='*.rs' -l | head -20
+  [shim_hit              ] cd /tmp/bench-iwe-explore-2-N82wO0 && grep -n 'meta' crates/iwe/src/main.rs
+  [shim_hit              ] cd /tmp/bench-iwe-explore-2-N82wO0 && sed -n '140,170p' crates/iwe/src/main.rs && echo "---" && sed -n '650,700p' crates
+  [shim_fallthrough      ] cd /tmp/bench-iwe-explore-2-N82wO0 && cat crates/liwe/src/find.rs
+  [shim_fallthrough      ] cd /tmp/bench-iwe-explore-2-N82wO0 && grep -n 'fn get_metadata' crates/liwe/src/graph.rs
+  [shim_hit              ] cd /tmp/bench-iwe-explore-2-N82wO0 && grep -rn 'fn get_metadata' crates/liwe/src/
+  [shim_hit              ] cd /tmp/bench-iwe-explore-2-N82wO0 && sed -n '220,245p' crates/liwe/src/graph.rs

@@ -1,0 +1,35 @@
+=== Score ===
+Wall clock: 170s
+Tokens: 26917 (in=26734, out=183)
+Tool calls: 19 | Navigation: 9
+  DB structural: 3
+  DB lines:      2
+  DB other:      0
+  Shim hit:      3
+  Shim fallthru: 1
+  Shim evasion:  0
+Scores:
+  db_ratio:         0.889
+  structural_ratio: 0.6
+  evasion_ratio:    0.0
+  line_ratio:       0.222
+  nav_ratio:        0.474
+
+Categories: {'non_shell_tool': 4, 'direct_db_lines': 2, 'direct_db_structural': 3, 'shim_fallthrough': 1, 'shim_hit': 3, 'other': 1, 'build_test': 5}
+
+Commands:
+  [direct_db_lines       ] cd /tmp/bench-iwe-implement-3-fATS1Q && sqlite3 .indexnudge-rust.db "SELECT * FROM lines_fts WHERE content MATCH 'find';
+  [direct_db_structural  ] cd /tmp/bench-iwe-implement-3-fATS1Q && sqlite3 .indexnudge-rust.db "SELECT file FROM files WHERE file LIKE '%find%' OR 
+  [direct_db_structural  ] cd /tmp/bench-iwe-implement-3-fATS1Q && sqlite3 .indexnudge-rust.db "SELECT file FROM files WHERE file LIKE '%cmd%' OR f
+  [direct_db_structural  ] cd /tmp/bench-iwe-implement-3-fATS1Q && sqlite3 .indexnudge-rust.db "SELECT file FROM files WHERE file LIKE 'crates/iwe/
+  [direct_db_lines       ] cd /tmp/bench-iwe-implement-3-fATS1Q && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='cra
+  [shim_fallthrough      ] cd /tmp/bench-iwe-implement-3-fATS1Q && grep -n 'find\|Find' crates/iwe/src/main.rs | head -40
+  [shim_hit              ] cd /tmp/bench-iwe-implement-3-fATS1Q && sed -n '130,700p' crates/iwe/src/main.rs
+  [shim_hit              ] cd /tmp/bench-iwe-implement-3-fATS1Q && sed -n '1,80p' crates/iwe/tests/find_test.rs
+  [other                 ] cd /tmp/bench-iwe-implement-3-fATS1Q && wc -l crates/iwe/tests/find_test.rs
+  [shim_hit              ] cd /tmp/bench-iwe-implement-3-fATS1Q && tail -20 crates/iwe/tests/find_test.rs
+  [build_test            ] cd /tmp/bench-iwe-implement-3-fATS1Q && cargo build 2>&1 | tail -5
+  [build_test            ] cd /tmp/bench-iwe-implement-3-fATS1Q && cargo test -p iwe -- find 2>&1 | tail -15
+  [build_test            ] cd /tmp/bench-iwe-implement-3-fATS1Q && cargo test -p iwe --test find_test 2>&1 | tail -20
+  [build_test            ] cd /tmp/bench-iwe-implement-3-fATS1Q && cargo test 2>&1 | tail -5
+  [build_test            ] cd /tmp/bench-iwe-implement-3-fATS1Q && cargo test 2>&1 | grep -E 'test result|FAILED'

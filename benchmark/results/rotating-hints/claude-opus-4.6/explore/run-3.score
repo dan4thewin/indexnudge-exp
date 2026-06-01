@@ -1,0 +1,38 @@
+=== Score ===
+Wall clock: 67s
+Tokens: 14876 (in=13790, out=1086)
+Tool calls: 18 | Navigation: 16
+  DB structural: 0
+  DB lines:      6
+  DB other:      1
+  Shim hit:      4
+  Shim fallthru: 5
+  Shim evasion:  0
+Scores:
+  db_ratio:         0.688
+  structural_ratio: 0.0
+  evasion_ratio:    0.0
+  line_ratio:       0.375
+  nav_ratio:        0.889
+
+Categories: {'direct_db_lines': 6, 'shim_fallthrough': 5, 'other': 2, 'direct_db_other': 1, 'shim_hit': 4}
+
+Commands:
+  [direct_db_lines       ] cd /tmp/bench-iwe-explore-3-uNbbbH && sqlite3 .codeindex.db "SELECT file, line, content FROM lines WHERE content LIKE '%
+  [shim_fallthrough      ] cd /tmp/bench-iwe-explore-3-uNbbbH && sqlite3 .codeindex.db ".schema" 2>/dev/null | head -30
+  [other                 ] cd /tmp/bench-iwe-explore-3-uNbbbH && ls *.db 2>/dev/null; find . -name "*.db" -maxdepth 2 2>/dev/null
+  [direct_db_other       ] cd /tmp/bench-iwe-explore-3-uNbbbH && sqlite3 .indexnudge.db ".tables"
+  [direct_db_lines       ] cd /tmp/bench-iwe-explore-3-uNbbbH && sqlite3 .indexnudge.db "SELECT file, line, content FROM lines WHERE content LIKE '
+  [direct_db_lines       ] cd /tmp/bench-iwe-explore-3-uNbbbH && sqlite3 .indexnudge.db "SELECT * FROM lines LIMIT 1"
+  [direct_db_lines       ] cd /tmp/bench-iwe-explore-3-uNbbbH && sqlite3 .indexnudge.db "SELECT file, lineno, content FROM lines WHERE content LIKE
+  [direct_db_lines       ] cd /tmp/bench-iwe-explore-3-uNbbbH && sqlite3 .indexnudge.db "SELECT file, line_num, content FROM lines WHERE content LI
+  [direct_db_lines       ] cd /tmp/bench-iwe-explore-3-uNbbbH && sqlite3 .indexnudge.db "SELECT file, line_num, content FROM lines WHERE content LI
+  [shim_fallthrough      ] cd /tmp/bench-iwe-explore-3-uNbbbH && grep -rn "meta" crates/iwec/src/ | grep -i find | head -20
+  [shim_hit              ] cd /tmp/bench-iwe-explore-3-uNbbbH && grep -rn "meta" crates/iwec/src/*.rs 2>/dev/null | head -30; grep -rn "meta" crate
+  [shim_fallthrough      ] cd /tmp/bench-iwe-explore-3-uNbbbH && cat crates/iwec/src/lib.rs | sed -n '100,145p'
+  [shim_fallthrough      ] cd /tmp/bench-iwe-explore-3-uNbbbH && cat crates/liwe/src/find.rs | sed -n '30,100p'
+  [shim_hit              ] cd /tmp/bench-iwe-explore-3-uNbbbH && cat crates/liwe/src/find.rs | sed -n '245,300p'
+  [shim_fallthrough      ] cd /tmp/bench-iwe-explore-3-uNbbbH && grep -rn "meta" crates/iwec/src/main.rs 2>/dev/null | head -20; grep -rn "find_com
+  [other                 ] cd /tmp/bench-iwe-explore-3-uNbbbH && grep -rn "meta\|find" crates/iwec/src/lib.rs | grep -i "command\|clap\|arg\|handle
+  [shim_hit              ] cd /tmp/bench-iwe-explore-3-uNbbbH && grep -rn "get_metadata" crates/liwe/src/ | head -20
+  [shim_hit              ] cd /tmp/bench-iwe-explore-3-uNbbbH && sed -n '215,240p' crates/liwe/src/graph.rs

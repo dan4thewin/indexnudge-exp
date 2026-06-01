@@ -1,0 +1,78 @@
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /tmp/bench-iwe-explore-1-cvocAv && sqlite3 .codeindex.db "SELECT file, line, content FROM lines WHERE content LIKE '%meta%' AND (file LIKE '%find%' OR file LIKE '%cli%' OR file LIKE '%arg%') ORDER BY file, line" 2>/dev/null | head -60
+
+(no output)
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /tmp/bench-iwe-explore-1-cvocAv && sqlite3 .codeindex.db ".schema" 2>/dev/null | head -40
+
+(no output)
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /tmp/bench-iwe-explore-1-cvocAv && ls *.db 2>/dev/null; ls -la
+
+total 29984
+drwx------  7 dangood dangood     4096 May  9 19:31 .
+drwxrwxrwt 90 root    root      282624 May  9 19:31 ..
+-rw-r--r--  1 dangood dangood        0 May  9 19:31 .codeindex.db
+drwxrwxr-x  8 dangood dangood     4096 May  9 19:31 .git
+drwxrwxr-x  3 dangood dangood     4096 May  9 19:31 .github
+-rw-rw-r--  1 dangood dangood       43 May  9 19:31 .gitignore
+-rw-rw-r--  1 dangood dangood     1984 May  9 19:31 .goosehints
+-rw-r--r--  1 dangood dangood 15212544 May  9 19:31 .indexnudge-rust.db
+-rw-rw-r--  1 dangood dangood 15015936 May  9 19:31 .indexnudge.db
+-rw-rw-r--  1 dangood dangood      541 May  9 19:31 .release-plz.toml
+-rw-rw-r--  1 dangood dangood     8085 May  9 19:31 AUDIT_FINDINGS.md
+-rw-rw-r--  1 dangood dangood     2567 May  9 19:31 BARE_FRONTMATTER_SPEC.md
+-rw-rw-r--  1 dangood dangood     3298 May  9 19:31 CONTRIBUTING.md
+-rw-rw-r--  1 dangood dangood    69605 May  9 19:31 Cargo.lock
+-rw-rw-r--  1 dangood dangood     1686 May  9 19:31 Cargo.toml
+-rw-rw-r--  1 dangood dangood    13889 May  9 19:31 ENHANCEMENTS_SPEC.md
+-rw-rw-r--  1 dangood dangood    13680 May  9 19:31 IMPLEMENTATION_PLAN.md
+-rw-rw-r--  1 dangood dangood    10837 May  9 19:31 LICENSE-APACHE
+-rw-rw-r--  1 dangood dangood     9136 May  9 19:31 README.md
+drwxrwxr-x  3 dangood dangood     4096 May  9 19:31 audit
+drwxrwxr-x  6 dangood dangood     4096 May  9 19:31 crates
+drwxrwxr-x  2 dangood dangood     4096 May  9 19:31 docs
+-rwxrwxr-x  1 dangood dangood     1213 May  9 19:31 run-enhancements.sh
+-rwxrwxr-x  1 dangood dangood     3263 May  9 19:31 run-merge-envelope.sh
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /tmp/bench-iwe-explore-1-cvocAv && sqlite3 .indexnudge.db ".schema" 2>/dev/null | head -30
+
+CREATE TABLE lines (
+            file     TEXT,
+            line_num INTEGER,
+            content  TEXT,
+            symbol   TEXT,
+            PRIMARY KEY (file, line_num)
+        );
+CREATE VIRTUAL TABLE lines_fts USING fts5(file, line_num, content, symbol)
+/* lines_fts(file,line_num,content,symbol) */;
+CREATE TABLE 'lines_fts_data'(id INTEGER PRIMARY KEY, block BLOB);
+CREATE TABLE 'lines_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
+CREATE TABLE 'lines_fts_content'(id INTEGER PRIMARY KEY, c0, c1, c2, c3);
+CREATE TABLE 'lines_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
+CREATE TABLE 'lines_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID;
+CREATE TABLE symbols (
+            id             INTEGER PRIMARY KEY,
+            name           TEXT,
+            qualified_name TEXT,
+            kind           TEXT,
+            file           TEXT,
+            start_line     INTEGER,
+            end_line       INTEGER,
+            parent         TEXT,
+            signature      TEXT
+        );
+CREATE TABLE calls (
+            caller_file   TEXT,
+            caller_symbol TEXT,
+            callee        TEXT,
+            callee_qname  TEXT,Ran into this error: Request failed: Request failed with status 499 <unknown status code>: .
+
+Please retry if you think this is a transient or recoverable error.
+
+Wall clock: 13s

@@ -1,0 +1,79 @@
+=== Score ===
+Wall clock: 312s
+Tokens: 36177 (in=35702, out=475)
+Tool calls: 27 | Navigation: 11
+  DB structural: 3
+  DB lines:      8
+  DB other:      0
+  Shim hit:      0
+  Shim fallthru: 0
+  Shim evasion:  0
+Scores:
+  db_ratio:         1.0
+  structural_ratio: 0.273
+  evasion_ratio:    0.0
+  line_ratio:       0.727
+  nav_ratio:        0.407
+
+Categories: {'non_shell_tool': 3, 'other': 1, 'direct_db_structural': 3, 'direct_db_lines': 8, 'build_test': 6, 'mutation': 4, 'git': 2}
+
+Commands:
+  [other                 ] sqlite3 .indexnudge-rust.db ".schema"
+  [direct_db_structural  ] sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files ORDER BY file;"
+  [direct_db_structural  ] sqlite3 .indexnudge-rust.db "SELECT name, kind, file, start_line, end_line FROM symbols WHERE file IN ('crates/liwe/src/
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/src/find.rs' AND line_num BETWE
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines_fts WHERE content MATCH 'get_metadata OR metadata
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines_fts WHERE content MATCH '\"get_metadata\"' ORDER 
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/src/graph.rs' AND line_num BETW
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/src/graph.rs' AND line_num BETW
+  [direct_db_structural  ] sqlite3 .indexnudge-rust.db "SELECT name, kind, file, start_line, end_line FROM symbols WHERE file='crates/liwe/src/mark
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/src/markdown/reader.rs' AND lin
+  [build_test            ] ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+10a
+
+fn setup_bare_graph(input: &str) -> Graph {
+    Graph::import
+  [mutation              ] ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+1,190n
+q
+EOF
+  [build_test            ] ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+132,151d
+161a
+
+#[test]
+fn bare_frontmatter_value_in_yaml_sequence_
+  [mutation              ] ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+120,210n
+q
+EOF
+  [mutation              ] ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+$=
+120,$n
+q
+EOF
+  [build_test            ] ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+143,193c
+#[test]
+fn combines_with_roots_flag() {
+    let graph = s
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines_fts WHERE content MATCH '\"bare_frontmatter\"' OR
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/liwe/src/markdown/writer.rs' AND lin
+  [build_test            ] ed -s crates/liwe/src/markdown.rs <<'EOF'
+50,64c
+    let header = header.trim_end();
+    if rest.is_empty() {
+        Co
+  [build_test            ] cargo test
+  [git                   ] git diff -- crates/liwe/src/markdown.rs crates/liwe/tests/find_metadata_test.rs && git status --short
+  [mutation              ] ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+120,140n
+q
+EOF
+  [git                   ] ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+132d
+w
+q
+EOF
+git diff --check
+  [build_test            ] cargo test

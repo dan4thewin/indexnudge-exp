@@ -1,0 +1,55 @@
+=== Score ===
+Wall clock: 305s
+Tokens: 44248 (in=43649, out=599)
+Tool calls: 24 | Navigation: 13
+  DB structural: 1
+  DB lines:      4
+  DB other:      2
+  Shim hit:      4
+  Shim fallthru: 2
+  Shim evasion:  0
+Scores:
+  db_ratio:         0.846
+  structural_ratio: 0.2
+  evasion_ratio:    0.0
+  line_ratio:       0.308
+  nav_ratio:        0.542
+
+Categories: {'non_shell_tool': 3, 'direct_db_other': 2, 'direct_db_structural': 1, 'direct_db_lines': 4, 'shim_fallthrough': 2, 'shim_hit': 4, 'build_test': 4, 'git': 4}
+
+Commands:
+  [direct_db_other       ] pwd && ls -la && (test -f .indexnudge.db && sqlite3 .indexnudge.db '.tables' || true)
+  [direct_db_structural  ] sqlite3 .indexnudge.db "select path, line_count from files order by path limit 80;" 2>/dev/null || find . -maxdepth 3 -t
+  [direct_db_lines       ] sqlite3 .indexnudge.db "select path,line_number,line from lines_fts join lines on lines_fts.rowid=lines.rowid where line
+  [direct_db_other       ] sqlite3 .indexnudge.db '.schema lines' && sqlite3 .indexnudge.db '.schema files' && sqlite3 .indexnudge.db '.schema line
+  [direct_db_lines       ] sqlite3 .indexnudge.db "select file,line_num,content from lines_fts where lines_fts match 'meta OR frontmatter OR depend
+  [direct_db_lines       ] sqlite3 .indexnudge.db "select file,line_num,content from lines_fts where lines_fts match 'metadata_filters OR metadata 
+  [direct_db_lines       ] sqlite3 .indexnudge.db "select file,line_num,content from lines_fts where lines_fts match 'struct DocumentFinder OR impl
+  [shim_fallthrough      ] grep -R "metadata_filters\|DocumentFinder\|serde_yaml\|Value::Sequence\|bare_frontmatter" -n crates/liwe/src crates/liwe
+  [shim_hit              ] sed -n '1,130p' crates/liwe/src/markdown.rs && printf '\n--- find ---\n' && sed -n '1,320p' crates/liwe/src/find.rs && p
+  [shim_hit              ] sed -n '1,240p' crates/liwe/src/markdown/reader.rs && printf '\n--- bare tests rest ---\n' && sed -n '1,220p' crates/liw
+  [shim_fallthrough      ] sed -n '1,220p' BARE_FRONTMATTER_SPEC.md && printf '\n--- markdown.rs real ---\n' && /bin/cat crates/liwe/src/markdown.r
+  [shim_hit              ] grep -R "fn from_indoc\|pub fn import\|fn import" -n crates/liwe/src crates/liwe/tests | head -80 && sed -n '1,140p' cra
+  [shim_hit              ] sed -n '1,190p' crates/liwe/tests/find_metadata_test.rs
+  [build_test            ] python3 - <<'PY'
+from pathlib import Path
+p=Path('crates/liwe/tests/find_metadata_test.rs')
+s=p.read_text()
+s=s.replace(
+  [build_test            ] ed -s crates/liwe/src/markdown.rs <<'EOF'
+50,63c
+    let cleaned_header = header.trim_end();
+
+    if rest.is_empty() {
+ 
+  [build_test            ] ed -s crates/liwe/src/markdown.rs <<'EOF'
+57d
+w
+EOF
+sed -n '46,62p' crates/liwe/src/markdown.rs
+cargo test -p liwe value
+  [build_test            ] cargo fmt && git diff -- crates/liwe/src/markdown.rs crates/liwe/tests/find_metadata_test.rs && cargo test
+  [git                   ] git diff -- crates/liwe/src/markdown.rs crates/liwe/tests/find_metadata_test.rs && git status --short
+  [git                   ] git show HEAD:crates/liwe/src/markdown.rs | sed -n '40,65p' && printf '\nWORKTREE:\n' && /bin/sed -n '40,65p' crates/liw
+  [git                   ] git diff --stat && git diff --name-only | wc -l && git status --short
+  [git                   ] git diff -w --name-only | sort | sed -n '1,120p'; echo COUNT=$(git diff -w --name-only | wc -l)

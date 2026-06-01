@@ -1,0 +1,44 @@
+=== Score ===
+Wall clock: 245s
+Tokens: 33722 (in=33355, out=367)
+Tool calls: 17 | Navigation: 7
+  DB structural: 0
+  DB lines:      0
+  DB other:      1
+  Shim hit:      3
+  Shim fallthru: 3
+  Shim evasion:  0
+Scores:
+  db_ratio:         0.571
+  structural_ratio: 0
+  evasion_ratio:    0.0
+  line_ratio:       0.0
+  nav_ratio:        0.412
+
+Categories: {'non_shell_tool': 4, 'direct_db_other': 1, 'shim_fallthrough': 3, 'shim_hit': 3, 'build_test': 3, 'git': 3}
+
+Commands:
+  [direct_db_other       ] pwd && ls -la && (test -f .indexnudge.db && sqlite3 .indexnudge.db '.tables' || true)
+  [shim_fallthrough      ] grep -R "frontmatter\|front matter\|depends\|--meta\|meta" -n crates src tests 2>/dev/null | head -200
+  [shim_hit              ] sed -n '1,130p' crates/liwe/src/markdown.rs && sed -n '1,140p' crates/liwe/src/markdown/reader.rs && sed -n '240,330p' c
+  [shim_fallthrough      ] sed -n '1,180p' BARE_FRONTMATTER_SPEC.md && sed -n '1,140p' ENHANCEMENTS_SPEC.md | sed -n '1,100p'
+  [shim_hit              ] sed -n '1,220p' crates/liwe/src/markdown/writer.rs && sed -n '1,220p' crates/liwe/src/find.rs && sed -n '1,120p' crates/
+  [shim_hit              ] grep -R "fn from_indoc\|pub fn from_indoc\|struct State" -n crates/liwe/src crates/liwe/tests | head -80 && sed -n '1,14
+  [shim_fallthrough      ] cat > /tmp/check_bare_meta.rs <<'EOF'
+use indoc::indoc;
+use liwe::find::{DocumentFinder, FindOptions};
+use liwe::graph::
+  [build_test            ] ed -s crates/liwe/tests/find_metadata_test.rs <<'EOF'
+129a
+
+#[test]
+fn bare_frontmatter_yaml_sequence_matches() {
+    le
+  [build_test            ] ed -s crates/liwe/src/markdown.rs <<'EOF'
+50,64c
+    if rest.is_empty() {
+        Cow::Owned(format!("---\n{}\n---\n", h
+  [build_test            ] cargo test
+  [git                   ] git diff -- crates/liwe/src/markdown.rs crates/liwe/tests/find_metadata_test.rs && git status --short
+  [git                   ] /bin/sed -n '26,66p' crates/liwe/src/markdown.rs && git diff -- crates/liwe/src/markdown.rs
+  [git                   ] git show HEAD:crates/liwe/src/markdown.rs | /bin/sed -n '26,66p'; git status --short

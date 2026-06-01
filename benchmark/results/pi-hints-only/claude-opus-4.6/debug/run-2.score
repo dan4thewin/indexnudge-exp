@@ -1,0 +1,46 @@
+Tokens: 222359 (in=197997, out=4367)
+Tool calls: 19 | Navigation: 14
+  DB structural: 0
+  DB lines:      0
+  DB other:      0
+  Shim hit:      1
+  Shim fallthru: 8
+  Shim evasion:  0
+  File read:     5
+Scores:
+  db_ratio:         0.071
+  structural_ratio: 0.0
+  evasion_ratio:    0.0
+  file_read_ratio:  0.357
+  line_ratio:       0.0
+  nav_ratio:        0.737
+
+Categories: {'shim_fallthrough': 8, 'shim_hit': 1, 'file_read': 5, 'mutation': 2, 'build_test': 3}
+
+Commands:
+  [shim_fallthrough      ] ls && find . -type f -name "*.md" | head -5
+  [shim_fallthrough      ] cat BARE_FRONTMATTER_SPEC.md | head -100
+  [shim_fallthrough      ] grep -rn "bare_frontmatter\|--meta\|meta_filter\|depends" crates --include="*.rs" | head -40
+  [shim_hit              ] grep -n "meta" crates/iwe/src/main.rs | head -40
+  [file_read             ] read crates/iwe/src/main.rs
+  [shim_fallthrough      ] grep -rn "metadata_filters\|DocumentFinder\|fn find" crates/iwe/src/find* 2>/dev/null | head -30; ls crates/iwe/src/
+  [shim_fallthrough      ] grep -rn "metadata_filters\|DocumentFinder\|fn find\b\|metadata_filter" crates/iwe/src/ crates/liwe/src/ 2>/dev/null | h
+  [file_read             ] read crates/liwe/src/find.rs
+  [file_read             ] read crates/liwe/src/markdown.rs
+  [file_read             ] read crates/liwe/tests/bare_frontmatter_test.rs
+  [shim_fallthrough      ] cd /tmp/pi-bench-iwe-debug-2-VYehAb && cat > /tmp/repro.md << 'EOF'
+title: Test
+depends:
+  - foo
+
+# Body
+EOF
+grep -rn "g
+  [mutation              ] edit crates/liwe/src/markdown.rs
+  [shim_fallthrough      ] grep -n "metadata_matches\|fn test\|#\[test\]" crates/liwe/src/find.rs crates/iwe/tests/*.rs 2>/dev/null | grep -i "meta
+  [shim_fallthrough      ] grep -n "metadata_filter\|--meta\|depends" crates/iwe/tests/find_test.rs | head
+  [file_read             ] read crates/iwe/tests/find_test.rs
+  [mutation              ] edit crates/liwe/tests/bare_frontmatter_test.rs
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-2-VYehAb && cargo test -p liwe --test bare_frontmatter_test 2>&1 | tail -30
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-2-VYehAb && cargo test 2>&1 | tail -50
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-2-VYehAb && cargo test 2>&1 | grep -E "test result|FAILED" | head -40

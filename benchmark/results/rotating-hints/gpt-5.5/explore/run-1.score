@@ -1,0 +1,41 @@
+=== Score ===
+Wall clock: 131s
+Tokens: 45144 (in=40250, out=4894)
+Tool calls: 23 | Navigation: 20
+  DB structural: 3
+  DB lines:      7
+  DB other:      1
+  Shim hit:      9
+  Shim fallthru: 0
+  Shim evasion:  0
+Scores:
+  db_ratio:         1.0
+  structural_ratio: 0.3
+  evasion_ratio:    0.0
+  line_ratio:       0.35
+  nav_ratio:        0.87
+
+Categories: {'non_shell_tool': 2, 'other': 1, 'direct_db_other': 1, 'direct_db_lines': 7, 'direct_db_structural': 3, 'shim_hit': 9}
+
+Commands:
+  [other                 ] pwd; ls -la; test -f .indexnudge.db && echo HAS_INDEXNUDGE; test -f .codeindex.db && echo HAS_CODEINDEX
+  [direct_db_other       ] sqlite3 .indexnudge.db '.schema' 2>/dev/null | head -120
+  [direct_db_lines       ] sqlite3 .indexnudge.db "select file, line_num, content from lines_fts where lines_fts match 'meta' order by file,line_nu
+  [direct_db_structural  ] sqlite3 .indexnudge.db "select name,qualified_name,kind,file,start_line,end_line,signature from symbols where file='crat
+  [shim_hit              ] sed -n '1,220p' crates/iwe/src/main.rs && printf '\n---\n' && sed -n '630,710p' crates/iwe/src/main.rs
+  [direct_db_lines       ] sqlite3 .indexnudge.db "select file,line_num,content from lines where content like '%metadata_filters%' order by file,li
+  [shim_hit              ] sed -n '1,180p' crates/liwe/src/find.rs && printf '\n--- tests ---\n' && sed -n '1,220p' crates/liwe/tests/find_metadata
+  [shim_hit              ] sed -n '180,360p' crates/liwe/src/find.rs && printf '\n--- rest tests ---\n' && sed -n '160,260p' crates/liwe/tests/find
+  [direct_db_structural  ] sqlite3 .indexnudge.db "select name,qualified_name,kind,file,start_line,end_line,signature from symbols where file='crat
+  [direct_db_lines       ] sed -n '1000,1070p' crates/iwe/src/main.rs && sqlite3 .indexnudge.db "select file,line_num,content from lines where cont
+  [direct_db_lines       ] sed -n '1,310p' crates/liwe/src/graph.rs && sqlite3 .indexnudge.db "select file,line_num,content from lines where conten
+  [direct_db_lines       ] sed -n '340,395p' crates/liwe/src/graph.rs && sed -n '1,80p' crates/liwe/src/model/document.rs && sqlite3 .indexnudge.db
+  [shim_hit              ] sed -n '1,95p' crates/liwe/src/markdown.rs && sed -n '1,115p' crates/liwe/src/markdown/reader.rs && sed -n '560,610p' cr
+  [direct_db_structural  ] sqlite3 .indexnudge.db "select name,qualified_name,kind,file,start_line,end_line from symbols where file='crates/liwe/sr
+  [shim_hit              ] sed -n '260,385p' crates/liwe/src/markdown/reader.rs
+  [shim_hit              ] sed -n '385,425p' crates/liwe/src/markdown/reader.rs
+  [direct_db_lines       ] sqlite3 .indexnudge.db "select file,line_num,content from lines where content like '%fn new_for_path_with_options%' or c
+  [shim_hit              ] sed -n '1,90p' crates/liwe/src/fs.rs && sed -n '1,35p' crates/liwe/src/model.rs
+  [shim_hit              ] sed -n '1,220p' crates/iwe/src/selector.rs && sed -n '1,220p' crates/liwe/src/selector.rs
+  [direct_db_lines       ] sqlite3 .indexnudge.db "select file,line_num,content from lines where content like '%find_command(%' or content like '%D
+  [shim_hit              ] sed -n '90,145p' crates/iwec/src/lib.rs && sed -n '410,440p' crates/iwec/src/lib.rs

@@ -1,0 +1,35 @@
+Tokens: 116041 (in=101903, out=2420)
+Tool calls: 15 | Navigation: 8
+  DB structural: 0
+  DB lines:      0
+  DB other:      0
+  Shim hit:      0
+  Shim fallthru: 6
+  Shim evasion:  0
+  File read:     2
+Scores:
+  db_ratio:         0.0
+  structural_ratio: 0.0
+  evasion_ratio:    0.0
+  file_read_ratio:  0.25
+  line_ratio:       0.0
+  nav_ratio:        0.533
+
+Categories: {'shim_fallthrough': 6, 'file_read': 2, 'mutation': 1, 'build_test': 6}
+
+Commands:
+  [shim_fallthrough      ] ls && find . -type f -name "*.rs" | xargs grep -l "find" | head -20
+  [shim_fallthrough      ] grep -n -i "find\|count\|meta\|roots\|refs-to" crates/iwe/src/main.rs | head -50
+  [file_read             ] read crates/iwe/src/main.rs
+  [file_read             ] read crates/iwe/src/main.rs
+  [mutation              ] edit crates/iwe/src/main.rs
+  [shim_fallthrough      ] grep -n "total\|results" crates/iwe/src/find.rs | head -30
+  [shim_fallthrough      ] grep -rn "pub total\|FindOutput" crates/iwe/src/ | head
+  [shim_fallthrough      ] grep -rn "FindOutput\|pub total" crates/ | head
+  [shim_fallthrough      ] grep -n "total\|results\|limit\|FindOutput" crates/liwe/src/find.rs | head -40
+  [build_test            ] cd /tmp/pi-bench-iwe-implement-2-swamv5 && cargo build 2>&1 | tail -20
+  [build_test            ] cd /tmp/pi-bench-iwe-implement-2-swamv5 && cargo test 2>&1 | tail -30
+  [build_test            ] cd /tmp/pi-bench-iwe-implement-2-swamv5 && git stash && cargo test -p iwes --test transform_test transform_action_with_s
+  [build_test            ] cd /tmp/pi-bench-iwe-implement-2-swamv5 && cargo test -p iwes --test transform_test 2>&1 | tail -10
+  [build_test            ] cd /tmp/pi-bench-iwe-implement-2-swamv5 && cargo test 2>&1 | tail -15
+  [build_test            ] cd /tmp/pi-bench-iwe-implement-2-swamv5 && cargo test 2>&1 | grep -E "^test result|FAILED" | tail -30

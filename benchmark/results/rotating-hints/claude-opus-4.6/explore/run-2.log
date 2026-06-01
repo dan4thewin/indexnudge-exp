@@ -1,0 +1,594 @@
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /tmp/bench-iwe-explore-2-N82wO0 && sqlite3 .codeindex.db "SELECT file, line, content FROM lines WHERE content LIKE '%meta%' AND (file LIKE '%find%' OR file LIKE '%cli%' OR file LIKE '%command%') ORDER BY file, line" 2>/dev/null | head -60
+
+(no output)
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /tmp/bench-iwe-explore-2-N82wO0 && sqlite3 .codeindex.db ".schema" 2>/dev/null | head -40
+
+(no output)
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /tmp/bench-iwe-explore-2-N82wO0 && ls .codeindex.db .indexnudge.db 2>/dev/null; ls *.db 2>/dev/null
+
+.codeindex.db
+.indexnudge.db
+
+Command exited with code 2
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /tmp/bench-iwe-explore-2-N82wO0 && sqlite3 .indexnudge.db ".tables"
+
+calls           files       lines_fts             lines_fts_data        symbols
+defs            imports     lines_fts_config      lines_fts_docsize
+directories     lines       lines_fts_content     lines_fts_idx
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /tmp/bench-iwe-explore-2-N82wO0 && grep -rn 'meta' --include='*.rs' -l | head -20
+
+crates/iwec/src/lib.rs
+crates/iwes/tests/format_document_test.rs
+crates/iwe/src/main.rs
+crates/iwe/src/render.rs
+crates/liwe/tests/find_metadata_test.rs
+crates/liwe/tests/normalization_metadata.rs
+crates/liwe/tests/bare_frontmatter_test.rs
+crates/liwe/src/markdown.rs
+crates/liwe/src/graph.rs
+crates/liwe/src/markdown/reader.rs
+crates/liwe/src/graph/basic_iter.rs
+crates/liwe/src/graph/graph_node.rs
+crates/liwe/src/model/projector.rs
+crates/liwe/src/model/config.rs
+crates/liwe/src/model/document.rs
+crates/liwe/src/find.rs
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /tmp/bench-iwe-explore-2-N82wO0 && grep -n 'meta' crates/iwe/src/main.rs
+
+── sqlite3 /tmp/bench-iwe-explore-2-N82wO0/.indexnudge-rust.db ──
+
+
+── crates/iwe/src/main.rs ──
+
+  (top-level)
+    153 │     #[clap(long = "meta", value_parser = parse_meta_filter,
+    155 │     meta: Vec<(String, String)>,
+
+  parse_meta_filter (L654-L658)
+    654 │ fn parse_meta_filter(s: &str) -> Result<(String, String), String> {
+
+  find_command (L661-L693)
+    673 │         metadata_filters: args.meta,
+
+── 13 matches across 4 file(s) ──
+── tip: sqlite3 .indexnudge-rust.db "SELECT name, kind, start_line, end_line FROM symbols WHERE file='crates/iwe/src/main.rs';" ──
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /tmp/bench-iwe-explore-2-N82wO0 && sed -n '140,170p' crates/iwe/src/main.rs && echo "---" && sed -n '650,700p' crates/iwe/src/main.rs
+
+── crates/iwe/src/main.rs (L140-L170) ──
+ 140 │ 
+ 141 │     #[clap(long, help = "Documents that reference this key")]
+ 142 │     refs_to: Option<String>,
+ 143 │ 
+ 144 │     #[clap(long, help = "Documents referenced by this key")]
+ 145 │     refs_from: Option<String>,
+ 146 │ 
+ 147 │     #[clap(long, short = 'l', help = "Maximum results")]
+ 148 │     limit: Option<usize>,
+ 149 │ 
+ 150 │     #[clap(long, short = 'f', value_enum, default_value = "markdown")]
+ 151 │     format: FindFormat,
+ 152 │ 
+ 153 │     #[clap(long = "meta", value_parser = parse_meta_filter,
+ 154 │            help = "Filter by front matter field (key=value); repeatable")]
+ 155 │     meta: Vec<(String, String)>,
+ 156 │ 
+ 157 │     #[clap(flatten)]
+ 158 │     selector: SelectorArgs,
+ 159 │ }
+ 160 │ 
+ 161 │ #[derive(Debug, Clone, clap::ValueEnum)]
+ 162 │ enum FindFormat {
+ 163 │     Markdown,
+ 164 │     Keys,
+ 165 │     Json,
+ 166 │ }
+ 167 │ 
+ 168 │ #[derive(Debug, Args)]
+ 169 │ #[clap(
+ 170 │     about = help::normalize::ABOUT,
+── tip: sqlite3 .indexnudge-rust.db "SELECT caller, callee_qname FROM calls WHERE file='crates/iwe/src/main.rs';" — trace call graph ──
+---
+── crates/iwe/src/main.rs (L650-L700) ──
+
+  ── retrieve_command (L570-L652) ──
+ 650 │         }
+ 651 │     }
+ 652 │ }
+ 653 │ 
+
+  ── parse_meta_filter (L654-L658) ──
+ 654 │ fn parse_meta_filter(s: &str) -> Result<(String, String), String> {
+ 655 │     s.split_once('=')
+ 656 │         .map(|(k, v)| (k.trim().to_string(), v.trim().to_string()))
+ 657 │         .ok_or_else(|| format!("expected key=value, got `{}`", s))
+ 658 │ }
+ 659 │ 
+ 660 │ #[tracing::instrument(level = "debug")]
+
+  ── find_command (L661-L693) ──
+ 661 │ fn find_command(args: Find) {
+ 662 │     let config = get_configuration();
+ 663 │     let graph = load_graph(&config);
+ 664 │ 
+ 665 │     let finder = DocumentFinder::new(&graph);
+ 666 │     let options = FindOptions {
+ 667 │         query: args.query,
+ 668 │         roots: args.roots,
+ 669 │         refs_to: args.refs_to.map(|s| Key::name(&s)),
+ 670 │         refs_from: args.refs_from.map(|s| Key::name(&s)),
+ 671 │         selector: args.selector.into(),
+ 672 │         limit: args.limit,
+ 673 │         metadata_filters: args.meta,
+ 674 │     };
+ 675 │ 
+ 676 │     let output = finder.find(&options);
+ 677 │ 
+ 678 │     match args.format {
+ 679 │         FindFormat::Json => {
+ 680 │             let json = serde_json::to_string_pretty(&output).expect("Failed to serialize to JSON");
+ 681 │             println!("{}", json);
+ 682 │         }
+ 683 │         FindFormat::Keys => {
+ 684 │             for result in &output.results {
+ 685 │                 println!("{}", result.key);
+ 686 │             }
+ 687 │         }
+ 688 │         FindFormat::Markdown => {
+ 689 │             let rendered = render_find_output(&output);
+ 690 │             print!("{}", rendered);
+ 691 │         }
+ 692 │     }
+ 693 │ }
+ 694 │ 
+
+  ── render_find_output (L695-L712) ──
+ 695 │ fn render_find_output(output: &iwe::find::FindOutput) -> String {
+ 696 │     let mut result = String::new();
+ 697 │ 
+ 698 │     result.push_str(&format!("Found {} results", output.total));
+ 699 │     if let Some(ref query) = output.query {
+ 700 │         result.push_str(&format!(" for \"{}\"", query));
+── tip: sqlite3 .indexnudge-rust.db "SELECT module, name FROM imports WHERE file='crates/iwe/src/main.rs';" — see dependencies ──
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /tmp/bench-iwe-explore-2-N82wO0 && cat crates/liwe/src/find.rs
+
+── crates/liwe/src/find.rs ──
+   1 │ use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
+   2 │ use itertools::Itertools;
+   3 │ use serde::Serialize;
+   4 │ use crate::graph::{Graph, GraphContext};
+   5 │ use crate::model::node::{NodeIter, NodePointer};
+   6 │ use crate::model::{Key, NodeId};
+   7 │ use crate::selector::Selector;
+   8 │ 
+   9 │ #[derive(Debug, Clone, Serialize)]
+  10 │ pub struct ParentDocumentInfo {
+  11 │     pub key: String,
+  12 │     pub title: String,
+  13 │     pub section_path: Vec<String>,
+  14 │ }
+  15 │ 
+  16 │ #[derive(Debug, Clone, Serialize)]
+  17 │ pub struct FindResult {
+  18 │     pub key: String,
+  19 │     pub title: String,
+  20 │     pub display_title: String,
+  21 │     pub is_root: bool,
+  22 │     pub incoming_refs: usize,
+  23 │     pub outgoing_refs: usize,
+  24 │     pub parent_documents: Vec<ParentDocumentInfo>,
+  25 │ }
+  26 │ 
+  27 │ #[derive(Debug, Clone, Serialize)]
+  28 │ pub struct FindOutput {
+  29 │     pub query: Option<String>,
+  30 │     pub limit: Option<usize>,
+  31 │     pub total: usize,
+  32 │     pub results: Vec<FindResult>,
+  33 │ }
+  34 │ 
+  35 │ #[derive(Debug, Clone, Default)]
+  36 │ pub struct FindOptions {
+  37 │     pub query: Option<String>,
+  38 │     pub roots: bool,
+  39 │     pub refs_to: Option<Key>,
+  40 │     pub refs_from: Option<Key>,
+  41 │     pub selector: Selector,
+  42 │     pub limit: Option<usize>,
+  43 │     pub metadata_filters: Vec<(String, String)>,
+  44 │ }
+  45 │ 
+  46 │ pub struct DocumentFinder<'a> {
+  47 │     graph: &'a Graph,
+  48 │ }
+  49 │ 
+  50 │ impl<'a> DocumentFinder<'a> {
+
+  ── DocumentFinder::new ──
+  51 │     pub fn new(graph: &'a Graph) -> Self {
+  52 │         Self { graph }
+  53 │     }
+  54 │ 
+
+  ── DocumentFinder::find ──
+  55 │     pub fn find(&self, options: &FindOptions) -> FindOutput {
+  56 │         let matcher = SkimMatcherV2::default();
+  57 │ 
+  58 │         let candidate_set = if options.selector.is_empty() {
+  59 │             None
+  60 │         } else {
+  61 │             Some(options.selector.resolve(self.graph))
+  62 │         };
+  63 │ 
+  64 │         let mut results: Vec<(Key, i64)> = self
+  65 │             .graph
+  66 │             .keys()
+  67 │             .into_iter()
+  68 │             .filter_map(|key| {
+  69 │                 if let Some(set) = &candidate_set {
+  70 │                     if !set.contains(&key) {
+  71 │                         return None;
+  72 │                     }
+  73 │                 }
+  74 │                 if options.roots && !self.is_root(&key) {
+  75 │                     return None;
+  76 │                 }
+  77 │                 if let Some(ref target) = options.refs_to {
+  78 │                     if !self.references(&key, target) {
+  79 │                         return None;
+  80 │                     }
+  81 │                 }
+  82 │                 if let Some(ref source) = options.refs_from {
+  83 │                     if !self.references(source, &key) {
+  84 │                         return None;
+  85 │                     }
+  86 │                 }
+  87 │ 
+  88 │                 if !options.metadata_filters.is_empty()
+  89 │                     && !self.metadata_matches(&key, &options.metadata_filters)
+  90 │                 {
+  91 │                     return None;
+  92 │                 }
+  93 │ 
+  94 │                 let title = self.graph.get_key_title(&key).unwrap_or_default();
+  95 │                 let search_text = format!("{} {}", key, title);
+  96 │ 
+  97 │                 let score = options
+  98 │                     .query
+  99 │                     .as_ref()
+ 100 │                     .map(|q| matcher.fuzzy_match(&search_text, q).unwrap_or(0))
+ 101 │                     .unwrap_or(self.node_rank(&key) as i64);
+ 102 │ 
+ 103 │                 if options.query.is_some() && score == 0 {
+ 104 │                     return None;
+ 105 │                 }
+ 106 │ 
+ 107 │                 Some((key, score))
+ 108 │             })
+ 109 │             .collect();
+ 110 │ 
+ 111 │         results.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+ 112 │ 
+ 113 │         let total = results.len();
+ 114 │         let results: Vec<FindResult> = if let Some(limit) = options.limit {
+ 115 │             results
+ 116 │                 .into_iter()
+ 117 │                 .take(limit)
+ 118 │                 .map(|(key, _)| self.build_result(&key))
+ 119 │                 .collect()
+ 120 │         } else {
+ 121 │             results
+ 122 │                 .into_iter()
+ 123 │                 .map(|(key, _)| self.build_result(&key))
+ 124 │                 .collect()
+ 125 │         };
+ 126 │ 
+ 127 │         let limit = options.limit.filter(|&l| l < total);
+ 128 │ 
+ 129 │         FindOutput {
+ 130 │             query: options.query.clone(),
+ 131 │             limit,
+ 132 │             total,
+ 133 │             results,
+ 134 │         }
+ 135 │     }
+ 136 │ 
+
+  ── DocumentFinder::build_result ──
+ 137 │     fn build_result(&self, key: &Key) -> FindResult {
+ 138 │         let title = self.graph.get_key_title(key).unwrap_or_default();
+ 139 │         let parent_documents = self.get_parent_documents(key);
+ 140 │         let display_title = Self::render_display_title(&title, &parent_documents);
+ 141 │ 
+ 142 │         FindResult {
+ 143 │             key: key.to_string(),
+ 144 │             title,
+ 145 │             display_title,
+ 146 │             is_root: self.is_root(key),
+ 147 │             incoming_refs: self.graph.get_block_references_to(key).len()
+ 148 │                 + self.graph.get_inline_references_to(key).len(),
+ 149 │             outgoing_refs: self.graph.get_block_references_in(key).len(),
+ 150 │             parent_documents,
+ 151 │         }
+ 152 │     }
+ 153 │ 
+
+  ── DocumentFinder::render_display_title ──
+ 154 │     fn render_display_title(title: &str, parent_documents: &[ParentDocumentInfo]) -> String {
+ 155 │         if parent_documents.is_empty() {
+ 156 │             title.to_string()
+ 157 │         } else {
+ 158 │             let parents = parent_documents
+ 159 │                 .iter()
+ 160 │                 .map(|p| format!("↖{}", p.title))
+ 161 │                 .collect::<Vec<_>>()
+ 162 │                 .join(" ");
+ 163 │             format!("{} {}", title, parents)
+ 164 │         }
+ 165 │     }
+ 166 │ 
+
+  ── DocumentFinder::is_root ──
+ 167 │     fn is_root(&self, key: &Key) -> bool {
+ 168 │         self.graph.get_block_references_to(key).is_empty()
+ 169 │     }
+ 170 │ 
+
+  ── DocumentFinder::node_rank ──
+ 171 │     fn node_rank(&self, key: &Key) -> usize {
+ 172 │         self.graph.get_inline_references_to(key).len()
+ 173 │             + self.graph.get_block_references_to(key).len()
+ 174 │     }
+ 175 │ 
+
+  ── DocumentFinder::references ──
+ 176 │     fn references(&self, source: &Key, target: &Key) -> bool {
+ 177 │         let block_refs = self.graph.get_block_references_in(source);
+ 178 │         for ref_id in block_refs {
+ 179 │             if let Some(ref_key) = self.graph.graph_node(ref_id).ref_key() {
+ 180 │                 if &ref_key == target {
+ 181 │                     return true;
+ 182 │                 }
+ 183 │             }
+ 184 │         }
+ 185 │ 
+ 186 │         if let Some(node_id) = self.graph.get_node_id(source) {
+ 187 │             let sub_nodes = self.graph.node(node_id).get_all_sub_nodes();
+ 188 │             for sub_node_id in sub_nodes {
+ 189 │                 if let Some(line_id) = self.graph.graph_node(sub_node_id).line_id() {
+ 190 │                     let line = self.graph.get_line(line_id);
+ 191 │                     for ref_key in line.ref_keys() {
+ 192 │                         if &ref_key == target {
+ 193 │                             return true;
+ 194 │                         }
+ 195 │                     }
+ 196 │                 }
+ 197 │             }
+ 198 │         }
+ 199 │ 
+ 200 │         false
+ 201 │     }
+ 202 │ 
+
+  ── DocumentFinder::get_parent_documents ──
+ 203 │     fn get_parent_documents(&self, key: &Key) -> Vec<ParentDocumentInfo> {
+ 204 │         let refs = self.graph.get_block_references_to(key);
+ 205 │         let mut parents = Vec::new();
+ 206 │ 
+ 207 │         for ref_id in refs {
+ 208 │             let node = self.graph.node(ref_id);
+ 209 │ 
+ 210 │             if let Some(doc_node) = node.to_document() {
+ 211 │                 if let Some(doc_key) = doc_node.document_key() {
+ 212 │                     let title = self
+ 213 │                         .graph
+ 214 │                         .get_key_title(&doc_key)
+ 215 │                         .unwrap_or_else(|| doc_key.to_string());
+ 216 │ 
+ 217 │                     let section_path = self.get_section_path(ref_id);
+ 218 │ 
+ 219 │                     parents.push(ParentDocumentInfo {
+ 220 │                         key: doc_key.to_string(),
+ 221 │                         title,
+ 222 │                         section_path,
+ 223 │                     });
+ 224 │                 }
+ 225 │             }
+ 226 │         }
+ 227 │ 
+ 228 │         parents.into_iter().unique_by(|p| p.key.clone()).collect()
+ 229 │     }
+ 230 │ 
+
+  ── DocumentFinder::get_section_path ──
+ 231 │     fn get_section_path(&self, node_id: NodeId) -> Vec<String> {
+ 232 │         let mut path = Vec::new();
+ 233 │         let mut current = self.graph.node(node_id);
+ 234 │ 
+ 235 │         while let Some(parent) = current.to_parent() {
+ 236 │             if parent.is_section()
+ 237 │                 && parent
+ 238 │                     .to_parent()
+ 239 │                     .map(|p| p.is_document())
+ 240 │                     .unwrap_or(true)
+ 241 │             {
+ 242 │                 let text = parent.plain_text().trim().to_string();
+ 243 │                 path.push(text);
+ 244 │             }
+ 245 │             if parent.is_document() {
+ 246 │                 break;
+ 247 │             }
+ 248 │             current = parent;
+ 249 │         }
+ 250 │         path
+ 251 │     }
+ 252 │ 
+
+  ── DocumentFinder::metadata_matches ──
+ 253 │     fn metadata_matches(&self, key: &Key, filters: &[(String, String)]) -> bool {
+ 254 │         let raw = match self.graph.get_metadata(key) {
+ 255 │             Some(s) => s,
+ 256 │             None => return false,
+ 257 │         };
+ 258 │         let val: serde_yaml::Value = match serde_yaml::from_str(raw) {
+ 259 │             Ok(v) => v,
+ 260 │             _ => return false,
+ 261 │         };
+ 262 │         filters.iter().all(|(k, v)| {
+ 263 │             val.get(k.as_str())
+ 264 │                 .and_then(|node| match node {
+ 265 │                     serde_yaml::Value::String(s) => Some(s.as_str() == v.as_str()),
+ 266 │                     serde_yaml::Value::Bool(b) => Some(b.to_string() == *v),
+ 267 │                     serde_yaml::Value::Number(n) => Some(n.to_string() == *v),
+ 268 │                     serde_yaml::Value::Sequence(items) => Some(
+ 269 │                         items
+ 270 │                             .iter()
+ 271 │                             .any(|i| i.as_str().map(|s| s == v.as_str()).unwrap_or(false)),
+ 272 │                     ),
+ 273 │                     _ => Some(false),
+ 274 │                 })
+ 275 │                 .unwrap_or(false)
+ 276 │         })
+ 277 │     }
+ 278 │ }
+── tip: ed file <<'EOF' — use DB line numbers for precise addressing ──
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /tmp/bench-iwe-explore-2-N82wO0 && grep -n 'fn get_metadata' crates/liwe/src/graph.rs
+
+(no output)
+
+Command exited with code 1
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /tmp/bench-iwe-explore-2-N82wO0 && grep -rn 'fn get_metadata' crates/liwe/src/
+
+── sqlite3 /tmp/bench-iwe-explore-2-N82wO0/.indexnudge-rust.db ──
+
+
+── crates/liwe/src/graph.rs ──
+
+  Graph::get_metadata
+    223 │     pub fn get_metadata(&self, key: &Key) -> Option<&str> {
+
+── 1 matches across 1 file(s) ──
+── tip: sqlite3 .indexnudge-rust.db "SELECT name, kind, start_line, end_line FROM symbols WHERE file='...';" ──
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /tmp/bench-iwe-explore-2-N82wO0 && sed -n '220,245p' crates/liwe/src/graph.rs
+
+── crates/liwe/src/graph.rs (L220-L245) ──
+
+  ── Graph::get_key_title ──
+ 220 │         self.keys_to_ref_text.get(key).cloned()
+ 221 │     }
+ 222 │ 
+
+  ── Graph::get_metadata ──
+ 223 │     pub fn get_metadata(&self, key: &Key) -> Option<&str> {
+ 224 │         self.metadata.get(key).map(|s| s.as_str())
+ 225 │     }
+ 226 │ 
+
+  ── Graph::build_key_and ──
+ 227 │     pub fn build_key_and<F>(&mut self, key: &Key, f: F) -> &mut Self
+ 228 │     where
+ 229 │         F: FnOnce(&mut GraphBuilder),
+ 230 │     {
+ 231 │         let id = self.arena.new_node_id();
+ 232 │         self.keys.insert(key.clone(), id);
+ 233 │         self.arena
+ 234 │             .set_node(id, GraphNode::new_root(key.clone(), id, None));
+ 235 │         f(&mut GraphBuilder::new(self, id));
+ 236 │ 
+ 237 │         self.extract_ref_text(key)
+ 238 │             .map(|text| self.keys_to_ref_text.insert(key.clone(), text));
+ 239 │ 
+ 240 │         let mut index = RefIndex::new();
+ 241 │         index.index_node(self, id);
+ 242 │         self.index.merge(index);
+ 243 │ 
+ 244 │         self
+ 245 │     }
+── tip: sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files;" ──Here's the complete data flow for `iwe find --meta`:
+
+---
+
+## Data Flow: `iwe find --meta key=value`
+
+### 1. CLI Parsing
+
+**`parse_meta_filter`** (`crates/iwe/src/main.rs:654-658`)
+Clap calls this for each `--meta` argument. Splits the string on the first `=`, trims whitespace from key and value, returns `(String, String)`. Errors if no `=` is found. The `Find` struct accumulates these into `meta: Vec<(String, String)>`.
+
+### 2. Command Dispatch
+
+**`find_command`** (`crates/iwe/src/main.rs:661-693`)
+Builds a `FindOptions` struct, mapping `args.meta` → `metadata_filters`. Creates a `DocumentFinder` over the loaded graph and calls `finder.find(&options)`.
+
+### 3. Main Filter Loop
+
+**`DocumentFinder::find`** (`crates/liwe/src/find.rs:55-135`)
+Iterates over every key in the graph (`self.graph.keys()`). Each key passes through a chain of `filter_map` guards:
+
+1. Selector filter (tag/path narrowing)
+2. `--roots` filter
+3. `--refs-to` filter
+4. `--refs-from` filter
+5. **Metadata filter** (lines 88-92): if `metadata_filters` is non-empty, calls `self.metadata_matches(&key, &options.metadata_filters)`. Returns `None` (filters out) if it returns `false`.
+6. Fuzzy query scoring
+
+All filters are **conjunctive** (AND) — a document must pass every active filter.
+
+### 4. Metadata Matching
+
+**`DocumentFinder::metadata_matches`** (`crates/liwe/src/find.rs:253-277`)
+
+1. Calls **`Graph::get_metadata(&key)`** (`crates/liwe/src/graph.rs:223-225`) — looks up `self.metadata` (a `HashMap<Key, String>`) for the raw YAML front matter string. Returns `None` → document has no metadata → **rejected**.
+
+2. Parses the raw string with `serde_yaml::from_str` into a `serde_yaml::Value`. Parse failure → **rejected**.
+
+3. Checks that **all** filter pairs match (conjunctive/AND via `.all()`). For each `(k, v)` filter pair:
+   - Looks up `val.get(k)` in the parsed YAML mapping.
+   - Key not found → **rejected**.
+   - Key found → matches by YAML node type:
+     - **String**: exact string equality (`s == v`)
+     - **Bool**: stringified comparison (`b.to_string() == v`, e.g. `"true"`)
+     - **Number**: stringified comparison (`n.to_string() == v`)
+     - **Sequence** (list): returns `true` if **any** string element in the list equals `v` (membership test)
+     - **Any other type** (mapping, null): always `false`
+
+### Summary of Functions
+
+| # | Function | File | Role |
+|---|----------|------|------|
+| 1 | `parse_meta_filter` | `main.rs:654` | Parse `key=value` CLI arg |
+| 2 | `find_command` | `main.rs:661` | Wire args into `FindOptions`, invoke finder |
+| 3 | `DocumentFinder::find` | `find.rs:55` | Iterate all keys, apply filter chain |
+| 4 | `DocumentFinder::metadata_matches` | `find.rs:253` | Test one document against all `--meta` filters |
+| 5 | `Graph::get_metadata` | `graph.rs:223` | Retrieve raw YAML front matter for a key |
+
+### Key Design Points
+
+- Multiple `--meta` flags are **AND**-ed: a document must match all of them.
+- Sequence values use **membership** semantics: `--meta tags=rust` matches `tags: [rust, cli]`.
+- Matching is **exact** (no wildcards, no case folding).
+- The metadata filter sits in the same `filter_map` pipeline as all other filters — no separate pass.
+
+Wall clock: 51s

@@ -1,0 +1,103 @@
+=== Score ===
+Wall clock: 271s
+Tokens: 42862 (in=42451, out=411)
+Tool calls: 35 | Navigation: 8
+  DB structural: 2
+  DB lines:      6
+  DB other:      0
+  Shim hit:      0
+  Shim fallthru: 0
+  Shim evasion:  0
+Scores:
+  db_ratio:         1.0
+  structural_ratio: 0.25
+  evasion_ratio:    0.0
+  line_ratio:       0.75
+  nav_ratio:        0.229
+
+Categories: {'non_shell_tool': 5, 'direct_db_structural': 2, 'direct_db_lines': 6, 'mutation': 8, 'build_test': 11, 'git': 3}
+
+Commands:
+  [direct_db_structural  ] sqlite3 .indexnudge-rust.db ".schema" && sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files ORDER BY file;"
+  [direct_db_structural  ] sqlite3 .indexnudge-rust.db "SELECT name, kind, file, start_line, end_line, signature FROM symbols WHERE file IN ('crate
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/iwe/src/main.rs' AND line_num BETWEE
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/iwe/tests/find_test.rs' AND line_num
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/iwe/tests/find_test.rs' AND line_num
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/iwe/src/help.rs' AND line_num BETWEE
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines_fts WHERE content MATCH 'find NEAR count' OR cont
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+156a
+
+    #[clap(long, help = "Print only the number of matching documents")]
+    c
+  [build_test            ] cargo build
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+650,695p
+EOF
+  [build_test            ] ed -s crates/iwe/src/main.rs <<'EOF'
+675,681c
+    };
+
+    let output = finder.find(&options);
+
+    if args.count {
+     
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+660,690p
+EOF
+  [build_test            ] ed -s crates/iwe/src/main.rs <<'EOF'
+669,684c
+    let options = FindOptions {
+        query: args.query,
+        roots: 
+  [build_test            ] cargo test
+  [git                   ] git diff -- crates/iwe/src/main.rs crates/iwe/tests/find_test.rs && git diff --check
+  [build_test            ] ed -s crates/iwe/src/main.rs <<'EOF'
+156d
+685d
+w
+EOF
+git diff --check && cargo build && cargo test
+  [build_test            ] cargo test -p iwes --test transform_test transform_action_with_static_output -- --nocapture
+  [build_test            ] cargo test
+  [git                   ] git diff -- crates/iwe/src/main.rs crates/iwe/tests/find_test.rs && git status --short
+  [direct_db_lines       ] sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='crates/iwe/src/main.rs' AND line_num BETWEE
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+145,165p
+670,690p
+EOF
+  [build_test            ] ed -s crates/iwe/src/main.rs <<'EOF'
+680d
+w
+EOF
+git diff --check && cargo build && cargo test -p iwe --test find_test &&
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+660,705p
+EOF
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+/find_command/=
+/println!("{}", output.total)/=
+EOF
+  [build_test            ] ed -s crates/iwe/src/main.rs <<'EOF'
+676,682c
+    let output = finder.find(&options);
+
+    if args.count {
+        print
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+660,705p
+EOF
+  [build_test            ] ed -s crates/iwe/src/main.rs <<'EOF'
+668,682c
+    let options = FindOptions {
+        query: args.query,
+        roots: 
+  [mutation              ] ed -s crates/iwe/src/main.rs <<'EOF'
+660,710p
+EOF
+  [build_test            ] ed -s crates/iwe/src/main.rs <<'EOF'
+685d
+w
+EOF
+git diff --check && cargo build && cargo test -p iwe --test find_test &&
+  [git                   ] git diff -- crates/iwe/src/main.rs crates/iwe/tests/find_test.rs && git diff --check && git status --short

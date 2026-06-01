@@ -1,0 +1,32 @@
+Tokens: 88566 (in=76488, out=1949)
+Tool calls: 12 | Navigation: 8
+  DB structural: 0
+  DB lines:      0
+  DB other:      0
+  Shim hit:      0
+  Shim fallthru: 6
+  Shim evasion:  0
+  File read:     2
+Scores:
+  db_ratio:         0.0
+  structural_ratio: 0.0
+  evasion_ratio:    0.0
+  file_read_ratio:  0.25
+  line_ratio:       0.0
+  nav_ratio:        0.667
+
+Categories: {'shim_fallthrough': 6, 'file_read': 2, 'mutation': 1, 'build_test': 3}
+
+Commands:
+  [shim_fallthrough      ] ls && find . -type f -name "*.rs" | xargs grep -l "find" | head -20
+  [shim_fallthrough      ] grep -n -i "find\|count" crates/iwe/src/main.rs | head -50
+  [file_read             ] read crates/iwe/src/main.rs
+  [file_read             ] read crates/iwe/src/main.rs
+  [mutation              ] edit crates/iwe/src/main.rs
+  [shim_fallthrough      ] grep -n "total\|results\|FindOutput" crates/iwe/src/find.rs | head -30
+  [shim_fallthrough      ] grep -rn "struct FindOutput\|total:" crates/iwe/src/ | head
+  [shim_fallthrough      ] grep -rn "FindOutput" crates/ | head
+  [shim_fallthrough      ] grep -rn "FindOutput\|pub struct\|total" crates/liwe/src/find* crates/liwe/src/ 2>/dev/null | grep -i "find\|total" | he
+  [build_test            ] cd /tmp/pi-bench-iwe-implement-3-71XQZJ && cargo build 2>&1 | tail -20
+  [build_test            ] cd /tmp/pi-bench-iwe-implement-3-71XQZJ && cargo test 2>&1 | tail -30
+  [build_test            ] cd /tmp/pi-bench-iwe-implement-3-71XQZJ && cargo test 2>&1 | grep -E "FAIL|failed|test result" | head

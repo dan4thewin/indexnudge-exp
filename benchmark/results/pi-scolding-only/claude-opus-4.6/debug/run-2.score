@@ -1,0 +1,48 @@
+Tokens: 338367 (in=310526, out=5501)
+Tool calls: 23 | Navigation: 17
+  DB structural: 2
+  DB lines:      5
+  DB other:      0
+  Shim hit:      0
+  Shim fallthru: 2
+  Shim evasion:  0
+  File read:     8
+Scores:
+  db_ratio:         0.412
+  structural_ratio: 0.133
+  evasion_ratio:    0.0
+  file_read_ratio:  0.471
+  line_ratio:       0.294
+  nav_ratio:        0.739
+
+Categories: {'direct_db_structural': 2, 'direct_db_lines': 5, 'file_read': 8, 'other': 1, 'shim_fallthrough': 2, 'mutation': 1, 'build_test': 4}
+
+Commands:
+  [direct_db_structural  ] cd /tmp/pi-bench-iwe-debug-2-bOH8Hx && sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files ORDER BY file;" | head
+  [direct_db_lines       ] cd /tmp/pi-bench-iwe-debug-2-bOH8Hx && sqlite3 .indexnudge-rust.db "SELECT * FROM lines_fts WHERE content MATCH 'bare' L
+  [direct_db_lines       ] cd /tmp/pi-bench-iwe-debug-2-bOH8Hx && sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines WHERE cont
+  [file_read             ] read crates/iwe/src/main.rs
+  [direct_db_lines       ] cd /tmp/pi-bench-iwe-debug-2-bOH8Hx && sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines WHERE cont
+  [file_read             ] read crates/iwe/src/main.rs
+  [direct_db_structural  ] cd /tmp/pi-bench-iwe-debug-2-bOH8Hx && find crates -name "find*.rs" -o -name "finder*.rs" | head; sqlite3 .indexnudge-ru
+  [file_read             ] read crates/liwe/src/find.rs
+  [file_read             ] read crates/liwe/src/graph.rs
+  [direct_db_lines       ] cd /tmp/pi-bench-iwe-debug-2-bOH8Hx && sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines WHERE cont
+  [file_read             ] read crates/liwe/src/markdown/reader.rs
+  [direct_db_lines       ] cd /tmp/pi-bench-iwe-debug-2-bOH8Hx && sqlite3 .indexnudge-rust.db "SELECT file, line_num, content FROM lines WHERE cont
+  [file_read             ] read crates/liwe/src/markdown.rs
+  [file_read             ] read crates/liwe/tests/bare_frontmatter_test.rs
+  [other                 ] cd /tmp/pi-bench-iwe-debug-2-bOH8Hx && ls crates/liwe/tests/find_metadata_test.rs && wc -l crates/liwe/tests/find_metada
+  [file_read             ] read crates/liwe/tests/find_metadata_test.rs
+  [shim_fallthrough      ] cd /tmp/pi-bench-iwe-debug-2-bOH8Hx && cat > /tmp/repro.rs << 'EOF'
+use liwe::markdown::wrap_bare_frontmatter;
+fn main()
+  [mutation              ] edit crates/liwe/src/markdown.rs
+  [shim_fallthrough      ] cd /tmp/pi-bench-iwe-debug-2-bOH8Hx && cat >> crates/liwe/tests/find_metadata_test.rs << 'EOF'
+
+#[test]
+fn bare_frontmat
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-2-bOH8Hx && cargo test -p liwe 2>&1 | tail -40
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-2-bOH8Hx && cargo test -p liwe 2>&1 | grep -E "(FAILED|test result|bare_frontmatter_sequence)
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-2-bOH8Hx && cargo test 2>&1 | grep -E "(FAILED|^failures|test result: FAILED|error\[)" | head
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-2-bOH8Hx && cargo test 2>&1 | tail -5

@@ -1,0 +1,41 @@
+Tokens: 294559 (in=266276, out=4433)
+Tool calls: 21 | Navigation: 14
+  DB structural: 0
+  DB lines:      0
+  DB other:      0
+  Shim hit:      0
+  Shim fallthru: 8
+  Shim evasion:  0
+  File read:     6
+Scores:
+  db_ratio:         0.0
+  structural_ratio: 0.0
+  evasion_ratio:    0.0
+  file_read_ratio:  0.429
+  line_ratio:       0.0
+  nav_ratio:        0.667
+
+Categories: {'shim_fallthrough': 8, 'file_read': 6, 'mutation': 4, 'build_test': 3}
+
+Commands:
+  [shim_fallthrough      ] ls && find . -type f -name "*.md" | head -5
+  [shim_fallthrough      ] ls crates && grep -r "bare" --include="*.rs" -l | head -20
+  [shim_fallthrough      ] grep -rn "depends\|meta" crates/iwe/src/selector.rs crates/liwe/src/selector.rs | head -30
+  [shim_fallthrough      ] grep -rn "find\|--meta\|meta_filter\|parse_meta" crates/iwe/src/ | head -30
+  [shim_fallthrough      ] grep -rn "meta\|frontmatter\|depends" crates/liwe/src/find* crates/liwe/src/find/ 2>/dev/null | head -50; find crates/li
+  [file_read             ] read crates/liwe/src/find.rs
+  [shim_fallthrough      ] grep -n "get_metadata\|metadata" crates/liwe/src/model/graph.rs | head -40
+  [shim_fallthrough      ] grep -rn "fn get_metadata\|metadata" crates/liwe/src/ | head -40
+  [file_read             ] read crates/liwe/tests/bare_frontmatter_test.rs
+  [file_read             ] read crates/liwe/src/markdown/reader.rs
+  [file_read             ] read crates/liwe/src/markdown.rs
+  [mutation              ] edit crates/liwe/src/markdown.rs
+  [mutation              ] edit crates/liwe/tests/bare_frontmatter_test.rs
+  [file_read             ] read crates/liwe/tests/bare_frontmatter_test.rs
+  [mutation              ] edit crates/liwe/tests/bare_frontmatter_test.rs
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-2-sc3CiZ && cargo test --quiet 2>&1 | tail -50
+  [shim_fallthrough      ] cd /tmp/pi-bench-iwe-debug-2-sc3CiZ && grep -rn "fn from_indoc\|pub fn from_indoc" crates/liwe/src/state*
+  [file_read             ] read crates/liwe/src/state.rs
+  [mutation              ] edit crates/liwe/tests/bare_frontmatter_test.rs
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-2-sc3CiZ && cargo test --quiet 2>&1 | tail -30
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-2-sc3CiZ && cargo test 2>&1 | grep -E "test result|FAIL" | tail -30

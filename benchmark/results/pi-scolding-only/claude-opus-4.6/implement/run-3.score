@@ -1,0 +1,36 @@
+Tokens: 111702 (in=96394, out=3050)
+Tool calls: 13 | Navigation: 7
+  DB structural: 1
+  DB lines:      3
+  DB other:      0
+  Shim hit:      0
+  Shim fallthru: 1
+  Shim evasion:  0
+  File read:     2
+Scores:
+  db_ratio:         0.571
+  structural_ratio: 0.167
+  evasion_ratio:    0.0
+  file_read_ratio:  0.286
+  line_ratio:       0.429
+  nav_ratio:        0.538
+
+Categories: {'direct_db_structural': 1, 'direct_db_lines': 3, 'file_read': 2, 'mutation': 1, 'build_test': 4, 'other': 1, 'shim_fallthrough': 1}
+
+Commands:
+  [direct_db_structural  ] cd /tmp/pi-bench-iwe-implement-3-2aNNh6 && sqlite3 .indexnudge-rust.db "SELECT file, lines FROM files WHERE file LIKE '%
+  [direct_db_lines       ] cd /tmp/pi-bench-iwe-implement-3-2aNNh6 && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='
+  [file_read             ] read crates/iwe/src/main.rs
+  [file_read             ] read crates/iwe/src/main.rs
+  [mutation              ] edit crates/iwe/src/main.rs
+  [build_test            ] cd /tmp/pi-bench-iwe-implement-3-2aNNh6 && cargo build 2>&1 | tail -20
+  [direct_db_lines       ] cd /tmp/pi-bench-iwe-implement-3-2aNNh6 && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='
+  [direct_db_lines       ] cd /tmp/pi-bench-iwe-implement-3-2aNNh6 && sqlite3 .indexnudge-rust.db "SELECT line_num, content FROM lines WHERE file='
+  [other                 ] cd /tmp/pi-bench-iwe-implement-3-2aNNh6 && wc -l crates/iwe/tests/find_test.rs
+  [shim_fallthrough      ] cd /tmp/pi-bench-iwe-implement-3-2aNNh6 && cat >> crates/iwe/tests/find_test.rs << 'EOF'
+
+#[test]
+fn test_find_count_fla
+  [build_test            ] cd /tmp/pi-bench-iwe-implement-3-2aNNh6 && cargo test --test find_test 2>&1 | tail -30
+  [build_test            ] cd /tmp/pi-bench-iwe-implement-3-2aNNh6 && cargo test 2>&1 | tail -15
+  [build_test            ] cd /tmp/pi-bench-iwe-implement-3-2aNNh6 && cargo test 2>&1 | grep -E "(test result|FAILED|error)" | head -20

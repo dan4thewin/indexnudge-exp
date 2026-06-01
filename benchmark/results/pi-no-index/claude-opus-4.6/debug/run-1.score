@@ -1,0 +1,50 @@
+Tokens: 324450 (in=300931, out=4506)
+Tool calls: 26 | Navigation: 20
+  DB structural: 0
+  DB lines:      0
+  DB other:      0
+  Shim hit:      0
+  Shim fallthru: 12
+  Shim evasion:  0
+  File read:     8
+Scores:
+  db_ratio:         0.0
+  structural_ratio: 0.0
+  evasion_ratio:    0.0
+  file_read_ratio:  0.4
+  line_ratio:       0.0
+  nav_ratio:        0.769
+
+Categories: {'shim_fallthrough': 12, 'file_read': 8, 'mutation': 1, 'build_test': 4, 'other': 1}
+
+Commands:
+  [shim_fallthrough      ] ls && find . -type f -name "*.toml" | head -5
+  [shim_fallthrough      ] grep -r "bare" --include="*.rs" -l crates/ | head -20
+  [shim_fallthrough      ] grep -rn "meta" crates/iwe/src/selector.rs crates/liwe/src/selector.rs | head -30
+  [shim_fallthrough      ] grep -rn "meta\|--meta\|depends" crates/iwe/src/ | head -30
+  [shim_fallthrough      ] grep -rn "metadata_filter\|metadata_filters" crates/ | head -30
+  [file_read             ] read crates/liwe/src/find.rs
+  [shim_fallthrough      ] grep -rn "get_metadata\|fn get_metadata" crates/liwe/src/ | head -20
+  [file_read             ] read crates/liwe/src/graph.rs
+  [shim_fallthrough      ] grep -rn "metadata" crates/liwe/src/graph.rs crates/liwe/src/parser.rs | head -40
+  [shim_fallthrough      ] grep -rn "metadata\|frontmatter\|front_matter\|bare" crates/liwe/src/parser.rs crates/liwe/src/markdown.rs | head -60
+  [file_read             ] read crates/liwe/src/markdown.rs
+  [shim_fallthrough      ] grep -n "depends\|filter.*starts_with" crates/liwe/tests/bare_frontmatter_test.rs crates/liwe/src/markdown.rs BARE_FRONT
+  [shim_fallthrough      ] grep -n "starts_with(' ')\|cleaned_header\|bare_frontmatter" BARE_FRONTMATTER_SPEC.md | head -20
+  [file_read             ] read crates/liwe/tests/bare_frontmatter_test.rs
+  [mutation              ] edit crates/liwe/src/markdown.rs
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-1-naR13m && cargo test --quiet 2>&1 | tail -40
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-1-naR13m && cargo test 2>&1 | grep -E "^test result|FAILED|error" | tail -30
+  [shim_fallthrough      ] grep -n "tags\|Sequence\|list" crates/liwe/tests/find_metadata_test.rs | head -10
+  [file_read             ] read crates/liwe/tests/find_metadata_test.rs
+  [file_read             ] read crates/liwe/tests/find_metadata_test.rs
+  [file_read             ] read crates/liwe/tests/find_metadata_test.rs
+  [other                 ] wc -l crates/liwe/tests/find_metadata_test.rs
+  [file_read             ] read crates/liwe/tests/find_metadata_test.rs
+  [shim_fallthrough      ] cat >> crates/liwe/tests/find_metadata_test.rs <<'EOF'
+
+#[test]
+fn bare_frontmatter_sequence_value_matches() {
+    // Re
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-1-naR13m && cargo test -p liwe --test find_metadata_test 2>&1 | tail -10
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-1-naR13m && cargo test 2>&1 | grep -E "FAILED|error\[|^error" | head

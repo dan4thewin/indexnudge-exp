@@ -1,0 +1,43 @@
+Tokens: 214593 (in=191804, out=3931)
+Tool calls: 18 | Navigation: 14
+  DB structural: 0
+  DB lines:      0
+  DB other:      0
+  Shim hit:      0
+  Shim fallthru: 9
+  Shim evasion:  0
+  File read:     5
+Scores:
+  db_ratio:         0.0
+  structural_ratio: 0.0
+  evasion_ratio:    0.0
+  file_read_ratio:  0.357
+  line_ratio:       0.0
+  nav_ratio:        0.778
+
+Categories: {'shim_fallthrough': 9, 'file_read': 5, 'build_test': 3, 'mutation': 1}
+
+Commands:
+  [shim_fallthrough      ] ls && find . -type f -name "*.md" | head -5
+  [shim_fallthrough      ] ls crates && grep -rn "bare" --include="*.rs" -l | head
+  [shim_fallthrough      ] grep -rn "frontmatter\|front_matter\|bare" crates/liwe/src/ | head -40
+  [shim_fallthrough      ] grep -rn "meta\|depends" crates/iwe/src/ | head -30
+  [shim_fallthrough      ] grep -n "metadata_filters\|get_metadata\|metadata" crates/iwe/src/*.rs crates/liwe/src/graph.rs | head -50
+  [shim_fallthrough      ] grep -rn "metadata_filters\|matches_metadata\|meta_match" crates/ | head -30
+  [file_read             ] read crates/liwe/src/find.rs
+  [file_read             ] read crates/liwe/tests/bare_frontmatter_test.rs
+  [file_read             ] read crates/liwe/src/markdown.rs
+  [shim_fallthrough      ] cd /tmp/pi-bench-iwe-debug-3-zM6nbC && cat > /tmp/check.rs << 'EOF'
+EOF
+grep -rn "depends" crates/ | head
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-3-zM6nbC && cargo test --test find_metadata_test 2>&1 | tail -20
+  [file_read             ] read crates/liwe/tests/find_metadata_test.rs
+  [mutation              ] edit crates/liwe/src/markdown.rs
+  [file_read             ] read crates/liwe/tests/find_metadata_test.rs
+  [shim_fallthrough      ] cd /tmp/pi-bench-iwe-debug-3-zM6nbC && tail -5 crates/liwe/tests/find_metadata_test.rs
+  [shim_fallthrough      ] cat >> /tmp/pi-bench-iwe-debug-3-zM6nbC/crates/liwe/tests/find_metadata_test.rs << 'EOF'
+
+#[test]
+fn bare_frontmatter_se
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-3-zM6nbC && cargo test 2>&1 | tail -40
+  [build_test            ] cd /tmp/pi-bench-iwe-debug-3-zM6nbC && cargo test 2>&1 | grep -E "^test result|FAILED|error" | head -30
