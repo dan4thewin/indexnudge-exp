@@ -267,6 +267,7 @@ struct SymbolRecord {
     parent: Option<String>,
     signature: Option<String>,
     cyclomatic: Option<i64>,
+    cognitive: Option<i64>,
 }
 
 struct CallRecord {
@@ -417,6 +418,11 @@ impl Extractor {
             .child_by_field_name("body")
             .map(|body| 1 + count_decision_points(body, self.source.as_bytes()));
 
+        // Sonar Cognitive Complexity over the body
+        let cognitive = node
+            .child_by_field_name("body")
+            .map(|body| count_cognitive_complexity(body, self.source.as_bytes()));
+
         self.symbols.push(SymbolRecord {
             name: name.clone(),
             qualified_name: qualified.clone(),
@@ -427,6 +433,7 @@ impl Extractor {
             parent,
             signature: Some(sig),
             cyclomatic: Some(cyclomatic.unwrap_or(1) as i64),
+            cognitive: Some(cognitive.unwrap_or(0) as i64),
         });
 
         let sym_name = qualified.unwrap_or(name.clone());
@@ -484,6 +491,7 @@ impl Extractor {
             parent: None,
             signature: trait_name.as_ref().map(|t| format!("impl {} for {}", t, type_name)),
             cyclomatic: None,
+            cognitive: None,
         });
 
         self.scope_stack.push(type_name);
@@ -507,6 +515,7 @@ impl Extractor {
             parent: None,
             signature: None,
             cyclomatic: None,
+            cognitive: None,
         });
         // Extract references from field types
         let mut cursor = node.walk();
@@ -530,6 +539,7 @@ impl Extractor {
             parent: None,
             signature: None,
             cyclomatic: None,
+            cognitive: None,
         });
     }
 
@@ -548,6 +558,7 @@ impl Extractor {
             parent: None,
             signature: None,
             cyclomatic: None,
+            cognitive: None,
         });
         self.scope_stack.push(name);
         if let Some(body) = node.child_by_field_name("body") {
@@ -569,6 +580,7 @@ impl Extractor {
             parent: self.current_scope(),
             signature: None,
             cyclomatic: None,
+            cognitive: None,
         });
     }
 
@@ -996,6 +1008,159 @@ fn count_decision_points(node: Node, src: &[u8]) -> usize {
     count
 }
 
+/// Per-function Cognitive Complexity (Campbell / SonarSource 2018).
+///
+/// Calibrated against Mozilla `rust-code-analysis`'s `cognitive.sum`
+/// (`src/metrics/cognitive.rs`), the canonical Rust implementation
+/// of the Sonar spec. A function's reported number matches Mozilla's
+/// merged per-function value: own decisions + contributions from every
+/// closure and nested `fn` defined inside, each weighted by the
+/// nesting level at which they appear.
+///
+/// Per-node rules implemented (tree-sitter-rust node kinds):
+///
+/// | construct                         | structural cost            |
+/// |-----------------------------------|----------------------------|
+/// | `if_expression` (not else-if)     | +1 + nesting, then nesting++ |
+/// | `if_expression` (else-if; parent is `else_clause`) | 0 (paid by `else_clause`) |
+/// | `for_expression`, `while_expression`, `loop_expression`, `match_expression` | +1 + nesting, then nesting++ |
+/// | `else_clause`                     | +1 (flat, no nesting bonus) |
+/// | match arms                        | 0 (only inner content adds) |
+/// | `break_expression`/`continue_expression` with `loop_label` child | +1 |
+/// | `try_expression` (`?`)            | 0                           |
+/// | early `return`                    | 0                           |
+/// | `binary_expression` `&&`/`||`     | +1 per operator group (BoolSequence: starts a new group, or switches operator kind) |
+/// | `unary_expression`                | resets the BoolSequence to NOT marker |
+/// | `closure_expression`              | lambda++ in body            |
+/// | nested `function_item`            | nesting reset to 0, depth++ in body |
+///
+/// "Nesting" here is the carried bonus added on each increment: at the
+/// site of an increment, `structural += nesting + lambda + depth + 1`.
+/// `nesting` only increments at the four structural-nesting constructs
+/// (if / for / while / loop / match); `else_clause` does NOT bump nesting
+/// (matching Mozilla, so the chained `else if`'s inner contents share
+/// nesting with the outer branch). The boolean sequence (the prev
+/// operator marker) resets every time `nesting` is bumped.
+///
+/// Reference: https://github.com/mozilla/rust-code-analysis/blob/main/src/metrics/cognitive.rs
+/// — Sonar spec PDF: https://www.sonarsource.com/docs/CognitiveComplexity.pdf
+fn count_cognitive_complexity(body: Node, src: &[u8]) -> usize {
+    let mut state = CogState {
+        nesting: 0,
+        depth: 0,
+        lambda: 0,
+        prev_bool: None,
+        count: 0,
+    };
+    walk_cognitive(body, src, &mut state);
+    state.count
+}
+
+struct CogState {
+    nesting: usize,
+    depth: usize,
+    lambda: usize,
+    prev_bool: Option<&'static str>,
+    count: usize,
+}
+
+fn walk_cognitive(node: Node, src: &[u8], state: &mut CogState) {
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        match child.kind() {
+            "if_expression" => {
+                let is_else_if = child
+                    .parent()
+                    .map(|p| p.kind() == "else_clause")
+                    .unwrap_or(false);
+                if !is_else_if {
+                    state.count += state.nesting + state.lambda + state.depth + 1;
+                    let saved_prev = state.prev_bool.take();
+                    state.nesting += 1;
+                    walk_cognitive(child, src, state);
+                    state.nesting -= 1;
+                    state.prev_bool = saved_prev;
+                } else {
+                    walk_cognitive(child, src, state);
+                }
+            }
+            "for_expression"
+            | "while_expression"
+            | "loop_expression"
+            | "match_expression" => {
+                state.count += state.nesting + state.lambda + state.depth + 1;
+                let saved_prev = state.prev_bool.take();
+                state.nesting += 1;
+                walk_cognitive(child, src, state);
+                state.nesting -= 1;
+                state.prev_bool = saved_prev;
+            }
+            "else_clause" => {
+                state.count += 1;
+                walk_cognitive(child, src, state);
+            }
+            "break_expression" | "continue_expression" => {
+                let mut c2 = child.walk();
+                let labeled = child
+                    .children(&mut c2)
+                    .any(|n| n.kind() == "loop_label");
+                if labeled {
+                    state.count += 1;
+                }
+                walk_cognitive(child, src, state);
+            }
+            "binary_expression" => {
+                if let Some(op) = child.child_by_field_name("operator") {
+                    let op_kind = op.kind();
+                    if op_kind == "&&" || op_kind == "||" {
+                        let marker: &'static str = if op_kind == "&&" { "&&" } else { "||" };
+                        match state.prev_bool {
+                            None => {
+                                state.count += 1;
+                                state.prev_bool = Some(marker);
+                            }
+                            Some(prev) if prev == marker => {}
+                            Some(_) => {
+                                state.count += 1;
+                                state.prev_bool = Some(marker);
+                            }
+                        }
+                    }
+                }
+                walk_cognitive(child, src, state);
+            }
+            "unary_expression" => {
+                state.prev_bool = Some("NOT");
+                walk_cognitive(child, src, state);
+            }
+            "closure_expression" => {
+                let saved_lambda = state.lambda;
+                let saved_prev = state.prev_bool.take();
+                state.lambda += 1;
+                walk_cognitive(child, src, state);
+                state.lambda = saved_lambda;
+                state.prev_bool = saved_prev;
+            }
+            "function_item" => {
+                let saved_nesting = state.nesting;
+                let saved_depth = state.depth;
+                let saved_lambda = state.lambda;
+                let saved_prev = state.prev_bool.take();
+                state.nesting = 0;
+                state.depth += 1;
+                walk_cognitive(child, src, state);
+                state.nesting = saved_nesting;
+                state.depth = saved_depth;
+                state.lambda = saved_lambda;
+                state.prev_bool = saved_prev;
+            }
+            _ => {
+                walk_cognitive(child, src, state);
+            }
+        }
+    }
+}
+
 fn is_keyword(s: &str) -> bool {
     matches!(
         s,
@@ -1055,7 +1220,7 @@ fn create_schema(conn: &Connection) -> Result<()> {
         "
         PRAGMA journal_mode=DELETE;
         PRAGMA synchronous=OFF;
-        PRAGMA user_version=9;
+        PRAGMA user_version=10;
 
         CREATE TABLE lines (
             file     TEXT,
@@ -1076,7 +1241,8 @@ fn create_schema(conn: &Connection) -> Result<()> {
             end_line       INTEGER,
             parent         TEXT,
             signature      TEXT,
-            cyclomatic     INTEGER
+            cyclomatic     INTEGER,
+            cognitive      INTEGER
         );
 
         CREATE TABLE calls (
@@ -1132,6 +1298,7 @@ fn create_schema(conn: &Connection) -> Result<()> {
         CREATE INDEX idx_symbols_qualified ON symbols(qualified_name);
         CREATE INDEX idx_symbols_file ON symbols(file);
         CREATE INDEX idx_symbols_cyclomatic ON symbols(cyclomatic);
+        CREATE INDEX idx_symbols_cognitive ON symbols(cognitive);
         CREATE INDEX idx_calls_callee ON calls(callee);
         CREATE INDEX idx_calls_caller ON calls(caller_symbol);
         CREATE INDEX idx_defs_var ON defs(var);
@@ -1244,7 +1411,7 @@ fn create_schema(conn: &Connection) -> Result<()> {
 
 /// Schema version — bump when tables/columns change.
 /// freshen checks this and falls back to full_index if outdated.
-const SCHEMA_VERSION: i64 = 9;
+const SCHEMA_VERSION: i64 = 10;
 
 /// Returns true if the DB schema is current. If outdated, freshen
 /// should abandon incremental update and do a full rebuild.
@@ -1259,11 +1426,11 @@ fn schema_is_current(conn: &Connection) -> bool {
 
 fn insert_symbols(conn: &Connection, symbols: &[SymbolRecord]) -> Result<()> {
     let mut stmt = conn.prepare(
-        "INSERT INTO symbols (name, qualified_name, kind, file, start_line, end_line, parent, signature, cyclomatic)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        "INSERT INTO symbols (name, qualified_name, kind, file, start_line, end_line, parent, signature, cyclomatic, cognitive)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
     )?;
     for s in symbols {
-        stmt.execute(rusqlite::params![s.name, s.qualified_name, s.kind, s.file, s.start_line as i64, s.end_line as i64, s.parent, s.signature, s.cyclomatic])?;
+        stmt.execute(rusqlite::params![s.name, s.qualified_name, s.kind, s.file, s.start_line as i64, s.end_line as i64, s.parent, s.signature, s.cyclomatic, s.cognitive])?;
     }
     Ok(())
 }
@@ -1981,6 +2148,198 @@ fn match_with_or_pattern(x: i32) -> i32 {
         let mut extractor = Extractor::new("test.rs".to_string(), source);
         extractor.extract(tree.root_node());
         insert_symbols(conn, &extractor.symbols).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod cognitive_tests {
+    use super::*;
+
+    fn setup_db() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        create_schema(&conn).unwrap();
+        conn
+    }
+
+    fn index_sample(conn: &Connection, source: &str) {
+        let mut parser = TsParser::new();
+        parser.set_language(&tree_sitter_rust::LANGUAGE.into()).unwrap();
+        let tree = parser.parse(source, None).unwrap();
+        let mut extractor = Extractor::new("test.rs".to_string(), source);
+        extractor.extract(tree.root_node());
+        insert_symbols(conn, &extractor.symbols).unwrap();
+    }
+
+    fn lookup(conn: &Connection) -> std::collections::HashMap<String, Option<i64>> {
+        conn.prepare("SELECT name, cognitive FROM symbols WHERE file='test.rs' AND kind IN ('function','method') ORDER BY start_line")
+            .unwrap()
+            .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, Option<i64>>(1)?)))
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect()
+    }
+
+    #[test]
+    fn cognitive_20_arm_match_is_one() {
+        let conn = setup_db();
+        index_sample(&conn, r#"fn dispatch(x: i32) -> i32 {
+    match x {
+        0 => 0,  1 => 1,  2 => 2,  3 => 3,  4 => 4,
+        5 => 5,  6 => 6,  7 => 7,  8 => 8,  9 => 9,
+        10 => 10, 11 => 11, 12 => 12, 13 => 13, 14 => 14,
+        15 => 15, 16 => 16, 17 => 17, 18 => 18, 19 => 19,
+        _ => -1,
+    }
+}
+"#);
+        let m = lookup(&conn);
+        assert_eq!(m.get("dispatch"), Some(&Some(1)),
+                   "20-arm match with single-call arms = +1 from the match itself, arms add nothing");
+    }
+
+    #[test]
+    fn cognitive_4_level_nested_if_is_ten() {
+        let conn = setup_db();
+        index_sample(&conn, r#"fn nested(a: bool, b: bool, c: bool, d: bool) -> i32 {
+    if a {
+        if b {
+            if c {
+                if d {
+                    return 1;
+                }
+            }
+        }
+    }
+    0
+}
+"#);
+        let m = lookup(&conn);
+        assert_eq!(m.get("nested"), Some(&Some(10)),
+                   "4-level nested if: +1 +2 +3 +4 = 10");
+    }
+
+    #[test]
+    fn cognitive_else_if_ladder_no_nesting_bonus() {
+        let conn = setup_db();
+        index_sample(&conn, r#"fn ladder(x: i32) {
+    if x == 0 { println!("0"); }
+    else if x == 1 { println!("1"); }
+    else if x == 2 { println!("2"); }
+    else if x == 3 { println!("3"); }
+    else if x == 4 { println!("4"); }
+    else if x == 5 { println!("5"); }
+}
+"#);
+        let m = lookup(&conn);
+        assert_eq!(m.get("ladder"), Some(&Some(6)),
+                   "6 cases (1 if + 5 else-if): +1 each, no nesting bonus = 6");
+    }
+
+    #[test]
+    fn cognitive_if_in_closure_gets_lambda_bonus() {
+        let conn = setup_db();
+        index_sample(&conn, r#"fn with_closure(x: i32) -> i32 {
+    let f = |y: i32| {
+        if y > 0 { y } else { -y }
+    };
+    f(x)
+}
+"#);
+        let m = lookup(&conn);
+        // closure body's if: nesting=0, lambda=1 → +2.
+        // The `else` clause inside the closure: +1.
+        // Outer fn body has no other decisions; total = 3.
+        assert_eq!(m.get("with_closure"), Some(&Some(3)),
+                   "if inside closure: +2 (1 + lambda=1); else: +1; total = 3");
+    }
+
+    #[test]
+    fn cognitive_match_with_nested_match() {
+        let conn = setup_db();
+        index_sample(&conn, r#"fn nested_match(x: i32, y: i32) -> i32 {
+    match x {
+        0 => match y {
+            0 => 0,
+            _ => 1,
+        },
+        _ => 2,
+    }
+}
+"#);
+        let m = lookup(&conn);
+        // outer match: +1, nesting=1
+        // inner match (inside an arm body): +2 (1 + nesting=1)
+        // total = 3
+        assert_eq!(m.get("nested_match"), Some(&Some(3)),
+                   "outer match +1, inner match +2 (1 base + 1 nesting) = 3");
+    }
+
+    #[test]
+    fn cognitive_try_and_early_return_are_zero() {
+        let conn = setup_db();
+        index_sample(&conn, r#"fn parse(s: &str) -> Result<i32, String> {
+    let n: i32 = s.parse().map_err(|e: std::num::ParseIntError| e.to_string())?;
+    let m: i32 = s.parse().map_err(|e: std::num::ParseIntError| e.to_string())?;
+    if n + m < 0 {
+        return Err("negative".to_string());
+    }
+    Ok(n + m)
+}
+"#);
+        let m = lookup(&conn);
+        // `?` operators: +0 each (cognitive doesn't charge them; cyclomatic would).
+        // `return` inside the if body: +0 (cognitive doesn't charge early returns).
+        // The if itself: +1.
+        // The two closure args to map_err: closures contribute nothing because their bodies have no decisions.
+        // total = 1.
+        assert_eq!(m.get("parse"), Some(&Some(1)),
+                   "? and early return: 0 cognitive each; only the if contributes +1");
+    }
+
+    #[test]
+    fn cognitive_mozilla_calibration_1_level_nesting() {
+        // Verbatim from Mozilla rust-code-analysis cognitive.rs::rust_1_level_nesting.
+        // The point: prove our per-function value matches Mozilla's `cognitive.sum`
+        // for the same source, the same way `cyclomatic` does.
+        let conn = setup_db();
+        index_sample(&conn, r#"fn f() {
+    if true {                          // +1
+        if true {                      // +2 (nesting = 1)
+            println!("test");
+        } else if 1 == 1 {             // +1
+            if true {                  // +3 (nesting = 2)
+                println!("test");
+            }
+        } else {                       // +1
+            if true {                  // +3 (nesting = 2)
+                println!("test");
+            }
+        }
+    }
+}
+"#);
+        let m = lookup(&conn);
+        assert_eq!(m.get("f"), Some(&Some(11)),
+                   "Mozilla cognitive.sum for rust_1_level_nesting fixture is 11");
+    }
+
+    #[test]
+    fn cognitive_null_for_non_functions() {
+        let conn = setup_db();
+        index_sample(&conn, "struct Foo { x: i32 }\nenum Bar { A, B }\n");
+
+        let non_fns: Vec<(String, Option<i64>)> = conn
+            .prepare("SELECT name, cognitive FROM symbols WHERE file='test.rs' AND kind NOT IN ('function','method')")
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect();
+
+        assert!(!non_fns.is_empty(), "expected struct/enum rows");
+        for (name, c) in &non_fns {
+            assert!(c.is_none(), "{} (kind != fn/method) should have NULL cognitive, got {:?}", name, c);
+        }
     }
 }
 
