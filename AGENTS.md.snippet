@@ -219,17 +219,49 @@ Limits:
   - **Overlapping shingles** within one larger duplicated block all
     appear separately — merge with your own filter when needed.
 
+### Finding dead enum variants
+
+`enum_variant_refs` is a view that classifies every `Enum::Variant`
+reference (for locally-defined enums) by syntactic context: `construct`,
+`match_pat`, or `compare`. A variant that is matched/compared but never
+constructed is dead code that `rustc`'s `dead_code` lint can't see once
+the enum is publicly reachable.
+
+```bash
+# Dead variants: referenced but never constructed (safe-to-delete candidates)
+sqlite3 "$DB" "
+  SELECT v.enum, v.variant
+  FROM (SELECT DISTINCT enum, variant FROM enum_variant_refs) v
+  WHERE NOT EXISTS (
+      SELECT 1 FROM enum_variant_refs c
+      WHERE c.enum = v.enum AND c.variant = v.variant
+        AND c.context = 'construct');"
+
+# Every cleanup site for a specific dead variant
+sqlite3 "$DB" "SELECT file, line_num, context FROM enum_variant_refs
+               WHERE enum = 'RedirectOp' AND variant = 'HereDoc'
+               ORDER BY file, line_num;"
+```
+
+`Self::Variant` inside an enum's own `impl` resolves to the enclosing
+type (so those count as construction). Fully-qualified paths
+(`crate::ir::Enum::Variant`) are handled. Limits: bare variants after a
+glob `use Enum::*` import, macro-built variants, and external-crate enums
+are not tracked — this is a high-precision *candidate generator*, so
+confirm before deleting.
+
 ### Schema reference
 
 | Table         | Columns of interest                                                |
 |---------------|--------------------------------------------------------------------|
 | `lines`       | `file, line_num, content, symbol`                                  |
 | `lines_fts`   | FTS5 over `(file, line_num, content, symbol)`                      |
-| `symbols`     | `name, qualified_name, kind, file, start_line, end_line, parent, signature, cyclomatic` |
+| `symbols`     | `name, qualified_name, kind, file, start_line, end_line, parent, signature, cyclomatic, cognitive` |
 | `calls`       | `caller_file, caller_symbol, callee, callee_qname, kind, line_num`  |
 | `callee_candidates` | view: `calls` ⨝ `symbols` — one row per (call, candidate symbol) |
 | `string_literals` | view: every double-quoted string on every line, with context bucket |
 | `block_dupes` | view: 4-line duplicated runs across the codebase (extract-helper candidates) |
+| `enum_variant_refs` | view: every `Enum::Variant` ref bucketed `construct`/`match_pat`/`compare` (dead-variant detection) |
 | `defs`        | `symbol, file, line_num, var, kind`  *(variable/binding definitions)* |
 | `imports`     | `file, module, line_num`                                           |
 | `files`       | `file, lines, language, indexed_mtime`                             |

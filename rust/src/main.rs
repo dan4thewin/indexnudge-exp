@@ -1220,7 +1220,7 @@ fn create_schema(conn: &Connection) -> Result<()> {
         "
         PRAGMA journal_mode=DELETE;
         PRAGMA synchronous=OFF;
-        PRAGMA user_version=10;
+        PRAGMA user_version=11;
 
         CREATE TABLE lines (
             file     TEXT,
@@ -1404,6 +1404,93 @@ fn create_schema(conn: &Connection) -> Result<()> {
         FROM sh
         GROUP BY shingle
         HAVING COUNT(*) >= 2;
+
+        CREATE VIEW enum_variant_refs AS
+        WITH RECURSIVE
+        wc(w) AS (SELECT 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_'),
+        -- Peel `Enum::Variant` scoped identifiers from each source line. The
+        -- walk advances one `::`-segment at a time (rest := text after the
+        -- `::`, NOT past the variant) so overlapping pairs in a qualified path
+        -- like `crate::ir::RedirectOp::HereDoc` all surface — here that yields
+        -- (crate,ir), (ir,RedirectOp), (RedirectOp,HereDoc); only the last
+        -- passes the PascalCase + local-enum filters below.
+        --
+        -- enum    = trailing identifier of the text before the `::`
+        -- variant = leading identifier of the text after the `::`
+        -- pre     = everything on the line before `enum` (head + segment prefix)
+        -- post    = everything on the line after `variant`
+        -- head    = consumed prefix carried across iterations (through the `::`)
+        peeled(file, line_num, symbol, enum, variant, pre, post, head, rest, pos) AS (
+            SELECT file, line_num, symbol,
+                   substr(substr(content, 1, instr(content, '::') - 1),
+                          length(rtrim(substr(content, 1, instr(content, '::') - 1), (SELECT w FROM wc))) + 1),
+                   substr(substr(content, instr(content, '::') + 2), 1,
+                          length(substr(content, instr(content, '::') + 2)) - length(ltrim(substr(content, instr(content, '::') + 2), (SELECT w FROM wc)))),
+                   substr(content, 1, instr(content, '::') - 1
+                          - length(substr(substr(content, 1, instr(content, '::') - 1),
+                                   length(rtrim(substr(content, 1, instr(content, '::') - 1), (SELECT w FROM wc))) + 1))),
+                   substr(substr(content, instr(content, '::') + 2),
+                          length(substr(substr(content, instr(content, '::') + 2), 1,
+                                 length(substr(content, instr(content, '::') + 2)) - length(ltrim(substr(content, instr(content, '::') + 2), (SELECT w FROM wc))))) + 1),
+                   substr(content, 1, instr(content, '::') + 1),
+                   substr(content, instr(content, '::') + 2),
+                   1
+            FROM lines
+            WHERE content LIKE '%::%'
+              AND trim(content) NOT LIKE '//%'
+            UNION ALL
+            SELECT file, line_num, symbol,
+                   substr(substr(rest, 1, instr(rest, '::') - 1),
+                          length(rtrim(substr(rest, 1, instr(rest, '::') - 1), (SELECT w FROM wc))) + 1),
+                   substr(substr(rest, instr(rest, '::') + 2), 1,
+                          length(substr(rest, instr(rest, '::') + 2)) - length(ltrim(substr(rest, instr(rest, '::') + 2), (SELECT w FROM wc)))),
+                   head || substr(rest, 1, instr(rest, '::') - 1
+                          - length(substr(substr(rest, 1, instr(rest, '::') - 1),
+                                   length(rtrim(substr(rest, 1, instr(rest, '::') - 1), (SELECT w FROM wc))) + 1))),
+                   substr(substr(rest, instr(rest, '::') + 2),
+                          length(substr(substr(rest, instr(rest, '::') + 2), 1,
+                                 length(substr(rest, instr(rest, '::') + 2)) - length(ltrim(substr(rest, instr(rest, '::') + 2), (SELECT w FROM wc))))) + 1),
+                   head || substr(rest, 1, instr(rest, '::') + 1),
+                   substr(rest, instr(rest, '::') + 2),
+                   pos + 1
+            FROM peeled
+            WHERE rest LIKE '%::%' AND pos < 20
+        )
+        SELECT file, line_num, symbol, enum, variant, context FROM (
+            SELECT file, line_num, symbol,
+                   -- Resolve `Self::Variant` (idiomatic construction inside an
+                   -- enum's own impl) to the enclosing type, taken from the
+                   -- attributed symbol's qualified name (e.g. `BuiltinCmd::from_name`
+                   -- -> `BuiltinCmd`). Without this, every variant built via
+                   -- `Self::X` looks never-constructed and is falsely flagged dead.
+                   CASE WHEN enum = 'Self'
+                        THEN CASE WHEN symbol LIKE '%::%'
+                                  THEN substr(symbol, 1, instr(symbol, '::') - 1)
+                                  ELSE symbol END
+                        ELSE enum END AS enum,
+                   variant,
+                   -- Classify by the text immediately around THIS occurrence.
+                   -- For `pre`, strip any trailing qualified-path prefix
+                   -- (`crate::ir::`) with rtrim so the operator/`|` that sits
+                   -- before the path is still seen (`== crate::ir::Enum::V`).
+                   CASE
+                       WHEN rtrim(pre, (SELECT w FROM wc) || ':') LIKE '%=='
+                         OR rtrim(pre, (SELECT w FROM wc) || ':') LIKE '%== '
+                         OR rtrim(pre, (SELECT w FROM wc) || ':') LIKE '%!='
+                         OR rtrim(pre, (SELECT w FROM wc) || ':') LIKE '%!= '
+                         OR post LIKE '==%' OR post LIKE ' ==%'
+                         OR post LIKE '!=%' OR post LIKE ' !=%' THEN 'compare'
+                       WHEN post LIKE '%=>%' OR post LIKE ' |%' OR post LIKE '|%'
+                         OR rtrim(pre, (SELECT w FROM wc) || ':') LIKE '%| '
+                         OR rtrim(pre, (SELECT w FROM wc) || ':') LIKE '%|' THEN 'match_pat'
+                       ELSE 'construct'
+                   END AS context
+            FROM peeled
+            WHERE enum <> '' AND variant <> ''
+              AND substr(enum, 1, 1) GLOB '[A-Z]'
+              AND substr(variant, 1, 1) GLOB '[A-Z]'
+        )
+        WHERE enum IN (SELECT name FROM symbols WHERE kind = 'enum');
         ",
     )?;
     Ok(())
@@ -1411,7 +1498,7 @@ fn create_schema(conn: &Connection) -> Result<()> {
 
 /// Schema version — bump when tables/columns change.
 /// freshen checks this and falls back to full_index if outdated.
-const SCHEMA_VERSION: i64 = 10;
+const SCHEMA_VERSION: i64 = 11;
 
 /// Returns true if the DB schema is current. If outdated, freshen
 /// should abandon incremental update and do a full rebuild.
@@ -2436,6 +2523,269 @@ fn comment_filter() {}
         let tree = parser.parse(source, None).unwrap();
         let mut extractor = Extractor::new("test.rs".to_string(), source);
         extractor.extract(tree.root_node());
+        insert_lines(conn, "test.rs", source, &extractor.symbol_ranges).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod enum_variant_refs_view_tests {
+    use super::*;
+
+    // RedirectOp::HereDoc is matched + compared but NEVER constructed (dead).
+    // RedirectOp::Append is matched AND constructed (live).
+    // Status::Ok is constructed (tuple) AND matched (live).
+    // Noise lines must not produce rows: module paths, method calls, comments.
+    const EVR_SAMPLE: &str = r#"enum RedirectOp { Append, HereDoc, Tuple }
+enum Status { Ok, Err, Pending }
+
+fn lower(op: RedirectOp) -> i32 {
+    match op {
+        RedirectOp::Append => emit_append(),
+        RedirectOp::HereDoc => emit_heredoc(),
+        RedirectOp::Tuple(_) => 3,
+    }
+}
+
+fn build(flag: bool) -> RedirectOp {
+    let r = RedirectOp::Append;
+    let _t = RedirectOp::Tuple(0);
+    r
+}
+
+fn check(op: &RedirectOp) -> bool {
+    *op == RedirectOp::HereDoc
+}
+
+fn validate(op: &RedirectOp) -> i32 {
+    match op {
+        RedirectOp::Append | RedirectOp::HereDoc => 1,
+        _ => 0,
+    }
+}
+
+fn run() -> Status {
+    let s = Status::Ok;
+    match s {
+        Status::Ok => s,
+        Status::Err => Status::Err,
+    }
+}
+
+impl Status {
+    fn from_code(c: i32) -> Status {
+        match c {
+            0 => Self::Pending,
+            _ => Self::Ok,
+        }
+    }
+}
+
+fn qualified_uses(op: &RedirectOp) -> bool {
+    // Fully-qualified paths: the operator / `|` sits before the path prefix.
+    // Classification must skip the `crate::ir::` prefix to see them.
+    if *op == crate::ir::RedirectOp::HereDoc {
+        return true;
+    }
+    matches!(op, crate::ir::RedirectOp::Append | crate::ir::RedirectOp::HereDoc)
+}
+
+fn noise() {
+    use std::process::Command;
+    let _v = Vec::<i32>::new();
+    // RedirectOp::HereDoc inside a comment must be ignored
+}
+"#;
+
+    #[test]
+    fn enum_variant_refs_buckets() {
+        let conn = setup_db();
+        index_sample(&conn, EVR_SAMPLE);
+
+        let rows: Vec<(String, String, String)> = conn
+            .prepare("SELECT enum, variant, context
+                      FROM enum_variant_refs
+                      WHERE file='test.rs'")
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect();
+
+        let has = |e: &str, v: &str, c: &str| {
+            rows.iter().any(|(re, rv, rc)| re == e && rv == v && rc == c)
+        };
+
+        // HereDoc: two match_pat (plain arm + or-pattern arm) and one compare,
+        // but never construct.
+        assert!(has("RedirectOp", "HereDoc", "match_pat"),
+                "HereDoc match arm should be match_pat");
+        assert!(has("RedirectOp", "HereDoc", "compare"),
+                "*op == RedirectOp::HereDoc should be compare");
+        assert!(!has("RedirectOp", "HereDoc", "construct"),
+                "HereDoc is never constructed — no construct rows expected");
+
+        // Append: match_pat AND construct (let r = RedirectOp::Append).
+        assert!(has("RedirectOp", "Append", "construct"),
+                "let r = RedirectOp::Append should be construct");
+
+        // Tuple: construct on the let-binding line.
+        assert!(has("RedirectOp", "Tuple", "construct"),
+                "RedirectOp::Tuple(0) should be construct");
+
+        // Status::Ok: constructed via let-binding.
+        assert!(has("Status", "Ok", "construct"),
+                "let s = Status::Ok should be construct");
+
+        // Status::Err: identity arm `Status::Err => Status::Err` — the RHS is a
+        // construction. Per-occurrence classification must catch it (the LHS is
+        // match_pat, the RHS is construct on the same line).
+        assert!(has("Status", "Err", "match_pat"),
+                "Status::Err LHS of identity arm should be match_pat");
+        assert!(has("Status", "Err", "construct"),
+                "Status::Err RHS of identity arm should be construct (regression: \
+                 whole-line classification masked this and falsely flagged it dead)");
+
+        // Status::Pending: constructed only via `Self::Pending` inside `impl Status`.
+        // Requires resolving Self -> the enclosing type (from lines.symbol).
+        assert!(has("Status", "Pending", "construct"),
+                "Self::Pending inside impl Status should resolve to Status::Pending construct");
+    }
+
+    #[test]
+    fn enum_variant_refs_detects_dead_variant() {
+        let conn = setup_db();
+        index_sample(&conn, EVR_SAMPLE);
+
+        // The FR's headline query: variants referenced but never constructed.
+        let dead: Vec<(String, String)> = conn
+            .prepare(
+                "SELECT v.enum, v.variant
+                 FROM (SELECT DISTINCT enum, variant FROM enum_variant_refs WHERE file='test.rs') v
+                 WHERE NOT EXISTS (
+                     SELECT 1 FROM enum_variant_refs c
+                     WHERE c.enum = v.enum AND c.variant = v.variant
+                       AND c.context = 'construct'
+                 )
+                 ORDER BY v.enum, v.variant")
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect();
+
+        assert_eq!(dead, vec![("RedirectOp".to_string(), "HereDoc".to_string())],
+                   "exactly RedirectOp::HereDoc should be flagged dead");
+    }
+
+    #[test]
+    fn enum_variant_refs_excludes_noise() {
+        let conn = setup_db();
+        index_sample(&conn, EVR_SAMPLE);
+
+        // Module paths (std::process::Command), method calls (Vec::new), and
+        // comment lines must not appear.
+        let bad: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM enum_variant_refs
+                 WHERE file='test.rs'
+                   AND (variant = 'Command' OR variant = 'new'
+                        OR enum = 'process' OR enum = 'Vec')",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(bad, 0, "module paths and method calls must be excluded");
+
+        // The HereDoc mention inside a // comment must not add a row.
+        let heredoc_rows: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM enum_variant_refs
+                 WHERE file='test.rs' AND enum='RedirectOp' AND variant='HereDoc'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(heredoc_rows, 5,
+                   "HereDoc: 3 match_pat (plain arm + or-arm + qualified or-arm) + 2 compare \
+                    (plain + qualified) = 5; the commented mention is excluded");
+    }
+
+    #[test]
+    fn enum_variant_refs_qualified_paths() {
+        let conn = setup_db();
+        index_sample(&conn, EVR_SAMPLE);
+
+        // `if *op == crate::ir::RedirectOp::HereDoc` — the `==` sits before the
+        // `crate::ir::` path prefix; classification must still see it as compare.
+        let qualified_compare: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM enum_variant_refs
+                 WHERE file='test.rs' AND enum='RedirectOp' AND variant='HereDoc'
+                   AND context='compare'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(qualified_compare, 2,
+                   "two compares: plain `*op == RedirectOp::HereDoc` and qualified \
+                    `*op == crate::ir::RedirectOp::HereDoc`");
+
+        // The qualified or-pattern `Append | crate::ir::RedirectOp::HereDoc`
+        // inside matches!() must classify HereDoc as match_pat even though the
+        // `|` precedes the path prefix.
+        let qualified_match: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM enum_variant_refs
+                 WHERE file='test.rs' AND enum='RedirectOp' AND variant='HereDoc'
+                   AND context='match_pat'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(qualified_match, 3,
+                   "three match_pat: plain arm, validate or-arm, and qualified matches! or-arm");
+
+        // Crucially, HereDoc remains dead (no construct) despite the extra
+        // qualified references — the fix must not introduce a spurious construct.
+        let heredoc_construct: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM enum_variant_refs
+                 WHERE file='test.rs' AND enum='RedirectOp' AND variant='HereDoc'
+                   AND context='construct'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(heredoc_construct, 0, "HereDoc must have no construct rows");
+    }
+
+    #[test]
+    fn enum_variant_refs_requires_local_enum() {
+        let conn = setup_db();
+        // No enum definitions → no local enum names in symbols → empty view,
+        // even though Foo::Bar looks like a variant.
+        index_sample(&conn, "fn f() -> i32 {\n    match x {\n        Foo::Bar => 1,\n        _ => 0,\n    }\n}\n");
+
+        let n: i64 = conn
+            .query_row("SELECT COUNT(*) FROM enum_variant_refs WHERE file='test.rs'", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(n, 0, "Foo is not a locally-defined enum — should not appear");
+    }
+
+    fn setup_db() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        create_schema(&conn).unwrap();
+        conn
+    }
+
+    fn index_sample(conn: &Connection, source: &str) {
+        let mut parser = TsParser::new();
+        parser.set_language(&tree_sitter_rust::LANGUAGE.into()).unwrap();
+        let tree = parser.parse(source, None).unwrap();
+        let mut extractor = Extractor::new("test.rs".to_string(), source);
+        extractor.extract(tree.root_node());
+        // The view filters on symbols(kind='enum'), so insert both.
+        insert_symbols(conn, &extractor.symbols).unwrap();
         insert_lines(conn, "test.rs", source, &extractor.symbol_ranges).unwrap();
     }
 }
