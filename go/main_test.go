@@ -1087,3 +1087,585 @@ if unique != 0 {
 t.Errorf("unique block should not appear in block_dupes, got %d hits", unique)
 }
 }
+
+// ─── Schema version ───────────────────────────────────────────────────────
+
+func TestSchemaVersionPragma(t *testing.T) {
+	db := setupDB(t)
+	got := queryInt(t, db, "PRAGMA user_version")
+	if got != int64(SchemaVersion) {
+		t.Errorf("PRAGMA user_version = %d, want %d", got, SchemaVersion)
+	}
+}
+
+func TestSchemaIsCurrentDetectsCurrent(t *testing.T) {
+	db := setupDB(t)
+	if !schemaIsCurrent(db) {
+		t.Error("schemaIsCurrent should be true on fresh DB")
+	}
+}
+
+func TestSchemaIsCurrentDetectsOutdated(t *testing.T) {
+	db := setupDB(t)
+	if _, err := db.Exec("PRAGMA user_version=0"); err != nil {
+		t.Fatal(err)
+	}
+	if schemaIsCurrent(db) {
+		t.Error("schemaIsCurrent should be false when user_version < SchemaVersion")
+	}
+}
+
+// ─── indexed_size column + size-based freshen detection ──────────────────
+
+func TestIndexedSizeStored(t *testing.T) {
+	db := setupDB(t)
+	indexSample(t, db, sample, "example.go")
+	got := queryInt(t, db, "SELECT indexed_size FROM files WHERE file = 'example.go'")
+	wantMin := int64(len(sample) - 10)
+	if got < wantMin {
+		t.Errorf("indexed_size = %d, want >= %d (source byte length is %d)", got, wantMin, len(sample))
+	}
+}
+
+// ─── Cognitive complexity ────────────────────────────────────────────────
+
+// lookupCognitive returns name→cognitive from the symbols table.
+func lookupCognitive(t *testing.T, db *sql.DB, file string) map[string]int64 {
+	t.Helper()
+	m := map[string]int64{}
+	rows, err := db.Query("SELECT name, COALESCE(cognitive, -1) FROM symbols WHERE file = ? AND kind IN ('function','method')", file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var name string
+		var c int64
+		if err := rows.Scan(&name, &c); err != nil {
+			t.Fatal(err)
+		}
+		m[name] = c
+	}
+	return m
+}
+
+func TestCognitive20ArmSwitchIsOne(t *testing.T) {
+	db := setupDB(t)
+	src := `package p
+
+func Dispatch(x int) int {
+	switch x {
+	case 0:
+		return 0
+	case 1:
+		return 1
+	case 2:
+		return 2
+	case 3:
+		return 3
+	case 4:
+		return 4
+	case 5:
+		return 5
+	case 6:
+		return 6
+	case 7:
+		return 7
+	case 8:
+		return 8
+	case 9:
+		return 9
+	case 10:
+		return 10
+	case 11:
+		return 11
+	case 12:
+		return 12
+	case 13:
+		return 13
+	case 14:
+		return 14
+	case 15:
+		return 15
+	case 16:
+		return 16
+	case 17:
+		return 17
+	case 18:
+		return 18
+	case 19:
+		return 19
+	default:
+		return -1
+	}
+}
+`
+	indexSample(t, db, src, "dispatch.go")
+	got := lookupCognitive(t, db, "dispatch.go")["Dispatch"]
+	if got != 1 {
+		t.Errorf("20-arm switch with single-return arms: cognitive = %d, want 1 (dispatcher discount)", got)
+	}
+}
+
+func TestCognitive4LevelNestedIfIs10(t *testing.T) {
+	db := setupDB(t)
+	src := `package p
+
+func Nested(a, b, c, d bool) int {
+	if a {
+		if b {
+			if c {
+				if d {
+					return 1
+				}
+			}
+		}
+	}
+	return 0
+}
+`
+	indexSample(t, db, src, "nested.go")
+	got := lookupCognitive(t, db, "nested.go")["Nested"]
+	if got != 10 {
+		t.Errorf("4-level nested if: cognitive = %d, want 10 (1+2+3+4)", got)
+	}
+}
+
+func TestCognitiveElseIfLadderNoNestingBonus(t *testing.T) {
+	db := setupDB(t)
+	src := `package p
+
+import "fmt"
+
+func Ladder(x int) {
+	if x == 0 {
+		fmt.Println("0")
+	} else if x == 1 {
+		fmt.Println("1")
+	} else if x == 2 {
+		fmt.Println("2")
+	} else if x == 3 {
+		fmt.Println("3")
+	} else if x == 4 {
+		fmt.Println("4")
+	} else if x == 5 {
+		fmt.Println("5")
+	}
+}
+`
+	indexSample(t, db, src, "ladder.go")
+	got := lookupCognitive(t, db, "ladder.go")["Ladder"]
+	if got != 6 {
+		t.Errorf("6-case else-if ladder: cognitive = %d, want 6 (1 if + 5 else-if, no nesting bonus)", got)
+	}
+}
+
+func TestCognitiveIfInClosureGetsLambdaBonus(t *testing.T) {
+	db := setupDB(t)
+	src := `package p
+
+func WithClosure(x int) int {
+	f := func(y int) int {
+		if y > 0 {
+			return y
+		}
+		return -y
+	}
+	return f(x)
+}
+`
+	indexSample(t, db, src, "closure.go")
+	// Inside the closure body: if has nesting=0 + lambda=1 → +2.
+	// The `else` branch is implicit (early return); no else clause emitted.
+	// Outer fn body: no decisions.
+	// Total = 2.
+	got := lookupCognitive(t, db, "closure.go")["WithClosure"]
+	if got != 2 {
+		t.Errorf("if inside closure (no else): cognitive = %d, want 2 (1 base + 1 lambda)", got)
+	}
+}
+
+func TestCognitiveSwitchWithNestedSwitch(t *testing.T) {
+	db := setupDB(t)
+	src := `package p
+
+func NestedSwitch(x, y int) int {
+	switch x {
+	case 0:
+		switch y {
+		case 0:
+			return 0
+		default:
+			return 1
+		}
+	default:
+		return 2
+	}
+}
+`
+	indexSample(t, db, src, "nestedsw.go")
+	// Outer switch: +1 (nesting=0→1)
+	// Inner switch (in case body): +2 (1 base + 1 nesting)
+	// Total = 3.
+	got := lookupCognitive(t, db, "nestedsw.go")["NestedSwitch"]
+	if got != 3 {
+		t.Errorf("nested switch: cognitive = %d, want 3 (outer +1, inner +2)", got)
+	}
+}
+
+func TestCognitiveEarlyReturnsAreZero(t *testing.T) {
+	db := setupDB(t)
+	src := `package p
+
+func Bail(x int) int {
+	if x < 0 {
+		return -1
+	}
+	return x
+}
+`
+	indexSample(t, db, src, "bail.go")
+	// Just the `if` contributes +1. early return adds 0.
+	got := lookupCognitive(t, db, "bail.go")["Bail"]
+	if got != 1 {
+		t.Errorf("early return: cognitive = %d, want 1 (only the if contributes)", got)
+	}
+}
+
+func TestCognitiveLabeledBreakContinue(t *testing.T) {
+	db := setupDB(t)
+	src := `package p
+
+func Looped() {
+Outer:
+	for i := 0; i < 10; i++ {
+		for j := 0; j < 10; j++ {
+			if i == j {
+				continue Outer
+			}
+			if i+j > 15 {
+				break Outer
+			}
+		}
+	}
+}
+`
+	indexSample(t, db, src, "looped.go")
+	// Outer for: +1 (nesting=1)
+	// Inner for: +2 (nesting=2)
+	// First if: +3 (nesting=3 after first if entry? no — nesting is bumped INSIDE if)
+	// Actually: outer for body has nesting=1. Inner for: +2, nesting=2.
+	//   Inner for body has nesting=2.
+	//   First if: +3 (2+1), nesting=3.
+	//     Labeled continue Outer: +1.
+	//   nesting=2.
+	//   Second if: +3 (2+1), nesting=3.
+	//     Labeled break Outer: +1.
+	// Total: 1+2+3+1+3+1 = 11.
+	got := lookupCognitive(t, db, "looped.go")["Looped"]
+	if got != 11 {
+		t.Errorf("labeled break/continue: cognitive = %d, want 11", got)
+	}
+}
+
+func TestCognitiveMozillaCalibration(t *testing.T) {
+	// Verbatim Mozilla rust_1_level_nesting translated to Go.
+	// Calibration anchor: per-function value should equal Mozilla's
+	// cognitive.sum for the equivalent Rust source (sum = 11).
+	db := setupDB(t)
+	src := `package p
+
+func F() {
+	if true {                              // +1
+		if true {                          // +2 (nesting = 1)
+			_ = 0
+		} else if 1 == 1 {                 // +1
+			if true {                      // +3 (nesting = 2)
+				_ = 0
+			}
+		} else {                           // +1
+			if true {                      // +3 (nesting = 2)
+				_ = 0
+			}
+		}
+	}
+}
+`
+	indexSample(t, db, src, "moz.go")
+	got := lookupCognitive(t, db, "moz.go")["F"]
+	if got != 11 {
+		t.Errorf("Mozilla 1-level-nesting calibration: cognitive = %d, want 11", got)
+	}
+}
+
+func TestCognitiveNullForNonFunctions(t *testing.T) {
+	db := setupDB(t)
+	indexSample(t, db, "package p\n\ntype Foo struct { X int }\n\ntype Bar int\n", "types2.go")
+
+	rows, err := db.Query("SELECT name, cognitive FROM symbols WHERE file = 'types2.go' AND kind NOT IN ('function','method')")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	any := false
+	for rows.Next() {
+		any = true
+		var name string
+		var c sql.NullInt64
+		if err := rows.Scan(&name, &c); err != nil {
+			t.Fatal(err)
+		}
+		if c.Valid {
+			t.Errorf("%s (non-function) should have NULL cognitive, got %d", name, c.Int64)
+		}
+	}
+	if !any {
+		t.Fatal("expected at least one struct/type row")
+	}
+}
+
+// ─── Blocks table ────────────────────────────────────────────────────────
+
+func TestBlocksExtractedKinds(t *testing.T) {
+	db := setupDB(t)
+	src := `package p
+
+func Spans(x int) int {
+	if x > 0 {
+		return 1
+	} else {
+		return -1
+	}
+}
+
+func Loops(xs []int) int {
+	total := 0
+	for _, x := range xs {
+		total += x
+	}
+	for i := 0; i < 10; i++ {
+		total += i
+	}
+	return total
+}
+
+func Switched(x int) string {
+	switch x {
+	case 0:
+		return "zero"
+	default:
+		return "other"
+	}
+}
+`
+	indexSample(t, db, src, "blocks.go")
+
+	kinds := queryStrings(t, db, "SELECT DISTINCT kind FROM blocks WHERE file = 'blocks.go' ORDER BY kind")
+	wantAtLeast := []string{"else", "fn", "for", "if", "switch"}
+	for _, want := range wantAtLeast {
+		if !contains(kinds, want) {
+			t.Errorf("blocks kinds missing %q (have %v)", want, kinds)
+		}
+	}
+}
+
+func TestBlocksParentSymbolPopulated(t *testing.T) {
+	db := setupDB(t)
+	src := `package p
+
+func Outer(x int) int {
+	if x > 0 {
+		return 1
+	}
+	return -1
+}
+`
+	indexSample(t, db, src, "blocks_parent.go")
+	parents := queryStrings(t, db,
+		"SELECT DISTINCT parent_symbol FROM blocks WHERE file = 'blocks_parent.go' AND parent_symbol IS NOT NULL")
+	if !contains(parents, "Outer") {
+		t.Errorf("expected blocks.parent_symbol = 'Outer', got %v", parents)
+	}
+}
+
+// ─── Refs table ──────────────────────────────────────────────────────────
+
+func TestRefsExtractedKinds(t *testing.T) {
+	db := setupDB(t)
+	src := `package p
+
+import "fmt"
+
+type Widget struct {
+	Name string
+}
+
+func make() *Widget { return &Widget{Name: "x"} }
+
+func Use(w *Widget) {
+	x := w.Name
+	fmt.Println(x)
+	_ = make()
+}
+`
+	indexSample(t, db, src, "refs.go")
+	kinds := queryStrings(t, db, "SELECT DISTINCT kind FROM refs WHERE file = 'refs.go' ORDER BY kind")
+	// "call" from plain Ident call (make()); "field" from selector .Sel (Println, Name);
+	// "def" from x := ..., from `make` and `Use` FuncDecl.Name, from Widget params; "type" from
+	// type positions; "use" elsewhere.
+	for _, want := range []string{"call", "def", "field", "type", "use"} {
+		if !contains(kinds, want) {
+			t.Errorf("refs kinds missing %q (have %v)", want, kinds)
+		}
+	}
+}
+
+func TestRefsCapturesNamedReferences(t *testing.T) {
+	db := setupDB(t)
+	src := `package p
+
+import "fmt"
+
+func F() {
+	x := 42
+	fmt.Println(x)
+}
+`
+	indexSample(t, db, src, "refs2.go")
+	got := queryInt(t, db, "SELECT COUNT(*) FROM refs WHERE file = 'refs2.go' AND name = 'x'")
+	if got < 2 {
+		t.Errorf("expected at least 2 refs to 'x' (def + use), got %d", got)
+	}
+	gotPrintln := queryInt(t, db, "SELECT COUNT(*) FROM refs WHERE file = 'refs2.go' AND name = 'Println' AND kind = 'field'")
+	if gotPrintln == 0 {
+		t.Error("expected fmt.Println selector recorded with kind='field'")
+	}
+}
+
+// ─── match_arms table ────────────────────────────────────────────────────
+
+func TestMatchArmsExtracted(t *testing.T) {
+	db := setupDB(t)
+	src := `package p
+
+func Pick(x int) string {
+	switch x {
+	case 0:
+		return "zero"
+	case 1, 2, 3:
+		return "small"
+	default:
+		return "other"
+	}
+}
+`
+	indexSample(t, db, src, "arms.go")
+	patterns := queryStrings(t, db,
+		"SELECT pattern FROM match_arms WHERE file = 'arms.go' ORDER BY start_line")
+	if len(patterns) != 3 {
+		t.Fatalf("expected 3 match_arms rows, got %d: %v", len(patterns), patterns)
+	}
+	want := []string{"0", "1, 2, 3", "default"}
+	for i, w := range want {
+		if patterns[i] != w {
+			t.Errorf("match_arms[%d].pattern = %q, want %q", i, patterns[i], w)
+		}
+	}
+}
+
+func TestMatchArmsHasEarlyReturn(t *testing.T) {
+	db := setupDB(t)
+	src := `package p
+
+func Mixed(x int) int {
+	switch x {
+	case 0:
+		return 0
+	case 1:
+		_ = x + 1
+		return 1
+	case 2:
+		_ = x + 2
+	default:
+		_ = func() { return }()
+		_ = x
+	}
+	return -1
+}
+`
+	indexSample(t, db, src, "arms_er.go")
+
+	rows, err := db.Query(
+		"SELECT pattern, has_early_return FROM match_arms WHERE file = 'arms_er.go' ORDER BY start_line")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	got := map[string]int{}
+	for rows.Next() {
+		var pat string
+		var er int
+		if err := rows.Scan(&pat, &er); err != nil {
+			t.Fatal(err)
+		}
+		got[pat] = er
+	}
+
+	want := map[string]int{
+		"0":       1, // bare return
+		"1":       1, // return after stmt
+		"2":       0, // no return
+		"default": 0, // return is inside a closure — must NOT count
+	}
+	for pat, w := range want {
+		if g, ok := got[pat]; !ok {
+			t.Errorf("missing arm %q", pat)
+		} else if g != w {
+			t.Errorf("arm %q: has_early_return = %d, want %d", pat, g, w)
+		}
+	}
+}
+
+func TestMatchArmsParentFnPopulated(t *testing.T) {
+	db := setupDB(t)
+	src := `package p
+
+func Outer(x int) int {
+	switch x {
+	case 0:
+		return 0
+	default:
+		return -1
+	}
+}
+`
+	indexSample(t, db, src, "arms_parent.go")
+	parents := queryStrings(t, db,
+		"SELECT DISTINCT parent_fn FROM match_arms WHERE file = 'arms_parent.go'")
+	if !contains(parents, "Outer") {
+		t.Errorf("expected match_arms.parent_fn = 'Outer', got %v", parents)
+	}
+}
+
+func TestMatchArmsSelectStmt(t *testing.T) {
+	db := setupDB(t)
+	src := `package p
+
+func Multiplex(in, out chan int, done chan struct{}) {
+	for {
+		select {
+		case v := <-in:
+			out <- v
+		case <-done:
+			return
+		}
+	}
+}
+`
+	indexSample(t, db, src, "arms_select.go")
+	got := queryInt(t, db, "SELECT COUNT(*) FROM match_arms WHERE file = 'arms_select.go'")
+	if got != 2 {
+		t.Errorf("expected 2 match_arms rows from 2-arm select, got %d", got)
+	}
+}
+

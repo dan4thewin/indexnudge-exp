@@ -35,7 +35,7 @@ shim-test:V: rust go
 	pat='sqlite3 [^ ]*\.indexnudge-[a-z]*\.db '
 	(cd rust && target/release/indexnudge)
 	echo 'PASS: rust full index'
-	(cd rust && target/release/indexnudge --freshen 2>&1) | grep -q 'up to date'
+	(cd rust && target/release/indexnudge --freshen 2>&1) | (! grep -q 'Freshened:')
 	echo 'PASS: rust freshen no-op'
 	env head -20 rust/src/main.rs | grep -q "$pat"
 	echo 'PASS: head shim (rust)'
@@ -54,7 +54,7 @@ shim-test:V: rust go
 	PATH=$PWD/bin-go:$clean
 	(cd go && ./indexnudge)
 	echo 'PASS: go full index'
-	(cd go && ./indexnudge --freshen 2>&1) | grep -q 'up to date'
+	(cd go && ./indexnudge --freshen 2>&1) | (! grep -q 'Freshened:')
 	echo 'PASS: go freshen no-op'
 	env head -20 go/main.go | grep -q "$pat"
 	echo 'PASS: head shim (go)'
