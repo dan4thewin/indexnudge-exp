@@ -194,9 +194,21 @@ even though those packages aren't indexed. The view honours this: when
 only that one row is returned.
 
 #else
-For Rust today, `calls.callee_qname` is always NULL — the indexer does
-not resolve qualified names. The view falls back to "every local
-symbol with a matching short name" and you narrow from there.
+For Rust, `calls.callee` is the **final path segment** as written
+(`foo` for `super::m::foo()`, `new` for `Type::new()`), and
+`calls.callee_qname` holds the **full written path** when the call was
+path-qualified (`super::m::foo`, `crate::util::compute`, `Self::new`) —
+otherwise NULL (bare or method calls). The written path is a module
+path, not a `parent::name`, so it won't always equal a symbol's
+`qualified_name`; the view treats it as best-effort disambiguation and
+still matches on the short name.
+
+`calls.kind` is `function`, `method`, `construct` (a PascalCase callee —
+tuple-struct / tuple-enum-variant construction, which the grammar parses
+as a call), or `macro`. Calls written **inside** a macro body
+(`print!("{}", emit_c(x))`) are captured heuristically (an identifier
+immediately before `(`); filter them out with the real ones only if you
+need precision.
 
 #endif
 
@@ -339,6 +351,53 @@ glob `use Enum::*` import, macro-built variants, and external-crate enums
 are not tracked — this is a high-precision *candidate generator*, so
 confirm before deleting.
 
+**Re-run after each removal.** The detector reports one layer: removing a
+dead variant can make its constructor (and anything reachable only from
+it) newly dead. Re-run the query after each deletion until it returns
+nothing.
+
+### Finding dead structs
+
+`struct_refs` is the struct analog of `enum_variant_refs`: it buckets
+each reference to a locally-defined struct as `construct` (`Name { .. }`,
+`Name(..)`, or `Name::new`/`::from`/any `Name::f(..)`) or `type` (type
+position — field types, signatures, generics). A struct with `type` refs
+but no `construct` is a dead-struct candidate.
+
+```bash
+sqlite3 "$DB" "
+  SELECT s.name FROM (SELECT DISTINCT name FROM struct_refs) s
+  WHERE NOT EXISTS (SELECT 1 FROM struct_refs c
+                    WHERE c.name = s.name AND c.context = 'construct');"
+```
+
+Associated-fn construction (`Interner::new()`) is detected via the
+normalized `calls` data, so structs built only through constructors are
+not false-flagged. Limits: FFI / runtime types allocated via raw
+pointers, and builder/`From`-only construction, may still appear —
+candidate generator, confirm before deleting.
+
+### Finding dead functions
+
+rustc's `dead_code` lint already catches non-`pub` dead functions, so the
+index's value is the **pub-reachable** blind spot. Filter to symbols with
+a visibility and exclude `construct` "calls":
+
+```bash
+sqlite3 "$DB" "
+  SELECT name, file, start_line FROM symbols
+  WHERE kind = 'function' AND visibility IS NOT NULL
+    AND name NOT IN (SELECT DISTINCT callee FROM calls
+                     WHERE kind IN ('function','method'))
+  ORDER BY file, start_line;"
+```
+
+Known residual false positives to discount: trait-impl methods invoked
+through the trait, FFI (`#[no_mangle]` / `extern`), entry points
+(`main`), `#[test]` functions, and anything called only inside a macro
+(captured heuristically, so usually present but not guaranteed). Re-run
+after removals, same as above.
+
 #endif
 ### Schema reference
 
@@ -346,13 +405,18 @@ confirm before deleting.
 |---------------|--------------------------------------------------------------------|
 | `lines`       | `file, line_num, content, symbol`                                  |
 | `lines_fts`   | FTS5 over `(file, line_num, content, symbol)`                      |
+#ifdef LANG_GO
 | `symbols`     | `name, qualified_name, kind, file, start_line, end_line, parent, signature, cyclomatic, cognitive` |
+#else
+| `symbols`     | `name, qualified_name, kind, file, start_line, end_line, parent, signature, cyclomatic, cognitive, visibility` |
+#endif
 | `calls`       | `caller_file, caller_symbol, callee, callee_qname, kind, line_num`  |
 | `callee_candidates` | view: `calls` ⨝ `symbols` — one row per (call, candidate symbol) |
 | `string_literals` | view: every double-quoted string on every line, with context bucket |
 | `block_dupes` | view: 4-line duplicated runs across the codebase (extract-helper candidates) |
 #ifndef LANG_GO
 | `enum_variant_refs` | view: every `Enum::Variant` ref bucketed `construct`/`match_pat`/`compare` (dead-variant detection) |
+| `struct_refs` | view: every local-struct ref bucketed `construct`/`type` (dead-struct detection) |
 #endif
 | `defs`        | `symbol, file, line_num, var, kind`  *(variable/binding definitions)* |
 | `imports`     | `file, module, line_num`                                           |

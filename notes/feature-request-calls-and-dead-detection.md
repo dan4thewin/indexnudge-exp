@@ -7,6 +7,64 @@ far dead-code detection can go. In priority order:
 
 ---
 
+## Maintainer analysis (2026-06-23) — verdict and corrections
+
+Reviewed against the indexnudge source (stable) rather than safebash line
+numbers/counts (safebash is changing in parallel). Verdict per part:
+
+| part | valid? | worthwhile? | note |
+|---|---|---|---|
+| §1 calls | yes | **yes — highest leverage** | the *diagnosis* is wrong (see below); fix is correct but must also split construction from invocation |
+| §2 struct_refs | yes | yes | build on §1's normalized calls, not raw `lines` LIKE; ctor-name heuristic is brittle |
+| §3a fixpoint | yes | **deferred** | over-engineered vs. re-running the query; not implementing now |
+| §3b document re-run | yes | yes | trivial (one doc note) |
+| §4 visibility | yes | yes | what makes §1's dead-fn oracle *usable*; modest net-new parsing |
+
+**§1 correction — calls are NOT dropped.** `extract_call`
+(`rust/src/main.rs`) records `callee = node_text(func)`; for a
+`scoped_identifier` that is the **full path string**
+(`resolve::resolve_commands`, `super::inst_handlers::handle_general_command`,
+`Self::command`), and `callee_qname` is hard-coded `None`. The call is
+captured — just keyed under the full path. The dead-fn query fails on a
+**key mismatch** (`symbols.name='resolve_commands'` ≠
+`calls.callee='resolve::resolve_commands'`), not a drop. Consequences:
+
+- The proposed fix (final segment → `callee`, full path → `callee_qname`)
+  is right and *lower-risk* than implied — re-keying captured data, not
+  recovering lost calls.
+- `callee_qname` will hold the *written* path (`super::…::f`), which does
+  **not** equal `symbols.qualified_name` (`parent::name`, no `super`/`crate`).
+  So the qname JOIN won't match for free functions; the **bare-name match
+  is the real win**, qname is best-effort disambiguation.
+- **New wrinkle:** ~296 `calls` rows in safebash are enum/tuple-variant
+  *constructions* (`ArithExpr::Paren(x)` parses as a `call_expression`).
+  Re-keying to the final segment makes `Paren` collide across
+  enums/structs/fns. §1 must tag construction vs. invocation (e.g. a
+  `kind` value) or it pollutes the dead-fn signal it exists to enable.
+
+**§2 refinement.** The `::new/default/from` heuristic only covers three
+names; real ctors include `with_capacity`, `empty`, `parse`, builders.
+After §1, `Struct::new(...)` is structured data in `calls`/`callee_qname`
+— a more robust "constructed via associated fn" signal than `LIKE`. Build
+`struct_refs` on §1 output + `refs`, and document the residual ctor-name
+gap (candidate generator, not proof).
+
+**§3.** Implement **3b** (document: the detector reports one layer; re-run
+after each removal — it converged after the 5th in safebash). **Defer 3a**
+(SQL fixpoint): it needs construct-site→enclosing-symbol→is-dead linkage
+plus iteration to catch only what a re-run already catches.
+
+**§4.** Sharpest point in the FR: rustc already catches non-pub dead code,
+so the index's unique value is the **pub-reachable** blind spot. A
+visibility column (`pub`/`pub(crate)`/private, from `visibility_modifier`)
+is what makes the §1 dead-fn oracle usable by filtering out the noise
+rustc would have caught. Net-new parsing, one column — modest.
+
+**Plan:** §1 (re-framed: normalize keys + construction/invocation split) +
+§4 (visibility) together, §2 on top of §1, §3b as docs. §3a not done.
+
+---
+
 ## 1. `calls` drops every path-qualified call site (highest leverage)
 
 The indexer records a call only when it's written as a **bare name** or

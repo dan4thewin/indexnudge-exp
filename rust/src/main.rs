@@ -268,6 +268,7 @@ struct SymbolRecord {
     signature: Option<String>,
     cyclomatic: Option<i64>,
     cognitive: Option<i64>,
+    visibility: Option<String>,
 }
 
 struct CallRecord {
@@ -384,6 +385,7 @@ impl Extractor {
             "macro_invocation" => self.extract_macro_call(node),
             "let_declaration" => self.extract_let(node),
             "match_expression" => self.extract_match(node),
+            "struct_expression" => self.extract_struct_literal(node),
             "block" | "declaration_list" => self.extract_block(node),
             "identifier" | "field_identifier" | "type_identifier" => self.extract_reference(node),
             _ => {
@@ -434,6 +436,7 @@ impl Extractor {
             signature: Some(sig),
             cyclomatic: Some(cyclomatic.unwrap_or(1) as i64),
             cognitive: Some(cognitive.unwrap_or(0) as i64),
+            visibility: self.extract_visibility(node),
         });
 
         let sym_name = qualified.unwrap_or(name.clone());
@@ -492,6 +495,7 @@ impl Extractor {
             signature: trait_name.as_ref().map(|t| format!("impl {} for {}", t, type_name)),
             cyclomatic: None,
             cognitive: None,
+            visibility: self.extract_visibility(node),
         });
 
         self.scope_stack.push(type_name);
@@ -516,6 +520,7 @@ impl Extractor {
             signature: None,
             cyclomatic: None,
             cognitive: None,
+            visibility: self.extract_visibility(node),
         });
         // Extract references from field types
         let mut cursor = node.walk();
@@ -540,6 +545,7 @@ impl Extractor {
             signature: None,
             cyclomatic: None,
             cognitive: None,
+            visibility: self.extract_visibility(node),
         });
     }
 
@@ -559,6 +565,7 @@ impl Extractor {
             signature: None,
             cyclomatic: None,
             cognitive: None,
+            visibility: self.extract_visibility(node),
         });
         self.scope_stack.push(name);
         if let Some(body) = node.child_by_field_name("body") {
@@ -581,6 +588,7 @@ impl Extractor {
             signature: None,
             cyclomatic: None,
             cognitive: None,
+            visibility: self.extract_visibility(node),
         });
     }
 
@@ -631,24 +639,69 @@ impl Extractor {
     fn extract_call(&mut self, node: Node) {
         let func_node = node.child_by_field_name("function");
         if let Some(func) = func_node {
-            let callee = self.node_text(func).to_string();
-            let kind = if func.kind() == "field_expression" { "method" } else { "function" };
-            // For method calls, extract just the method name
-            let callee_name = if kind == "method" {
-                func.child_by_field_name("field")
-                    .map(|n| self.node_text(n).to_string())
-                    .unwrap_or(callee.clone())
-            } else {
-                callee.clone()
+            // Normalize the call key so bare-name, method, and path-qualified
+            // calls are all keyed by the *final segment* (`callee`), with the
+            // full written path preserved in `callee_qname` for disambiguation.
+            // Without this, `super::m::foo()` was stored under callee
+            // "super::m::foo" and never matched `symbols.name = 'foo'`.
+            let (callee_name, callee_qname) = match func.kind() {
+                // `a::b::foo()`, `Self::foo()`, `Type::new()` — scoped path.
+                "scoped_identifier" => {
+                    let full = self.node_text(func).to_string();
+                    let final_seg = func
+                        .child_by_field_name("name")
+                        .map(|n| self.node_text(n).to_string())
+                        .unwrap_or_else(|| full.clone());
+                    (final_seg, Some(full))
+                }
+                // `receiver.method()` — keep just the method name.
+                "field_expression" => {
+                    let m = func
+                        .child_by_field_name("field")
+                        .map(|n| self.node_text(n).to_string())
+                        .unwrap_or_else(|| self.node_text(func).to_string());
+                    (m, None)
+                }
+                // bare `foo()` / `Foo(..)`.
+                _ => (self.node_text(func).to_string(), None),
             };
+
+            // Distinguish construction from invocation. tree-sitter parses
+            // tuple-struct / tuple-enum-variant construction (`Foo(x)`,
+            // `Enum::Variant(x)`) as a call_expression. By Rust convention
+            // types/variants are PascalCase and functions are snake_case, so a
+            // PascalCase final segment marks a construction — tagged distinctly
+            // so it does not pollute the dead-*function* signal.
+            let kind = if func.kind() == "field_expression" {
+                "method"
+            } else if callee_name
+                .chars()
+                .next()
+                .map_or(false, |c| c.is_uppercase())
+            {
+                "construct"
+            } else {
+                "function"
+            };
+
             self.calls.push(CallRecord {
                 caller_file: self.file.clone(),
                 caller_symbol: self.current_scope(),
                 callee: callee_name,
-                callee_qname: None,
+                callee_qname,
                 kind: kind.to_string(),
                 line_num: node.start_position().row + 1,
             });
+        }
+        // Capture calls nested in the receiver of a method chain
+        // (`to_tok(lt).expect(..)` — the inner `to_tok(lt)` sits in the
+        // function position, not the arguments, so it was being dropped).
+        if let Some(func) = func_node {
+            if func.kind() == "field_expression" {
+                if let Some(recv) = func.child_by_field_name("value") {
+                    self.walk(recv);
+                }
+            }
         }
         // Recurse into arguments
         if let Some(args) = node.child_by_field_name("arguments") {
@@ -671,6 +724,52 @@ impl Extractor {
                 kind: "macro".to_string(),
                 line_num: node.start_position().row + 1,
             });
+        }
+        // tree-sitter does not parse macro bodies as expressions — the
+        // `token_tree` holds flat tokens — so calls written inside
+        // `println!`/`format!`/`assert!`/… would otherwise be invisible to
+        // the call graph (and cause dead-function false positives, e.g. a fn
+        // used only as `print!("{}", emit_c(x))`). Heuristic: an `identifier`
+        // immediately followed by a parenthesised `token_tree` is a call;
+        // record its final-identifier name. Recurses into nested token trees.
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            if child.kind() == "token_tree" {
+                self.extract_calls_from_tokens(child);
+            }
+        }
+    }
+
+    /// Heuristic call extraction from a macro `token_tree`: any `identifier`
+    /// whose next sibling is a `token_tree` (the `(...)`) is treated as a call.
+    fn extract_calls_from_tokens(&mut self, tree: Node) {
+        let mut cursor = tree.walk();
+        let children: Vec<Node> = tree.children(&mut cursor).collect();
+        for (i, child) in children.iter().enumerate() {
+            if child.kind() == "identifier" {
+                if let Some(next) = children.get(i + 1) {
+                    if next.kind() == "token_tree" {
+                        let name = self.node_text(*child).to_string();
+                        let kind = if name.chars().next().map_or(false, |c| c.is_uppercase()) {
+                            "construct"
+                        } else {
+                            "function"
+                        };
+                        self.calls.push(CallRecord {
+                            caller_file: self.file.clone(),
+                            caller_symbol: self.current_scope(),
+                            callee: name,
+                            callee_qname: None,
+                            kind: kind.to_string(),
+                            line_num: child.start_position().row + 1,
+                        });
+                    }
+                }
+            }
+            // Recurse into nested token trees (`foo(bar(x))`).
+            if child.kind() == "token_tree" {
+                self.extract_calls_from_tokens(*child);
+            }
         }
     }
 
@@ -767,6 +866,37 @@ impl Extractor {
         if let Some(value) = value_node {
             self.walk(value);
         }
+    }
+
+    /// A struct literal `Name { .. }` (or enum struct-variant) is a
+    /// construction. Record the type name as a `refs` row with kind
+    /// `construct` so `struct_refs` can tell "built here" from "used only
+    /// in type position". Only the body is walked for further refs — the
+    /// name is intentionally not re-emitted as a `type` reference.
+    fn extract_struct_literal(&mut self, node: Node) {
+        if let Some(name_node) = node.child_by_field_name("name") {
+            if let Some(tn) = self.final_type_name(name_node) {
+                self.references.push(ReferenceRecord {
+                    file: self.file.clone(),
+                    line_num: name_node.start_position().row + 1,
+                    name: tn,
+                    kind: "construct".to_string(),
+                });
+            }
+        }
+        if let Some(body) = node.child_by_field_name("body") {
+            self.walk(body);
+        }
+    }
+
+    /// Reduce a type node (`type_identifier`, `scoped_type_identifier`,
+    /// `generic_type_with_turbofish`) to its final bare type name:
+    /// `crate::m::Foo` -> `Foo`, `Foo::<T>` -> `Foo`.
+    fn final_type_name(&self, node: Node) -> Option<String> {
+        let txt = self.node_text(node).to_string();
+        let last = txt.rsplit("::").next().unwrap_or(&txt);
+        let base = last.split('<').next().unwrap_or(last).trim();
+        if base.is_empty() { None } else { Some(base.to_string()) }
     }
 
     fn extract_block(&mut self, node: Node) {
@@ -882,6 +1012,21 @@ impl Extractor {
 
     fn find_field_text(&self, node: Node, field: &str) -> Option<String> {
         node.child_by_field_name(field).map(|n| self.node_text(n).to_string())
+    }
+
+    /// Extract an item's visibility from its `visibility_modifier` child.
+    /// Returns the written form (`pub`, `pub(crate)`, `pub(super)`,
+    /// `pub(in path)`); `None` means private (no modifier). The index's
+    /// unique value for dead-code detection is the pub-reachable surface
+    /// (rustc already flags non-pub dead code), so callers filter on this.
+    fn extract_visibility(&self, node: Node) -> Option<String> {
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            if child.kind() == "visibility_modifier" {
+                return Some(self.node_text(child).split_whitespace().collect::<Vec<_>>().join(""));
+            }
+        }
+        None
     }
 
     /// Walk a subtree extracting only references (identifiers/types)
@@ -1220,7 +1365,7 @@ fn create_schema(conn: &Connection) -> Result<()> {
         "
         PRAGMA journal_mode=DELETE;
         PRAGMA synchronous=OFF;
-        PRAGMA user_version=11;
+        PRAGMA user_version=12;
 
         CREATE TABLE lines (
             file     TEXT,
@@ -1242,7 +1387,8 @@ fn create_schema(conn: &Connection) -> Result<()> {
             parent         TEXT,
             signature      TEXT,
             cyclomatic     INTEGER,
-            cognitive      INTEGER
+            cognitive      INTEGER,
+            visibility     TEXT
         );
 
         CREATE TABLE calls (
@@ -1299,6 +1445,7 @@ fn create_schema(conn: &Connection) -> Result<()> {
         CREATE INDEX idx_symbols_file ON symbols(file);
         CREATE INDEX idx_symbols_cyclomatic ON symbols(cyclomatic);
         CREATE INDEX idx_symbols_cognitive ON symbols(cognitive);
+        CREATE INDEX idx_symbols_visibility ON symbols(visibility);
         CREATE INDEX idx_calls_callee ON calls(callee);
         CREATE INDEX idx_calls_caller ON calls(caller_symbol);
         CREATE INDEX idx_defs_var ON defs(var);
@@ -1341,7 +1488,9 @@ fn create_schema(conn: &Connection) -> Result<()> {
         LEFT JOIN symbols s
             ON s.name = c.callee
            AND s.kind IN ('function','method')
-           AND (c.callee_qname IS NULL OR s.qualified_name = c.callee_qname);
+           AND (c.callee_qname IS NULL
+                OR s.qualified_name IS NULL
+                OR s.qualified_name = c.callee_qname);
 
         CREATE VIEW string_literals AS
         WITH RECURSIVE peeled(file, line_num, symbol, content, value, rest, pos) AS (
@@ -1491,6 +1640,36 @@ fn create_schema(conn: &Connection) -> Result<()> {
               AND substr(variant, 1, 1) GLOB '[A-Z]'
         )
         WHERE enum IN (SELECT name FROM symbols WHERE kind = 'enum');
+
+        CREATE VIEW struct_refs AS
+        WITH structs(name) AS (SELECT DISTINCT name FROM symbols WHERE kind = 'struct')
+        -- Type-position references (field types, signatures, generics) —
+        -- captured in `refs` with kind 'type'.
+        SELECT r.file, r.line_num, r.name AS name, 'type' AS context
+        FROM refs r JOIN structs st ON st.name = r.name
+        WHERE r.kind = 'type'
+        UNION ALL
+        -- Struct-literal construction `Name { .. }` — captured in `refs`
+        -- with kind 'construct' by the extractor.
+        SELECT r.file, r.line_num, r.name, 'construct'
+        FROM refs r JOIN structs st ON st.name = r.name
+        WHERE r.kind = 'construct'
+        UNION ALL
+        -- Tuple-struct construction `Name(..)` — a PascalCase call, tagged
+        -- kind 'construct' in `calls`.
+        SELECT c.caller_file, c.line_num, c.callee, 'construct'
+        FROM calls c JOIN structs st ON st.name = c.callee
+        WHERE c.kind = 'construct'
+        UNION ALL
+        -- Associated-fn construction/use `Name::new(..)` / `Name::from(..)` /
+        -- any `Name::f(..)` — keyed off the full call path, with the struct
+        -- name anchored as a complete `::`-segment (so `Foo` does not match
+        -- `FooBar::x`). Any associated call is a liveness signal.
+        SELECT c.caller_file, c.line_num, st.name, 'construct'
+        FROM calls c JOIN structs st
+          ON c.callee_qname LIKE st.name || '::%'
+          OR c.callee_qname LIKE '%::' || st.name || '::%'
+        WHERE c.callee_qname IS NOT NULL;
         ",
     )?;
     Ok(())
@@ -1498,7 +1677,7 @@ fn create_schema(conn: &Connection) -> Result<()> {
 
 /// Schema version — bump when tables/columns change.
 /// freshen checks this and falls back to full_index if outdated.
-const SCHEMA_VERSION: i64 = 11;
+const SCHEMA_VERSION: i64 = 12;
 
 /// Returns true if the DB schema is current. If outdated, freshen
 /// should abandon incremental update and do a full rebuild.
@@ -1513,11 +1692,11 @@ fn schema_is_current(conn: &Connection) -> bool {
 
 fn insert_symbols(conn: &Connection, symbols: &[SymbolRecord]) -> Result<()> {
     let mut stmt = conn.prepare(
-        "INSERT INTO symbols (name, qualified_name, kind, file, start_line, end_line, parent, signature, cyclomatic, cognitive)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        "INSERT INTO symbols (name, qualified_name, kind, file, start_line, end_line, parent, signature, cyclomatic, cognitive, visibility)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
     )?;
     for s in symbols {
-        stmt.execute(rusqlite::params![s.name, s.qualified_name, s.kind, s.file, s.start_line as i64, s.end_line as i64, s.parent, s.signature, s.cyclomatic, s.cognitive])?;
+        stmt.execute(rusqlite::params![s.name, s.qualified_name, s.kind, s.file, s.start_line as i64, s.end_line as i64, s.parent, s.signature, s.cyclomatic, s.cognitive, s.visibility])?;
     }
     Ok(())
 }
@@ -2869,5 +3048,164 @@ fn third_unique() -> i32 {
         let mut extractor = Extractor::new("test.rs".to_string(), source);
         extractor.extract(tree.root_node());
         insert_lines(conn, "test.rs", source, &extractor.symbol_ranges).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod calls_dead_detection_tests {
+    use super::*;
+
+    fn setup_db() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        create_schema(&conn).unwrap();
+        conn
+    }
+
+    // Full extract+insert so views over refs/calls/symbols/lines work.
+    fn index_sample(conn: &Connection, source: &str) {
+        let mut parser = TsParser::new();
+        parser.set_language(&tree_sitter_rust::LANGUAGE.into()).unwrap();
+        let tree = parser.parse(source, None).unwrap();
+        let mut extractor = Extractor::new("test.rs".to_string(), source);
+        extractor.extract(tree.root_node());
+        insert_lines(conn, "test.rs", source, &extractor.symbol_ranges).unwrap();
+        insert_symbols(conn, &extractor.symbols).unwrap();
+        insert_calls(conn, &extractor.calls).unwrap();
+        insert_references(conn, &extractor.references).unwrap();
+    }
+
+    // ─── §1: call-key normalization + construction/invocation split ─────────
+
+    const CALLS_SAMPLE: &str = r#"fn caller() {
+    bare_fn();
+    self.method_call();
+    a::b::path_fn();
+    Self::assoc_fn();
+    crate::util::compute();
+    let x = TupleStruct(1);
+    let y = Enum::Variant(2);
+}
+"#;
+
+    #[test]
+    fn qualified_calls_keyed_by_final_segment() {
+        let conn = setup_db();
+        index_sample(&conn, CALLS_SAMPLE);
+
+        let rows: Vec<(String, Option<String>, String)> = conn
+            .prepare("SELECT callee, callee_qname, kind FROM calls WHERE caller_file='test.rs'")
+            .unwrap()
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect();
+
+        let find = |callee: &str| rows.iter().find(|(c, _, _)| c == callee).cloned();
+
+        // Path-qualified free fn: callee is the final segment, qname is the path.
+        assert_eq!(find("path_fn"), Some(("path_fn".into(), Some("a::b::path_fn".into()), "function".into())),
+                   "a::b::path_fn -> callee=path_fn, qname=a::b::path_fn");
+        assert_eq!(find("compute"), Some(("compute".into(), Some("crate::util::compute".into()), "function".into())));
+        assert_eq!(find("assoc_fn"), Some(("assoc_fn".into(), Some("Self::assoc_fn".into()), "function".into())));
+
+        // Bare fn unchanged; method keyed by method name with NULL qname.
+        assert_eq!(find("bare_fn"), Some(("bare_fn".into(), None, "function".into())));
+        assert_eq!(find("method_call"), Some(("method_call".into(), None, "method".into())));
+    }
+
+    #[test]
+    fn pascalcase_calls_tagged_construct() {
+        let conn = setup_db();
+        index_sample(&conn, CALLS_SAMPLE);
+
+        let kind_of = |callee: &str| -> Option<String> {
+            conn.query_row(
+                "SELECT kind FROM calls WHERE caller_file='test.rs' AND callee=?1",
+                [callee], |r| r.get(0)).ok()
+        };
+        // Tuple-struct / tuple-variant construction parses as a call_expression;
+        // PascalCase final segment marks it 'construct', not 'function'.
+        assert_eq!(kind_of("TupleStruct"), Some("construct".into()),
+                   "TupleStruct(1) is a construction");
+        assert_eq!(kind_of("Variant"), Some("construct".into()),
+                   "Enum::Variant(2) is a construction");
+    }
+
+    // ─── §4: visibility ─────────────────────────────────────────────────────
+
+    #[test]
+    fn visibility_parsed() {
+        let conn = setup_db();
+        index_sample(&conn, "pub fn a() {}\npub(crate) fn b() {}\nfn c() {}\npub struct S { x: i32 }\nstruct P { y: i32 }\n");
+
+        let vis = |name: &str| -> Option<String> {
+            conn.query_row("SELECT visibility FROM symbols WHERE name=?1", [name], |r| r.get(0)).ok().flatten()
+        };
+        assert_eq!(vis("a"), Some("pub".into()));
+        assert_eq!(vis("b"), Some("pub(crate)".into()));
+        assert_eq!(vis("c"), None, "private fn -> NULL visibility");
+        assert_eq!(vis("S"), Some("pub".into()));
+        assert_eq!(vis("P"), None, "private struct -> NULL visibility");
+    }
+
+    // ─── §2: struct_refs / dead-struct detection ────────────────────────────
+
+    const STRUCT_SAMPLE: &str = r#"struct Lit { x: i32 }
+struct Tup(i32);
+struct Ctor { y: i32 }
+struct DeadStruct { z: i32 }
+struct DeadTuple(i32);
+
+impl Ctor {
+    fn new() -> Self { Ctor { y: 0 } }
+}
+
+fn build() -> Lit {
+    let a = Lit { x: 1 };
+    let _b = Tup(2);
+    let _c = Ctor::new();
+    a
+}
+
+fn only_types(d: &DeadStruct, e: Vec<DeadTuple>) -> i32 {
+    d.z
+}
+"#;
+
+    #[test]
+    fn struct_refs_dead_detection() {
+        let conn = setup_db();
+        index_sample(&conn, STRUCT_SAMPLE);
+
+        let dead: Vec<String> = conn
+            .prepare(
+                "SELECT s.name FROM (SELECT DISTINCT name FROM struct_refs) s
+                 WHERE NOT EXISTS (SELECT 1 FROM struct_refs c
+                                   WHERE c.name = s.name AND c.context='construct')
+                 ORDER BY s.name")
+            .unwrap()
+            .query_map([], |r| r.get(0))
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect();
+
+        assert_eq!(dead, vec!["DeadStruct".to_string(), "DeadTuple".to_string()],
+                   "only structs used purely in type position are dead");
+    }
+
+    #[test]
+    fn struct_refs_construct_forms() {
+        let conn = setup_db();
+        index_sample(&conn, STRUCT_SAMPLE);
+
+        let has_construct = |name: &str| -> bool {
+            conn.query_row(
+                "SELECT COUNT(*) FROM struct_refs WHERE name=?1 AND context='construct'",
+                [name], |r| r.get::<_, i64>(0)).unwrap_or(0) > 0
+        };
+        assert!(has_construct("Lit"),  "struct-literal Lit {{ }} is a construct");
+        assert!(has_construct("Tup"),  "tuple-struct Tup(..) is a construct");
+        assert!(has_construct("Ctor"), "Ctor::new() is a construct (assoc fn)");
+        assert!(!has_construct("DeadStruct"), "DeadStruct never constructed");
     }
 }
