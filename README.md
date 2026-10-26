@@ -32,9 +32,10 @@ For normal index use, follow [`core/README.md`](core/README.md). Do not put
 this repository's experimental wrapper directories on PATH unless you
 specifically want tool interception.
 
-The submodule URL is currently the sibling `../indexnudge` local repository.
-Before publishing either repository, set the intended hosting URL and
-verify a fresh recursive clone. No remote publication is configured here.
+The standalone project is published at
+[dan4thewin/indexnudge](https://github.com/dan4thewin/indexnudge).
+The `core/` submodule uses its public HTTPS URL; initialize just `core`
+to avoid downloading the optional Goose checkout.
 
 ## Historical experiment overview
 
