@@ -1,20 +1,16 @@
 GOFLAGS=-gcflags=all=-l
 
 rust:V:
-	cd rust
-	cargo build --release
-	cp target/release/indexnudge ../bin-rust
+	make -C core rust && cp core/bin-rust/indexnudge bin-rust/indexnudge
 
 rust-test:V:
-	cd rust && cargo test
+	make -C core rust-test
 
 go:V:
-	cd go
-	go build -o indexnudge .
-	cp indexnudge ../bin-go
+	make -C core go && cp core/bin-go/indexnudge bin-go/indexnudge && cp core/bin-go/indexnudge core/go/indexnudge
 
 go-test:V:
-	cd go && go test -count=1 ./...
+	make -C core go-test
 
 all:V: rust go
 	echo 'Build complete'
@@ -33,9 +29,9 @@ shim-test:V: rust go
 	echo $clean
 	PATH=$PWD/bin-rust:$clean
 	pat='sqlite3 [^ ]*\.indexnudge-[a-z]*\.db '
-	(cd rust && target/release/indexnudge)
+	(cd core/rust && target/release/indexnudge)
 	echo 'PASS: rust full index'
-	(cd rust && target/release/indexnudge --freshen 2>&1) | (! grep -q 'Freshened:')
+	(cd core/rust && target/release/indexnudge --freshen 2>&1) | (! grep -q 'Freshened:')
 	echo 'PASS: rust freshen no-op'
 	env head -20 rust/src/main.rs | grep -q "$pat"
 	echo 'PASS: head shim (rust)'
@@ -52,9 +48,9 @@ shim-test:V: rust go
 	bash sqlite3 rust/.indexnudge-rust.db 'SELECT count(*) FROM files;' | grep -qE '^[1-9]'
 	echo 'PASS: bash sqlite3 shim (rust)'
 	PATH=$PWD/bin-go:$clean
-	(cd go && ./indexnudge)
+	(cd core/go && ./indexnudge)
 	echo 'PASS: go full index'
-	(cd go && ./indexnudge --freshen 2>&1) | (! grep -q 'Freshened:')
+	(cd core/go && ./indexnudge --freshen 2>&1) | (! grep -q 'Freshened:')
 	echo 'PASS: go freshen no-op'
 	env head -20 go/main.go | grep -q "$pat"
 	echo 'PASS: head shim (go)'
@@ -79,6 +75,5 @@ goose:V: patch
 	cp target/release/goose ../bin
 
 clean:V:
-	(cd rust && cargo clean)
-	(cd go && go clean)
+	make -C core clean
 	rm -f rust/.indexnudge-rust.db go/.indexnudge-go.db

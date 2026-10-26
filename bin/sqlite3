@@ -1,17 +1,1 @@
-#!/usr/bin/env bash
-# indexnudge shim for sqlite3 — freshen the DB before querying.
-set -euo pipefail
-SHIM_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SHIM_DIR/_indexnudge_common.bash"
-
-# Check if any argument is an indexnudge DB (.indexnudge-*.db or .indexnudge.db)
-for arg; do
-    if [[ "$arg" == *.indexnudge*.db ]] && [[ -f "$arg" ]]; then
-        CODEINDEX_DB=$(cd "$(dirname "$arg")" && pwd)/$(basename "$arg")
-        CODEINDEX_DIR=$(dirname "$CODEINDEX_DB")
-        freshen_db
-        break
-    fi
-done
-
-exec sqlite3 -cmd '.timeout 5000' "$@"
+../core/bin/sqlite3

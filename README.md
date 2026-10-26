@@ -1,4 +1,48 @@
-# indexnudge
+# indexnudge-exp
+
+This is the **experiment and history repository**. The standalone,
+Apache-2.0-licensed code index is maintained in the [`core/`](core/README.md)
+submodule, whose project name is **indexnudge**.
+
+The split keeps benchmark transcripts, development notes, agent nudges,
+text-tool wrappers, Goose integration, and the original Git history here.
+The public core contains the Rust/Go indexers, the auto-refreshing
+`sqlite3` wrapper, query documentation, and query-focused AGENTS.md templates.
+
+## Current layout
+
+- `core/`: pinned checkout of the standalone release repository.
+- `rust/`, `go/`: compatibility symlinks into `core/`, not duplicate sources.
+- `bin/`, `bin-rust/`, `bin-go/`: the experimental text-tool wrapper sets.
+  Their `sqlite3` entry point uses the wrapper from `core/`.
+- `AGENTS.md.gpp` and root snippets: historical/experimental agent instructions.
+  The public, non-scolding templates live in `core/`.
+- `benchmark/`, `audit/`, `notes/`, `EXPERIMENTS.md`, `patches/`: experiment
+  records and tooling. The optional Goose submodule remains separate.
+- `schema/schema.sql.gpp`: historical schema snapshot, not the current
+  indexers' schema source.
+
+```sh
+git submodule update --init core
+mk all                     # build core and populate experimental binary paths
+mk test                    # existing indexer and experimental wrapper checks
+```
+
+For normal index use, follow [`core/README.md`](core/README.md). Do not put
+this repository's experimental wrapper directories on PATH unless you
+specifically want tool interception.
+
+The submodule URL is currently the sibling `../indexnudge` local repository.
+Before publishing either repository, set the intended hosting URL and
+verify a fresh recursive clone. No remote publication is configured here.
+
+## Historical experiment overview
+
+The following records the original experiment setup and findings.
+Its parser/schema/setup descriptions are historical; use the core's
+documentation for the current product.
+
+### Original indexnudge overview
 
 A persistent code index for AI agents, stored as SQLite.
 
